@@ -1,0 +1,29 @@
+{
+  "name": "foodcourt-backend",
+  "version": "1.0.0",
+  "description": "FoodCourt Backend API - Premium Food Delivery & Grocery",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "smoke": "node tests/smoke.js",
+    "test": "echo \"No unit tests yet. Run smoke with npm run smoke\" && exit 0"
+  },
+  "keywords": ["fooddelivery", "grocery", "platform"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^7.0.0",
+    "axios": "^1.3.0",
+    "stripe": "^12.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
