@@ -14,6 +14,8 @@ import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import ProfilePage from "./pages/ProfilePage";
+import OffersPage from "./pages/OffersPage";
+import TrackOrderPage from "./pages/TrackOrderPage";
 
 // Smooth scroll to top on page change
 const ScrollToTop = () => {
@@ -29,7 +31,7 @@ export default function App() {
     <Router>
       <ScrollToTop />
       <div className="flex min-h-screen flex-col bg-[#F8F9FB] text-slate-900 font-sans antialiased">
-        
+
         {/* The Header is sticky, so it stays at the top */}
         <Header />
 
@@ -46,6 +48,8 @@ export default function App() {
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/offers" element={<OffersPage />} />
+            <Route path="/track-order" element={<TrackOrderPage />} />
           </Routes>
         </main>
 

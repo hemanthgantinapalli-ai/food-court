@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Tag } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
@@ -6,12 +6,23 @@ import { useCartStore } from '../store/cartStore';
 export default function CartPage() {
   const navigate = useNavigate();
   // Use the local Zustand store (not the API-based one)
-  const { items, addToCart, removeFromCart, getTotal } = useCartStore();
+  const { items, addToCart, removeFromCart, getTotal, applyCoupon, coupon, discount } = useCartStore();
+
+  const [couponCode, setCouponCode] = useState('');
+  const [couponMessage, setCouponMessage] = useState('');
 
   const subtotal = getTotal();
   const deliveryFee = subtotal > 0 ? 49 : 0;
   const tax = Math.round(subtotal * 0.05);
-  const total = subtotal + deliveryFee + tax;
+  const total = subtotal + deliveryFee + tax - (discount || 0);
+
+  const handleApplyCoupon = () => {
+    const result = applyCoupon(couponCode.trim());
+    setCouponMessage(result.message);
+    if (result.success) {
+      setCouponCode('');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] py-12 px-6">
@@ -100,11 +111,21 @@ export default function CartPage() {
                     type="text"
                     placeholder="Enter coupon code (e.g. FOODCOURT10)"
                     className="flex-1 bg-transparent outline-none font-medium text-slate-700 placeholder:text-slate-300"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
                   />
-                  <button className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-orange-500 transition-colors">
+                  <button
+                    onClick={handleApplyCoupon}
+                    className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-orange-500 transition-colors"
+                  >
                     Apply
                   </button>
                 </div>
+                {couponMessage && (
+                  <p className={`mt-3 text-sm font-bold ${couponMessage.includes('applied') ? 'text-green-500' : 'text-red-500'}`}>
+                    {couponMessage}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -135,6 +156,12 @@ export default function CartPage() {
                     <span className="text-slate-400 font-bold text-sm uppercase tracking-wider">Taxes (5%)</span>
                     <span className="text-white font-black">₹{tax}</span>
                   </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-emerald-400 font-bold text-sm uppercase tracking-wider">Discount ({coupon})</span>
+                      <span className="text-emerald-400 font-black">-₹{discount.toFixed(0)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-end mb-8">

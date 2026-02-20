@@ -5,6 +5,8 @@ export const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
+      coupon: null,
+      discount: 0,
       addToCart: (product) => {
         const currentItems = get().items;
         const existingItem = currentItems.find((item) => item._id === product._id);
@@ -19,9 +21,25 @@ export const useCartStore = create(
           set({ items: [...currentItems, { ...product, quantity: 1 }] });
         }
       },
-      removeFromCart: (id) => set({ items: get().items.filter((i) => i._id !== id) }),
-      clearCart: () => set({ items: [] }),
+      removeFromCart: (id) => {
+        const newItems = get().items.filter((i) => i._id !== id);
+        set({ items: newItems });
+        if (newItems.length === 0) set({ coupon: null, discount: 0 });
+      },
+      clearCart: () => set({ items: [], coupon: null, discount: 0 }),
       getTotal: () => get().items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+      applyCoupon: (code) => {
+        const subtotal = get().getTotal();
+        if (code === 'FOODCOURT10') {
+          set({ coupon: code, discount: subtotal * 0.1 });
+          return { success: true, message: '10% discount applied!' };
+        }
+        if (code === 'WELCOME20') {
+          set({ coupon: code, discount: subtotal * 0.2 });
+          return { success: true, message: '20% discount applied!' };
+        }
+        return { success: false, message: 'Invalid coupon code' };
+      },
     }),
     { name: 'foodcourt-storage' }
   )

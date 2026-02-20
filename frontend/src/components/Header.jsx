@@ -34,8 +34,8 @@ export default function Header() {
   return (
     <header
       className={`sticky top-0 z-50 transition-all duration-500 px-6 ${isScrolled || !isHomePage
-          ? 'bg-white/95 backdrop-blur-xl shadow-sm border-b border-slate-100 py-4'
-          : 'bg-transparent py-6'
+        ? 'bg-white/95 backdrop-blur-xl shadow-sm border-b border-slate-100 py-4'
+        : 'bg-transparent py-6'
         }`}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -54,15 +54,15 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-8">
           {[
             { label: 'Restaurants', to: '/' },
-            { label: 'Offers', to: '#' },
-            { label: 'Track Order', to: '#' },
+            { label: 'Offers', to: '/offers' },
+            { label: 'Track Order', to: '/track-order' },
           ].map(({ label, to }) => (
             <Link
               key={label}
               to={to}
               className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
-                  ? 'text-slate-500 hover:text-orange-600'
-                  : 'text-white/70 hover:text-white'
+                ? 'text-slate-500 hover:text-orange-600'
+                : 'text-white/70 hover:text-white'
                 }`}
             >
               {label}
@@ -78,8 +78,8 @@ export default function Header() {
             id="search-toggle-btn"
             onClick={() => setSearchOpen(!searchOpen)}
             className={`p-2.5 rounded-xl transition-all ${isScrolled || !isHomePage
-                ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
-                : 'text-white/70 hover:text-white'
+              ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
+              : 'text-white/70 hover:text-white'
               }`}
           >
             <Search size={20} />
@@ -90,8 +90,8 @@ export default function Header() {
             id="cart-header-btn"
             to="/cart"
             className={`relative p-2.5 rounded-xl transition-all ${isScrolled || !isHomePage
-                ? 'bg-slate-50 border border-slate-100 text-slate-700 hover:border-orange-400 hover:text-orange-600'
-                : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+              ? 'bg-slate-50 border border-slate-100 text-slate-700 hover:border-orange-400 hover:text-orange-600'
+              : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
               }`}
           >
             <ShoppingBag size={20} />
@@ -179,8 +179,8 @@ export default function Header() {
         <div className="md:hidden absolute top-full left-0 right-0 bg-white shadow-2xl border-t border-slate-100 p-6 space-y-4 animate-fade-up z-50">
           {[
             { label: 'Restaurants', to: '/' },
-            { label: 'Offers', to: '#' },
-            { label: 'Track Order', to: '#' },
+            { label: 'Offers', to: '/offers' },
+            { label: 'Track Order', to: '/track-order' },
           ].map(({ label, to }) => (
             <Link key={label} to={to} className="block font-bold text-slate-700 hover:text-orange-600 py-2 border-b border-slate-50 transition-colors">
               {label}

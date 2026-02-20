@@ -3,7 +3,7 @@ import axios from 'axios';
 import Hero from '../components/Hero';
 import RestaurantCard from '../components/RestaurantCard';
 import Loader_Component from '../components/Loader';
-import { Flame, Star, Clock, ChevronRight } from 'lucide-react';
+import { Flame, ChevronRight } from 'lucide-react';
 
 const CATEGORY_FILTERS = ['All', 'Pizza', 'Burgers', 'Sushi', 'Indian', 'Chinese', 'Healthy'];
 
@@ -69,6 +69,7 @@ const Home = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchRestaurants = async () => {
@@ -76,7 +77,7 @@ const Home = () => {
         const { data } = await axios.get('/api/restaurants');
         setRestaurants(data?.length ? data : FALLBACK_RESTAURANTS);
       } catch (error) {
-        console.warn("Backend offline — using demo data:", error.message);
+        console.warn('Backend offline — using demo data:', error.message);
         setRestaurants(FALLBACK_RESTAURANTS);
       } finally {
         setLoading(false);
@@ -87,15 +88,39 @@ const Home = () => {
 
   if (loading) return <Loader_Component message="Curating the best kitchens..." />;
 
-  const filtered = activeFilter === 'All'
-    ? restaurants
-    : restaurants.filter(r =>
-      r.cuisines?.some(c => c.toLowerCase().includes(activeFilter.toLowerCase()))
+  // Handle filter from Hero cuisine tags or search
+  const handleHeroFilter = (query) => {
+    // Check if it matches a known category
+    const matched = CATEGORY_FILTERS.find(
+      (f) => f.toLowerCase() === query.toLowerCase()
     );
+    if (matched) {
+      setActiveFilter(matched);
+      setSearchQuery('');
+    } else {
+      setSearchQuery(query);
+      setActiveFilter('All');
+    }
+  };
+
+  // Combine category filter + text search
+  const filtered = restaurants.filter((r) => {
+    const matchesCategory =
+      activeFilter === 'All' ||
+      r.cuisines?.some((c) => c.toLowerCase().includes(activeFilter.toLowerCase()));
+
+    const matchesSearch =
+      !searchQuery ||
+      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.cuisines?.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className="bg-white min-h-screen">
-      <Hero />
+      {/* Hero passes onFilterChange so cuisine tags & search work */}
+      <Hero onFilterChange={handleHeroFilter} />
 
       {/* Feature Highlights */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 py-5">
@@ -130,16 +155,20 @@ const Home = () => {
         {/* Category Cards */}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 mb-16">
           {[
-            { label: 'Pizza', emoji: '🍕', color: 'from-orange-100 to-orange-50', hover: 'hover:from-orange-500' },
-            { label: 'Sushi', emoji: '🍣', color: 'from-pink-100 to-pink-50', hover: 'hover:from-pink-500' },
-            { label: 'Burgers', emoji: '🍔', color: 'from-yellow-100 to-yellow-50', hover: 'hover:from-yellow-500' },
-            { label: 'Indian', emoji: '🍛', color: 'from-amber-100 to-amber-50', hover: 'hover:from-amber-500' },
-            { label: 'Chinese', emoji: '🥡', color: 'from-red-100 to-red-50', hover: 'hover:from-red-500' },
-            { label: 'Healthy', emoji: '🥗', color: 'from-green-100 to-green-50', hover: 'hover:from-green-500' },
-          ].map(({ label, emoji, color, hover }) => (
+            { label: 'Pizza', emoji: '🍕', color: 'from-orange-100 to-orange-50' },
+            { label: 'Sushi', emoji: '🍣', color: 'from-pink-100 to-pink-50' },
+            { label: 'Burgers', emoji: '🍔', color: 'from-yellow-100 to-yellow-50' },
+            { label: 'Indian', emoji: '🍛', color: 'from-amber-100 to-amber-50' },
+            { label: 'Chinese', emoji: '🥡', color: 'from-red-100 to-red-50' },
+            { label: 'Healthy', emoji: '🥗', color: 'from-green-100 to-green-50' },
+          ].map(({ label, emoji, color }) => (
             <button
               key={label}
-              onClick={() => setActiveFilter(activeFilter === label ? 'All' : label)}
+              onClick={() => {
+                setActiveFilter(activeFilter === label ? 'All' : label);
+                setSearchQuery('');
+                document.getElementById('restaurant-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
               className={`group flex flex-col items-center gap-3 p-5 rounded-2xl bg-gradient-to-br ${color} border border-transparent hover:border-orange-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${activeFilter === label ? 'ring-2 ring-orange-500 shadow-lg shadow-orange-100' : ''
                 }`}
             >
@@ -154,7 +183,7 @@ const Home = () => {
           {CATEGORY_FILTERS.map((filter) => (
             <button
               key={filter}
-              onClick={() => setActiveFilter(filter)}
+              onClick={() => { setActiveFilter(filter); setSearchQuery(''); }}
               className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeFilter === filter
                   ? 'bg-slate-900 text-white shadow-lg'
                   : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
@@ -163,24 +192,35 @@ const Home = () => {
               {filter}
             </button>
           ))}
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm bg-orange-500 text-white"
+            >
+              "{searchQuery}" ✕
+            </button>
+          )}
         </div>
 
-        {/* Section Header */}
-        <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
+        {/* Section Header — anchored so Hero scroll works */}
+        <div id="restaurant-section" className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Flame className="text-orange-500" size={20} />
               <span className="text-[10px] font-black tracking-[0.2em] text-orange-500 uppercase">
-                {activeFilter === 'All' ? 'Trending Now' : activeFilter}
+                {searchQuery ? `Results for "${searchQuery}"` : activeFilter === 'All' ? 'Trending Now' : activeFilter}
               </span>
             </div>
             <h2 className="text-4xl font-black tracking-tighter text-slate-900">
-              {activeFilter === 'All' ? 'Popular' : activeFilter}{' '}
+              {searchQuery ? 'Search' : activeFilter === 'All' ? 'Popular' : activeFilter}{' '}
               <span className="text-slate-400">Near You</span>
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 text-orange-600 font-bold text-sm cursor-pointer hover:gap-3 transition-all">
+          <div
+            className="flex items-center gap-2 text-orange-600 font-bold text-sm cursor-pointer hover:gap-3 transition-all"
+            onClick={() => { setActiveFilter('All'); setSearchQuery(''); }}
+          >
             View All Restaurants <ChevronRight size={16} />
           </div>
         </div>
@@ -194,8 +234,13 @@ const Home = () => {
           ) : (
             <div className="col-span-3 py-20 text-center text-slate-400">
               <span className="text-5xl block mb-4">🔍</span>
-              <p className="font-black text-xl">No restaurants found for "{activeFilter}"</p>
-              <button onClick={() => setActiveFilter('All')} className="mt-4 text-orange-500 font-bold">
+              <p className="font-black text-xl">
+                No restaurants found for "{searchQuery || activeFilter}"
+              </p>
+              <button
+                onClick={() => { setActiveFilter('All'); setSearchQuery(''); }}
+                className="mt-4 text-orange-500 font-bold"
+              >
                 Clear filter
               </button>
             </div>
@@ -237,7 +282,10 @@ const Home = () => {
                 border: 'border-green-500/20',
               },
             ].map(({ icon, title, desc, color, border }) => (
-              <div key={title} className={`bg-gradient-to-br ${color} border ${border} rounded-3xl p-8 hover:-translate-y-2 transition-all duration-300`}>
+              <div
+                key={title}
+                className={`bg-gradient-to-br ${color} border ${border} rounded-3xl p-8 hover:-translate-y-2 transition-all duration-300`}
+              >
                 <div className="w-14 h-14 flex items-center justify-center text-3xl mb-6 bg-white/5 rounded-2xl">
                   {icon}
                 </div>
@@ -283,7 +331,10 @@ const Home = () => {
               'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&q=80',
               'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&q=80',
             ].map((src, i) => (
-              <div key={i} className={`w-32 h-48 rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20 ${i === 1 ? 'mt-6' : ''}`}>
+              <div
+                key={i}
+                className={`w-32 h-48 rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20 ${i === 1 ? 'mt-6' : ''}`}
+              >
                 <img src={src} alt="App preview" className="w-full h-full object-cover" />
               </div>
             ))}

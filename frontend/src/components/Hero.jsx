@@ -1,17 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Search, MapPin, Star, Clock, Truck, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const FOOD_IMAGES = [
-  'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80',
-  'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80',
-  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80',
+const CUISINE_TAGS = [
+  { label: '🍕 Pizza', filter: 'Pizza' },
+  { label: '🍣 Sushi', filter: 'Sushi' },
+  { label: '🍔 Burgers', filter: 'Burgers' },
+  { label: '🌮 Tacos', filter: 'Indian' },
+  { label: '🍜 Noodles', filter: 'Chinese' },
+  { label: '🥗 Healthy', filter: 'Healthy' },
 ];
 
-const CUISINE_TAGS = ['🍕 Pizza', '🍣 Sushi', '🍔 Burgers', '🌮 Tacos', '🍜 Noodles', '🥗 Healthy'];
-
-const Hero = () => {
+const Hero = ({ onFilterChange }) => {
   const [activeTag, setActiveTag] = useState('🍕 Pizza');
   const [searchVal, setSearchVal] = useState('');
+  const navigate = useNavigate();
+
+  const handleTagClick = (tag) => {
+    setActiveTag(tag.label);
+    if (onFilterChange) onFilterChange(tag.filter);
+    // Scroll down to restaurant section
+    const section = document.getElementById('restaurant-section');
+    if (section) section.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleSearch = () => {
+    if (!searchVal.trim()) {
+      // Just scroll to restaurants if empty
+      const section = document.getElementById('restaurant-section');
+      if (section) section.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    if (onFilterChange) onFilterChange(searchVal.trim());
+    const section = document.getElementById('restaurant-section');
+    if (section) section.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <div className="relative min-h-[92vh] flex items-center overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-orange-950">
@@ -56,12 +79,16 @@ const Hero = () => {
             </div>
             <input
               type="text"
-              placeholder="Enter your delivery address..."
+              placeholder="Search cuisines, restaurants..."
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-14 pr-44 py-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-slate-500 font-medium outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all text-base"
             />
-            <button className="absolute right-2 top-2 bottom-2 px-8 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-sm uppercase tracking-widest hover:opacity-90 transition-all shadow-lg active:scale-95">
+            <button
+              onClick={handleSearch}
+              className="absolute right-2 top-2 bottom-2 px-8 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-sm uppercase tracking-widest hover:opacity-90 transition-all shadow-lg active:scale-95"
+            >
               Find Food
             </button>
           </div>
@@ -70,14 +97,14 @@ const Hero = () => {
           <div className="flex flex-wrap gap-2 mb-10">
             {CUISINE_TAGS.map((tag) => (
               <button
-                key={tag}
-                onClick={() => setActiveTag(tag)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTag === tag
+                key={tag.label}
+                onClick={() => handleTagClick(tag)}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTag === tag.label
                     ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30'
                     : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-white border border-white/10'
                   }`}
               >
-                {tag}
+                {tag.label}
               </button>
             ))}
           </div>
@@ -99,7 +126,7 @@ const Hero = () => {
 
         {/* Right: Image Collage */}
         <div className="relative hidden lg:flex items-center justify-center">
-          {/* Main large image */}
+          {/* Main large image — Pizza */}
           <div className="relative w-80 h-80 rounded-[3rem] overflow-hidden shadow-2xl shadow-orange-500/20 border border-white/10 animate-float">
             <img
               src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=700&q=80"
@@ -109,22 +136,22 @@ const Hero = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
 
-          {/* Floating card: top-left */}
+          {/* Floating card top-left — Burger */}
           <div className="absolute -top-4 -left-8 bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 w-44">
             <img
               src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&q=80"
-              alt="Burger"
+              alt="Smash Burger"
               className="w-full h-24 object-cover rounded-xl mb-3"
             />
             <p className="font-black text-slate-900 text-sm">Smash Burger</p>
             <p className="text-orange-600 font-black text-sm">₹299</p>
           </div>
 
-          {/* Floating card: bottom-right */}
+          {/* Floating card bottom-right — Sushi (correct image) */}
           <div className="absolute -bottom-8 -right-4 bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 w-48">
             <img
-              src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=300&q=80"
-              alt="Sushi"
+              src="https://images.unsplash.com/photo-1617196034183-421b4040ed20?w=300&q=80"
+              alt="Premium Sushi"
               className="w-full h-24 object-cover rounded-xl mb-3"
             />
             <p className="font-black text-slate-900 text-sm">Premium Sushi</p>
