@@ -1,73 +1,80 @@
 import { create } from 'zustand';
-import API from '../api/axios.js';
 
+// ─── Local-storage helpers ───────────────────────────────────────────────────
+const USERS_KEY = 'fc_users_db';
+const SESSION_KEY = 'fc_session';
+
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+  catch { return []; }
+}
+function saveUsers(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+function getSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY)); }
+  catch { return null; }
+}
+function saveSession(user) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────────
 export const useAuthStore = create((set) => ({
-  user: JSON.parse(localStorage.getItem('user')) || null,
-  token: localStorage.getItem('token') || null,
+  user: getSession(),
   loading: false,
   error: null,
 
-  signUp: async (formData) => {
+  signUp: async ({ name, email, password }) => {
     set({ loading: true, error: null });
-    try {
-      const response = await API.post('/auth/register', formData);
-      const token = response.data.token || response.data.data?.token;
-      const user = response.data.user || response.data.data?.user;
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      set({ user, token, loading: false });
-      return response.data;
-    } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Sign up failed';
-      set({ error: errorMsg, loading: false });
-      throw error;
+    await new Promise((r) => setTimeout(r, 700)); // simulate network
+    const users = getUsers();
+    if (users.find((u) => u.email === email)) {
+      set({ loading: false, error: 'Email already registered' });
+      throw new Error('Email already registered');
     }
+    const newUser = { id: Date.now(), name, email, password, createdAt: new Date().toISOString() };
+    saveUsers([...users, newUser]);
+    const { password: _, ...safeUser } = newUser;
+    saveSession(safeUser);
+    set({ user: safeUser, loading: false });
+    return safeUser;
   },
 
-  signIn: async (credentials) => {
+  signIn: async ({ email, password }) => {
     set({ loading: true, error: null });
-    try {
-      const response = await API.post('/auth/login', credentials);
-      const token = response.data.token || response.data.data?.token;
-      const user = response.data.user || response.data.data?.user;
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      set({ user, token, loading: false });
-      return response.data;
-    } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Sign in failed';
-      set({ error: errorMsg, loading: false });
-      throw error;
+    await new Promise((r) => setTimeout(r, 700));
+    const users = getUsers();
+    const found = users.find((u) => u.email === email && u.password === password);
+    if (!found) {
+      set({ loading: false, error: 'Invalid email or password' });
+      throw new Error('Invalid email or password');
     }
+    const { password: _, ...safeUser } = found;
+    saveSession(safeUser);
+    set({ user: safeUser, loading: false });
+    return safeUser;
   },
 
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    set({ user: null, token: null });
-  },
-
-  getProfile: async () => {
-    try {
-      const response = await API.get('/auth/profile');
-      set({ user: response.data.data });
-      localStorage.setItem('user', JSON.stringify(response.data.data));
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    clearSession();
+    set({ user: null });
   },
 
   updateProfile: async (updates) => {
-    try {
-      const response = await API.put('/auth/profile', updates);
-      set({ user: response.data.data });
-      localStorage.setItem('user', JSON.stringify(response.data.data));
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    const session = getSession();
+    if (!session) throw new Error('Not logged in');
+    const users = getUsers();
+    const updated = users.map((u) => u.id === session.id ? { ...u, ...updates } : u);
+    saveUsers(updated);
+    const newSession = { ...session, ...updates };
+    saveSession(newSession);
+    set({ user: newSession });
+    return newSession;
   },
 
-  isAuthenticated: () => !!localStorage.getItem('token'),
+  isAuthenticated: () => !!getSession(),
 }));
