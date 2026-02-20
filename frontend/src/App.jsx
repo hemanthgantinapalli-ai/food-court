@@ -16,6 +16,7 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import ProfilePage from "./pages/ProfilePage";
 import OffersPage from "./pages/OffersPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
+import OrderHistoryPage from "./pages/OrderHistoryPage";
 
 // Smooth scroll to top on page change
 const ScrollToTop = () => {
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/offers" element={<OffersPage />} />
             <Route path="/track-order" element={<TrackOrderPage />} />
+            <Route path="/orders" element={<OrderHistoryPage />} />
           </Routes>
         </main>
 
