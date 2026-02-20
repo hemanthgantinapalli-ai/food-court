@@ -1,32 +1,32 @@
 import React from 'react';
-import { AlertCircle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
 
 export default function Toast({ message, type = 'info', onClose }) {
   React.useEffect(() => {
-    const timer = setTimeout(onClose, 4000);
+    const timer = setTimeout(onClose, 5000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bgColor = {
-    success: 'bg-success',
-    error: 'bg-danger',
-    info: 'bg-blue-500',
-    warning: 'bg-warning',
-  }[type] || 'bg-blue-500';
+  const styles = {
+    success: { bg: 'bg-emerald-50', text: 'text-emerald-900', icon: CheckCircle, border: 'border-emerald-100', accent: 'bg-emerald-500' },
+    error: { bg: 'bg-rose-50', text: 'text-rose-900', icon: XCircle, border: 'border-rose-100', accent: 'bg-rose-500' },
+    info: { bg: 'bg-slate-900', text: 'text-white', icon: Info, border: 'border-slate-800', accent: 'bg-orange-500' },
+    warning: { bg: 'bg-amber-50', text: 'text-amber-900', icon: AlertTriangle, border: 'border-amber-100', accent: 'bg-amber-500' },
+  }[type] || styles.info;
 
-  const Icon = {
-    success: CheckCircle,
-    error: XCircle,
-    info: Info,
-    warning: AlertCircle,
-  }[type] || Info;
+  const Icon = styles.icon;
 
   return (
-    <div
-      className={`fixed bottom-4 right-4 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 animate-slide-up z-50`}
-    >
-      <Icon size={20} />
-      <p>{message}</p>
+    <div className={`fixed bottom-8 right-8 z-[100] animate-in slide-in-from-right-10 fade-in duration-500`}>
+      <div className={`flex items-center gap-5 p-5 pr-8 rounded-[2rem] shadow-2xl ${styles.bg} ${styles.text} border ${styles.border} backdrop-blur-xl`}>
+        <div className={`p-3 rounded-2xl ${styles.accent} text-white shadow-lg`}>
+          <Icon size={20} strokeWidth={3} />
+        </div>
+        <div>
+          <p className="text-sm font-black tracking-tight">{message}</p>
+          <p className="text-[10px] uppercase tracking-widest font-bold opacity-50">Just now</p>
+        </div>
+      </div>
     </div>
   );
 }

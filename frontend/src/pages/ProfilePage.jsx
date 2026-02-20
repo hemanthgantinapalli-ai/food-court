@@ -1,207 +1,89 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Phone, MapPin, Edit2, LogOut } from 'lucide-react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import Loader from '../components/Loader';
-import Toast from '../components/Toast';
+import { Mail, Phone, MapPin, Edit2, LogOut, Package, CreditCard } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 
 export default function ProfilePage() {
-  const navigate = useNavigate();
-  const { user, logout, getProfile, updateProfile } = useAuthStore();
-  const [loading, setLoading] = React.useState(false);
-  const [editing, setEditing] = React.useState(false);
-  const [toastMessage, setToastMessage] = React.useState('');
-  const [toastType, setToastType] = React.useState('info');
-  const [formData, setFormData] = React.useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-  });
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSave = async () => {
-    try {
-      setLoading(true);
-      await updateProfile(formData);
-      setToastMessage('Profile updated successfully!');
-      setToastType('success');
-      setEditing(false);
-    } catch (error) {
-      setToastMessage('Failed to update profile');
-      setToastType('error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/signin');
-  };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <button
-          onClick={() => navigate('/signin')}
-          className="bg-primary text-white px-8 py-3 rounded-lg font-bold"
-        >
-          Sign In
-        </button>
-      </div>
-    );
-  }
+  const { user, logout } = useAuthStore();
 
   return (
-    <div className="min-h-screen bg-light flex flex-col">
-      <Header />
-
-      <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
-        {/* Profile Header */}
-        <div className="bg-gradient-to-r from-primary to-secondary rounded-lg p-8 text-white mb-8">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-primary text-3xl font-bold">
-                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">
-                  {user.firstName} {user.lastName}
-                </h1>
-                <p className="text-white text-opacity-80">
-                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                </p>
-              </div>
+    <div className="min-h-screen bg-slate-50/50 py-20 px-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-6">
+          <div className="flex items-center gap-8">
+            <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-red-600 rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-xl">
+              {user?.firstName?.[0] || 'U'}
             </div>
-            <button
-              onClick={handleLogout}
-              className="bg-white text-primary px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center gap-2"
-            >
-              <LogOut size={18} /> Logout
-            </button>
+            <div>
+              <h1 className="text-5xl font-black text-slate-900 tracking-tighter">
+                Hello, <span className="text-orange-600">{user?.firstName || 'Gourmet'}</span>
+              </h1>
+              <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Elite Member Since 2026</p>
+            </div>
           </div>
-        </div>
-
-        {/* Profile Info */}
-        <div className="bg-white rounded-lg p-6 mb-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Personal Information</h2>
-            <button
-              onClick={() => setEditing(!editing)}
-              className="text-primary font-semibold flex items-center gap-2 hover:underline"
-            >
-              <Edit2 size={18} /> {editing ? 'Cancel' : 'Edit'}
-            </button>
-          </div>
-
-          {editing ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2">First Name</label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Last Name</label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="w-full bg-primary text-white py-2 rounded-lg font-bold hover:bg-secondary transition disabled:opacity-50"
-              >
-                Save Changes
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Email</label>
-                <div className="flex items-center gap-2 text-lg">
-                  <Mail size={20} className="text-primary" />
-                  {user.email}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Phone</label>
-                <div className="flex items-center gap-2 text-lg">
-                  <Phone size={20} className="text-primary" />
-                  {user.phone}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Addresses */}
-        <div className="bg-white rounded-lg p-6 mb-6">
-          <h2 className="text-2xl font-bold mb-6">Saved Addresses</h2>
-          {user.addresses && user.addresses.length > 0 ? (
-            <div className="space-y-3">
-              {user.addresses.map((address, idx) => (
-                <div key={idx} className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg">
-                  <MapPin size={20} className="text-primary mt-1" />
-                  <div className="flex-1">
-                    <p className="font-semibold">{address.label}</p>
-                    <p className="text-sm text-gray-600">
-                      {address.street}, {address.city}, {address.state} {address.zipCode}
-                    </p>
-                  </div>
-                  {address.isDefault && (
-                    <span className="bg-primary text-white text-xs px-2 py-1 rounded">
-                      Default
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-600">No addresses saved yet</p>
-          )}
-          <button className="mt-4 text-primary font-semibold hover:underline text-sm">
-            + Add New Address
+          <button onClick={logout} className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-rose-500 font-black text-xs uppercase tracking-widest hover:bg-rose-50 transition-all">
+            <LogOut size={16} /> Sign Out
           </button>
         </div>
 
-        {/* Wallet */}
-        {user.wallet && (
-          <div className="bg-gradient-to-r from-primary to-secondary rounded-lg p-6 text-white">
-            <h3 className="text-lg font-bold mb-2">Wallet Balance</h3>
-            <p className="text-4xl font-bold">₹{user.wallet.balance || 0}</p>
-            <p className="text-sm text-white text-opacity-80 mt-2">
-              Add money to your wallet for faster checkout
-            </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Contact Details */}
+          <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xl font-black text-slate-900">Personal Info</h3>
+              <Edit2 size={18} className="text-slate-300 cursor-pointer hover:text-orange-500" />
+            </div>
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400"><Mail size={18}/></div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</p>
+                  <p className="font-bold text-slate-900">{user?.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400"><Phone size={18}/></div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</p>
+                  <p className="font-bold text-slate-900">{user?.phone || 'Not provided'}</p>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Wallet / Credits */}
+          <div className="bg-slate-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200 relative overflow-hidden">
+             <div className="relative z-10">
+              <h3 className="text-xl font-black mb-2">FoodCourt Credit</h3>
+              <p className="text-5xl font-black text-orange-500 tracking-tighter mb-8">₹{user?.wallet?.balance || '0.00'}</p>
+              <button className="w-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
+                Add Funds
+              </button>
+             </div>
+             <CreditCard className="absolute -bottom-4 -right-4 text-white/5 w-40 h-40 -rotate-12" />
+          </div>
+        </div>
+
+        {/* Saved Addresses */}
+        <div className="mt-8 bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h3 className="text-xl font-black text-slate-900 mb-8">Delivery Addresses</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {user?.addresses?.map((addr, i) => (
+              <div key={i} className="p-6 rounded-[2rem] border-2 border-slate-50 bg-slate-50/30 flex items-start gap-4">
+                <MapPin className="text-orange-500 mt-1" size={20} />
+                <div>
+                  <p className="font-black text-slate-900 text-sm uppercase tracking-tight">{addr.label || 'Home'}</p>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed mt-1">
+                    {addr.street}, {addr.city}<br/>{addr.zipCode}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <button className="p-6 rounded-[2rem] border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 font-black text-xs uppercase tracking-widest hover:border-orange-500 hover:text-orange-500 transition-all">
+              + Add New Address
+            </button>
+          </div>
+        </div>
       </div>
-
-      <Footer />
-
-      {toastMessage && (
-        <Toast
-          message={toastMessage}
-          type={toastType}
-          onClose={() => setToastMessage('')}
-        />
-      )}
     </div>
   );
 }
