@@ -150,7 +150,7 @@ const Hero = ({ onFilterChange }) => {
           {/* Floating card bottom-right — Sushi (correct image) */}
           <div className="absolute -bottom-8 -right-4 bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 w-48">
             <img
-              src="https://images.unsplash.com/photo-1617196034183-421b4040ed20?w=300&q=80"
+              src="https://images.pexels.com/photos/684965/pexels-photo-684965.jpeg?cs=srgb&dl=pexels-valeria-boltneva-684965.jpg&fm=jpg"
               alt="Premium Sushi"
               className="w-full h-24 object-cover rounded-xl mb-3"
             />
