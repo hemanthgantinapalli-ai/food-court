@@ -9,36 +9,62 @@ export const createOrder = async (req, res) => {
     // Get cart
     const cart = await Cart.findOne({ user: req.userId }).populate('restaurant');
 
+    // If there's no server-side cart, allow creating order from request body (frontend fallback)
+    let orderPayload;
     if (!cart || cart.items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cart is empty',
-      });
+      const { items, subtotal, tax, deliveryFee, discount, discountCode, total, restaurant } = req.body;
+      if (!items || items.length === 0) {
+        return res.status(400).json({ success: false, message: 'Cart is empty and no items provided' });
+      }
+
+      // normalize payment method (frontend may send 'cod')
+      const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
+
+      orderPayload = {
+        customer: req.userId,
+        restaurant: restaurant || null,
+        items: items.map((item) => ({
+          menuItem: item.menuItem || item._id || null,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          addOns: item.addOns || [],
+        })),
+        deliveryAddress: deliveryAddress || {},
+        subtotal: subtotal || 0,
+        tax: tax || 0,
+        deliveryFee: deliveryFee || 0,
+        discount: discount || 0,
+        discountCode: discountCode || '',
+        total: total || 0,
+        paymentMethod: normalizedPaymentMethod,
+      };
+    } else {
+      orderPayload = {
+        customer: req.userId,
+        restaurant: cart.restaurant?._id || null,
+        items: cart.items.map((item) => ({
+          menuItem: item.menuItem,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          addOns: item.addOns,
+        })),
+        deliveryAddress,
+        subtotal: cart.subtotal,
+        tax: cart.tax,
+        deliveryFee: cart.deliveryFee,
+        discount: cart.discount,
+        discountCode: cart.discountCode,
+        total: cart.total,
+        paymentMethod,
+      };
     }
 
-    // Create order
-    const order = await Order.create({
-      customer: req.userId,
-      restaurant: cart.restaurant._id,
-      items: cart.items.map((item) => ({
-        menuItem: item.menuItem,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        addOns: item.addOns,
-      })),
-      deliveryAddress,
-      subtotal: cart.subtotal,
-      tax: cart.tax,
-      deliveryFee: cart.deliveryFee,
-      discount: cart.discount,
-      discountCode: cart.discountCode,
-      total: cart.total,
-      paymentMethod,
-    });
+    const order = await Order.create(orderPayload);
 
-    // For demo, mark as completed if COD, else pending
-    if (paymentMethod === 'cash') {
+    // For demo, mark as pending for cash payments
+    if ((order.paymentMethod || '').toLowerCase() === 'cash') {
       order.paymentStatus = 'pending';
     }
 

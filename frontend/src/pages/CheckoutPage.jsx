@@ -63,27 +63,50 @@ export default function CheckoutPage() {
 
     const paymentSelected = PAYMENT_METHODS.find((m) => m.id === paymentMethod) || PAYMENT_METHODS[0];
 
-    const orderData = {
-      id: `#FC-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId: user?.id,
-      date: new Date().toLocaleString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true
-      }),
-      status: 'Preparing',
-      total: total.toFixed(0),
-      paymentMethod: { type: paymentMethod, label: paymentSelected.label },
-      address: `${address.street}, ${address.area}, ${address.city} - ${address.pincode}`,
-      items: items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, image: i.image })),
-      eta: '45 Mins'
+    const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
+
+    const orderPayload = {
+      deliveryAddress: {
+        name: address.name,
+        phone: address.phone,
+        street: address.street,
+        area: address.area,
+        city: address.city,
+        pincode: address.pincode,
+        landmark: address.landmark,
+      },
+      paymentMethod: normalizedPaymentMethod,
+      items: items.map((i) => ({
+        _id: i._id,
+        name: i.name,
+        quantity: i.quantity,
+        price: i.price,
+        addOns: i.addOns || [],
+      })),
+      subtotal,
+      tax,
+      deliveryFee,
+      discount,
+      discountCode: coupon || '',
+      total,
     };
 
-    addOrder(orderData);
-
-    clearCart();
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => navigate('/payment-success'), 1500);
+    try {
+      const res = await API.post('/orders/create', orderPayload);
+      if (res.data?.success) {
+        clearCart();
+        setLoading(false);
+        setSuccess(true);
+        setTimeout(() => navigate('/payment-success'), 1500);
+      } else {
+        setLoading(false);
+        alert(res.data?.message || 'Failed to create order');
+      }
+    } catch (err) {
+      console.error('Order create error:', err);
+      setLoading(false);
+      alert(err.response?.data?.message || 'Failed to create order');
+    }
   };
 
   const field = (name, placeholder, type = 'text', half = false) => (
