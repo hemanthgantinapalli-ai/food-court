@@ -1,8 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { MapPin, Clock, User, Phone, Package } from 'lucide-react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
 import Loader from '../components/Loader';
 import API from '../api/axios';
 
@@ -33,10 +31,9 @@ export default function OrderDetailPage() {
   const currentStepIndex = statusSteps.indexOf(order.orderStatus);
 
   return (
-    <div className="min-h-screen bg-light flex flex-col">
-      <Header />
+    <div className="min-h-screen bg-[#F8F9FB] flex flex-col">
 
-      <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
+      <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-8 mt-6">
         {/* Order Header */}
         <div className="bg-white rounded-lg p-6 mb-6">
           <div className="flex justify-between items-start">
@@ -45,13 +42,12 @@ export default function OrderDetailPage() {
               <p className="text-gray-600">{new Date(order.createdAt).toLocaleDateString()}</p>
             </div>
             <div className="text-right">
-              <p className={`text-lg font-bold px-4 py-2 rounded text-white ${
-                order.orderStatus === 'delivered'
+              <p className={`text-lg font-bold px-4 py-2 rounded text-white ${order.orderStatus === 'delivered'
                   ? 'bg-success'
                   : order.orderStatus === 'cancelled'
-                  ? 'bg-danger'
-                  : 'bg-primary'
-              }`}>
+                    ? 'bg-danger'
+                    : 'bg-primary'
+                }`}>
                 {order.orderStatus.toUpperCase()}
               </p>
             </div>
@@ -66,9 +62,8 @@ export default function OrderDetailPage() {
               {statusSteps.map((step, idx) => (
                 <div key={step} className="flex flex-col items-center flex-1">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white mb-2 ${
-                      idx <= currentStepIndex ? 'bg-success' : 'bg-gray-300'
-                    }`}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white mb-2 ${idx <= currentStepIndex ? 'bg-success' : 'bg-gray-300'
+                      }`}
                   >
                     {idx + 1}
                   </div>
@@ -191,8 +186,6 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 }
