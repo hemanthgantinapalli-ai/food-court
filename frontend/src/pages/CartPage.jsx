@@ -6,7 +6,7 @@ import { useCartStore } from '../store/cartStore';
 export default function CartPage() {
   const navigate = useNavigate();
   // Use the local Zustand store (not the API-based one)
-  const { items, addToCart, removeFromCart, getTotal, applyCoupon, coupon, discount } = useCartStore();
+  const { items, addToCart, updateQuantity, removeFromCart, getTotal, applyCoupon, coupon, discount } = useCartStore();
 
   const [couponCode, setCouponCode] = useState('');
   const [couponMessage, setCouponMessage] = useState('');
@@ -77,17 +77,14 @@ export default function CartPage() {
                       {/* Quantity */}
                       <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 p-1 rounded-xl">
                         <button
-                          onClick={() => {
-                            if (item.quantity === 1) removeFromCart(item._id);
-                            else addToCart({ ...item, price: item.price, quantity: item.quantity - 2 }); // decrease by triggering a re-add isn't ideal, better:
-                          }}
+                          onClick={() => updateQuantity(item._id, item.quantity - 1)}
                           className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm hover:bg-orange-50 hover:text-orange-600 transition-all"
                         >
                           <Minus size={14} />
                         </button>
                         <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
                         <button
-                          onClick={() => addToCart(item)}
+                          onClick={() => updateQuantity(item._id, item.quantity + 1)}
                           className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm hover:bg-orange-50 hover:text-orange-600 transition-all"
                         >
                           <Plus size={14} />

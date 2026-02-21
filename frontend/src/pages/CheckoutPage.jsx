@@ -92,20 +92,23 @@ export default function CheckoutPage() {
     };
 
     try {
-      const res = await API.post('/orders/create', orderPayload);
-      if (res.data?.success) {
-        clearCart();
-        setLoading(false);
-        setSuccess(true);
-        setTimeout(() => navigate('/payment-success'), 1500);
-      } else {
-        setLoading(false);
-        alert(res.data?.message || 'Failed to create order');
-      }
+      const newOrder = {
+        ...orderPayload,
+        _id: 'ORD' + Date.now().toString(),
+        userId: user?._id || 'guest',
+        createdAt: new Date().toISOString(),
+        status: 'Processing',
+      };
+
+      addOrder(newOrder);
+      clearCart();
+      setLoading(false);
+      setSuccess(true);
+      setTimeout(() => navigate('/payment-success'), 1500);
     } catch (err) {
       console.error('Order create error:', err);
       setLoading(false);
-      alert(err.response?.data?.message || 'Failed to create order');
+      alert('Failed to create order');
     }
   };
 

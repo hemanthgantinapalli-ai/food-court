@@ -21,6 +21,18 @@ export const useCartStore = create(
           set({ items: [...currentItems, { ...product, quantity: 1 }] });
         }
       },
+      updateQuantity: (id, quantity) => {
+        const currentItems = get().items;
+        if (quantity < 1) {
+          get().removeFromCart(id);
+        } else {
+          set({
+            items: currentItems.map((item) =>
+              item._id === id ? { ...item, quantity } : item
+            ),
+          });
+        }
+      },
       removeFromCart: (id) => {
         const newItems = get().items.filter((i) => i._id !== id);
         set({ items: newItems });
