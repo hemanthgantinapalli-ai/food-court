@@ -9,7 +9,9 @@ export const useOrderStore = create(
                 set({ orders: [order, ...get().orders] });
             },
             getUserOrders: (userId) => {
-                return get().orders.filter(order => order.userId === userId);
+                if (!userId) return [];
+                const uId = String(userId);
+                return get().orders.filter(order => String(order.userId) === uId);
             }
         }),
         { name: 'foodcourt-orders' }

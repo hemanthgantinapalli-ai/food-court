@@ -18,15 +18,22 @@ export default function OrderHistoryPage() {
   }, [user, getUserOrders]);
 
   const filteredOrders = myOrders.filter(o => {
-    if (activeTab === 'ongoing') return o.status !== 'Delivered' && o.status !== 'Cancelled';
-    if (activeTab === 'past') return o.status === 'Delivered' || o.status === 'Cancelled';
+    const rawStatus = o.status || o.orderStatus || '';
+    const status = rawStatus.toLowerCase();
+    if (activeTab === 'ongoing') {
+      return status !== 'delivered' && status !== 'cancelled' && status !== '';
+    }
+    if (activeTab === 'past') {
+      return status === 'delivered' || status === 'cancelled';
+    }
     return true;
   });
 
-  const getStatusColor = (status) => {
-    if (status === 'Out for Delivery') return 'text-orange-600 bg-orange-50 border-orange-200';
-    if (status === 'Preparing') return 'text-blue-600 bg-blue-50 border-blue-200';
-    if (status === 'Delivered') return 'text-green-600 bg-green-50 border-green-200';
+  const getStatusColor = (rawStatus) => {
+    const status = (rawStatus || '').toLowerCase();
+    if (status === 'out for delivery' || status === 'picked_up') return 'text-orange-600 bg-orange-50 border-orange-200';
+    if (status === 'preparing' || status === 'processing' || status === 'placed') return 'text-blue-600 bg-blue-50 border-blue-200';
+    if (status === 'delivered') return 'text-green-600 bg-green-50 border-green-200';
     return 'text-slate-600 bg-slate-50 border-slate-200';
   };
 
@@ -68,7 +75,7 @@ export default function OrderHistoryPage() {
         {/* Order List */}
         <div className="space-y-6">
           {filteredOrders.length > 0 ? filteredOrders.map((order) => (
-            <div key={order.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+            <div key={order._id || order.id || Math.random()} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
 
               {/* Order Header */}
               <div className="flex flex-wrap flex-col sm:flex-row justify-between items-start gap-4 pb-5 border-b border-slate-100">
@@ -90,8 +97,8 @@ export default function OrderHistoryPage() {
                       <Map size={14} className="text-orange-400" /> ETA: {order.eta}
                     </div>
                   )}
-                  <div className={`px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-widest border ${getStatusColor(order.status)}`}>
-                    {order.status}
+                  <div className={`px-4 py-1.5 rounded-xl font-black text-xs uppercase tracking-widest border ${getStatusColor(order.status || order.orderStatus)}`}>
+                    {order.status || order.orderStatus || 'Pending'}
                   </div>
                 </div>
               </div>
@@ -152,7 +159,7 @@ export default function OrderHistoryPage() {
 
               {/* Actions Footer */}
               <div className="pt-5 border-t border-slate-100 flex gap-3 sm:justify-end">
-                {order.status !== 'Delivered' && (
+                {(order.status || order.orderStatus)?.toLowerCase() !== 'delivered' && (
                   <Link
                     to="/track-order"
                     className="flex-1 sm:flex-none justify-center bg-orange-500 text-white px-6 py-2.5 rounded-xl font-black text-sm hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 flex items-center gap-2"

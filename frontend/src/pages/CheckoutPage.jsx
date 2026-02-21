@@ -95,7 +95,7 @@ export default function CheckoutPage() {
       const newOrder = {
         ...orderPayload,
         _id: 'ORD' + Date.now().toString(),
-        userId: user?._id || 'guest',
+        userId: user?._id || user?.id || 'guest',
         createdAt: new Date().toISOString(),
         status: 'Processing',
       };
