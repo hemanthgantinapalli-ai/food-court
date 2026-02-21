@@ -1,53 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Clock, CheckCircle, MapPin, Receipt, ArrowRight, ChevronRight, CreditCard, Smartphone, Banknote, Map } from 'lucide-react';
-
-// Mock Orders Data
-const pastOrders = [
-  {
-    id: '#FC-9921',
-    date: 'Today, 08:42 PM',
-    status: 'Out for Delivery',
-    total: 849,
-    paymentMethod: { type: 'upi', label: 'UPI - Google Pay' },
-    address: '42 Gourmet Street, Mumbai, Maharashtra 400001',
-    items: [
-      { name: 'Peri Peri Chicken Pizza', qty: 1, price: 549, image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=100&q=80' },
-      { name: 'Garlic Breadsticks', qty: 2, price: 150, image: 'https://images.unsplash.com/photo-1573140247632-f8fd74997d5c?w=100&q=80' },
-    ],
-    eta: '10 Mins'
-  },
-  {
-    id: '#FC-8810',
-    date: 'Yesterday, 01:15 PM',
-    status: 'Delivered',
-    total: 399,
-    paymentMethod: { type: 'card', label: 'Credit Card ending in 4242' },
-    address: 'Office Tower 3, Connaught Place, New Delhi 110001',
-    items: [
-      { name: 'Kung Pao Chicken Bowl', qty: 1, price: 349, image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=100&q=80' },
-    ],
-    eta: null
-  },
-  {
-    id: '#FC-7301',
-    date: '10 Feb 2026, 09:30 PM',
-    status: 'Delivered',
-    total: 1250,
-    paymentMethod: { type: 'cod', label: 'Cash on Delivery' },
-    address: 'Apt 4B, Sunflower Valley, Bangalore 560001',
-    items: [
-      { name: 'Family Sushi Platter', qty: 1, price: 1100, image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=100&q=80' },
-      { name: 'Miso Soup', qty: 2, price: 75, image: 'https://images.unsplash.com/photo-1615486171448-4e899cb4e766?w=100&q=80' },
-    ],
-    eta: null
-  }
-];
+import { useAuthStore } from '../context/authStore';
+import { useOrderStore } from '../store/orderStore';
 
 export default function OrderHistoryPage() {
   const [activeTab, setActiveTab] = useState('all');
+  const { user } = useAuthStore();
+  const { getUserOrders } = useOrderStore();
 
-  const filteredOrders = pastOrders.filter(o => {
+  const [myOrders, setMyOrders] = useState([]);
+
+  useEffect(() => {
+    if (user) {
+      setMyOrders(getUserOrders(user.id));
+    }
+  }, [user, getUserOrders]);
+
+  const filteredOrders = myOrders.filter(o => {
     if (activeTab === 'ongoing') return o.status !== 'Delivered' && o.status !== 'Cancelled';
     if (activeTab === 'past') return o.status === 'Delivered' || o.status === 'Cancelled';
     return true;

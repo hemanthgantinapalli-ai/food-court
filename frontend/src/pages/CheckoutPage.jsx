@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
+import { useOrderStore } from '../store/orderStore';
 
 const PAYMENT_METHODS = [
   { id: 'upi', label: 'UPI / QR Code', icon: Smartphone, desc: 'Google Pay, PhonePe, Paytm' },
@@ -14,6 +15,8 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotal, discount, coupon, clearCart } = useCartStore();
   const { user } = useAuthStore();
+  const { addOrder } = useOrderStore();
+
 
   const [step, setStep] = useState(1); // 1 = Address, 2 = Payment
   const [loading, setLoading] = useState(false);
@@ -57,6 +60,26 @@ export default function CheckoutPage() {
     setLoading(true);
     // Simulate payment processing
     await new Promise((r) => setTimeout(r, 2000));
+
+    const paymentSelected = PAYMENT_METHODS.find((m) => m.id === paymentMethod) || PAYMENT_METHODS[0];
+
+    const orderData = {
+      id: `#FC-${Math.floor(1000 + Math.random() * 9000)}`,
+      userId: user?.id,
+      date: new Date().toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      }),
+      status: 'Preparing',
+      total: total.toFixed(0),
+      paymentMethod: { type: paymentMethod, label: paymentSelected.label },
+      address: `${address.street}, ${address.area}, ${address.city} - ${address.pincode}`,
+      items: items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, image: i.image })),
+      eta: '45 Mins'
+    };
+
+    addOrder(orderData);
+
     clearCart();
     setLoading(false);
     setSuccess(true);

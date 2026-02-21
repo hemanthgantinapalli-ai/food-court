@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, Clock, Bike, MapPin, Heart, ArrowLeft, Phone } from 'lucide-react';
+import { Star, Clock, Bike, MapPin, Heart, ArrowLeft, Phone, Users, Copy, Check, X } from 'lucide-react';
 import API from '../api/axios';
 import MenuItemCard from '../components/MenuItemCard';
 
@@ -20,6 +20,16 @@ export default function RestaurantDetail() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
   const [isFavorited, setIsFavorited] = useState(false);
+
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const groupLink = `https://foodcourt.app/group/${id || 'FC'}19X8`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(groupLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -149,8 +159,8 @@ export default function RestaurantDetail() {
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
                 className={`shrink-0 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${activeCategory === cat
-                    ? 'bg-slate-900 text-white shadow-lg'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-slate-900 text-white shadow-lg'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
               >
                 {cat}
@@ -217,13 +227,61 @@ export default function RestaurantDetail() {
                 </div>
               )}
 
-              <button className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 transition-all shadow-xl active:scale-95">
-                Group Order 👥
+              <button
+                onClick={() => setShowGroupModal(true)}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Users size={18} /> Group Order
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Group Order Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative animate-fade-up">
+            <button
+              onClick={() => setShowGroupModal(false)}
+              className="absolute top-4 right-4 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-6 mx-auto">
+              <Users size={32} className="text-orange-500" />
+            </div>
+
+            <h3 className="text-2xl font-black text-slate-900 text-center mb-2">Start a Group Order</h3>
+            <p className="text-slate-500 text-sm text-center font-medium mb-8">
+              Share this link with your friends. They can vote and add items directly to your cart!
+            </p>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center gap-3 mb-6">
+              <input
+                type="text"
+                readOnly
+                value={groupLink}
+                className="bg-transparent flex-1 text-slate-700 font-bold text-sm outline-none w-full"
+              />
+              <button
+                onClick={handleCopyLink}
+                className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-orange-500 transition-colors shrink-0"
+              >
+                {copiedLink ? <Check size={18} /> : <Copy size={18} />}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowGroupModal(false)}
+              className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-xl"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
