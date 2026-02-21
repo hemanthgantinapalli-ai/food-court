@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Tag, DollarSign, AlignLeft, Info } from 'lucide-react';
+import { useAuthStore } from '../context/authStore';
 
 export default function AdminMenu() {
+  const { user } = useAuthStore();
   const [items, setItems] = useState([
     { _id: '1', name: 'Margherita Pizza', price: 299, description: 'Classic cheese and tomato base.' },
     { _id: '2', name: 'Veggie Burger', price: 149, description: 'Crispy patty with fresh veggies.' },
@@ -9,6 +11,17 @@ export default function AdminMenu() {
   ]);
   const [form, setForm] = useState({ name: '', price: '', description: '' });
   const [editingId, setEditingId] = useState(null);
+
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FB]">
+        <div className="text-center bg-white p-12 rounded-[2rem] shadow-sm border border-slate-100 max-w-sm w-full mx-4 font-sans">
+          <h1 className="text-2xl font-black text-slate-900 mb-2">Access Denied</h1>
+          <p className="text-slate-500 font-medium">You do not have permission to manage the menu.</p>
+        </div>
+      </div>
+    );
+  }
 
   const submit = (e) => {
     e.preventDefault();

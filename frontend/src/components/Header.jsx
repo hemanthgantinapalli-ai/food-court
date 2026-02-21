@@ -125,15 +125,21 @@ export default function Header() {
                   <Link to="/orders" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
                     <ShoppingBag size={16} /> My Orders
                   </Link>
-                  <Link to="/admin" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                    <LayoutDashboard size={16} /> Admin Dashboard
-                  </Link>
-                  <Link to="/admin/menu" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                    <FileText size={16} /> Admin Menu
-                  </Link>
-                  <Link to="/rider" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                    <Bike size={16} /> Rider Dashboard
-                  </Link>
+                  {user.role === 'admin' && (
+                    <>
+                      <Link to="/admin" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                        <LayoutDashboard size={16} /> Admin Dashboard
+                      </Link>
+                      <Link to="/admin/menu" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                        <FileText size={16} /> Admin Menu
+                      </Link>
+                    </>
+                  )}
+                  {user.role === 'rider' && (
+                    <Link to="/rider" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                      <Bike size={16} /> Rider Dashboard
+                    </Link>
+                  )}
                   <div className="border-t border-slate-100" />
                   <button
                     onClick={() => { logout(); navigate('/'); }}
@@ -198,9 +204,15 @@ export default function Header() {
           {user ? (
             <>
               <Link to="/profile" className="block font-bold text-slate-700 hover:text-orange-600 py-2">My Profile</Link>
-              <Link to="/admin" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Admin Dashboard</Link>
-              <Link to="/admin/menu" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Admin Menu</Link>
-              <Link to="/rider" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Rider Dashboard</Link>
+              {user.role === 'admin' && (
+                <>
+                  <Link to="/admin" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Admin Dashboard</Link>
+                  <Link to="/admin/menu" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Admin Menu</Link>
+                </>
+              )}
+              {user.role === 'rider' && (
+                <Link to="/rider" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Rider Dashboard</Link>
+              )}
               <button onClick={() => { logout(); navigate('/'); }} className="w-full text-left font-bold text-rose-500 py-2">Sign Out</button>
             </>
           ) : (

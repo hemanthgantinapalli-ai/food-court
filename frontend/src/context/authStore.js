@@ -44,9 +44,26 @@ export const useAuthStore = create((set) => ({
     return safeUser;
   },
 
-  signIn: async ({ email, password }) => {
+  signIn: async ({ email, password, role }) => {
     set({ loading: true, error: null });
     await new Promise((r) => setTimeout(r, 700));
+
+    // Hardcoded Admin Login
+    if (email === 'admin@foodcourt.com' && password === 'admin123') {
+      const adminUser = { id: 'admin1', name: 'System Admin', email, role: 'admin' };
+      saveSession(adminUser);
+      set({ user: adminUser, loading: false });
+      return adminUser;
+    }
+
+    // Hardcoded Rider Login
+    if (email === 'rider@foodcourt.com' && password === 'rider123') {
+      const riderUser = { id: 'rider1', name: 'Fast Rider', email, role: 'rider' };
+      saveSession(riderUser);
+      set({ user: riderUser, loading: false });
+      return riderUser;
+    }
+
     const users = getUsers();
     const found = users.find((u) => u.email === email && u.password === password);
     if (!found) {
@@ -54,6 +71,8 @@ export const useAuthStore = create((set) => ({
       throw new Error('Invalid email or password');
     }
     const { password: _, ...safeUser } = found;
+    // ensure user always has a default role if none
+    safeUser.role = safeUser.role || 'user';
     saveSession(safeUser);
     set({ user: safeUser, loading: false });
     return safeUser;

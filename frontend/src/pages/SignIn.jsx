@@ -18,10 +18,16 @@ export default function SignIn() {
     setError('');
     setLoading(true);
     try {
-      await signIn({ email, password });
-      navigate('/');
+      const loggedInUser = await signIn({ email, password });
+      if (loggedInUser.role === 'admin') {
+        navigate('/admin');
+      } else if (loggedInUser.role === 'rider') {
+        navigate('/rider');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password. Please try again.');
+      setError(err.response?.data?.message || err.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -81,6 +87,37 @@ export default function SignIn() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Role Selection Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+              {[
+                { id: 'user', label: 'User' },
+                { id: 'admin', label: 'Admin', email: 'admin@foodcourt.com', pass: 'admin123' },
+                { id: 'rider', label: 'Rider', email: 'rider@foodcourt.com', pass: 'rider123' }
+              ].map((roleType) => (
+                <button
+                  key={roleType.id}
+                  type="button"
+                  onClick={() => {
+                    if (roleType.id !== 'user') {
+                      setEmail(roleType.email);
+                      setPassword(roleType.pass);
+                    } else {
+                      setEmail('');
+                      setPassword('');
+                    }
+                  }}
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${(roleType.id === 'user' && email !== 'admin@foodcourt.com' && email !== 'rider@foodcourt.com') ||
+                    (roleType.id === 'admin' && email === 'admin@foodcourt.com') ||
+                    (roleType.id === 'rider' && email === 'rider@foodcourt.com')
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                  {roleType.label}
+                </button>
+              ))}
+            </div>
+
             {/* Email */}
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">

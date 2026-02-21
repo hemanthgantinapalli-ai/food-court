@@ -35,15 +35,15 @@ export default function RiderDashboard() {
     }
   };
 
-  if (!user) {
+  if (!user || user.role !== 'rider') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8F9FB]">
-        <div className="text-center bg-white p-12 rounded-[2rem] shadow-sm border border-slate-100 max-w-sm w-full mx-4">
+        <div className="text-center bg-white p-12 rounded-[2rem] shadow-sm border border-slate-100 max-w-sm w-full mx-4 font-sans">
           <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <AlertCircle size={32} />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 mb-2">Sign In Required</h1>
-          <p className="text-slate-500 font-medium">Please sign in to access your Rider Dashboard.</p>
+          <h1 className="text-2xl font-black text-slate-900 mb-2">Access Denied</h1>
+          <p className="text-slate-500 font-medium">Please sign in as a Rider to access this dashboard.</p>
         </div>
       </div>
     );
@@ -62,7 +62,7 @@ export default function RiderDashboard() {
           <h1 className="text-4xl font-bold">Rider Dashboard</h1>
           <button
             onClick={() => setIsOnline(!isOnline)}
-            className={`px-6 py-3 rounded-lg font-bold text-white transition ${isOnline ? 'bg-success' : 'bg-danger'
+            className={`px-6 py-3 rounded-lg font-bold text-white transition ${isOnline ? 'bg-emerald-500' : 'bg-red-500'
               }`}
           >
             {isOnline ? '🟢 Online' : '🔴 Offline'}
@@ -75,9 +75,9 @@ export default function RiderDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-600 text-sm">Total Deliveries</p>
-                <p className="text-3xl font-bold text-primary">{totalDeliveries}</p>
+                <p className="text-3xl font-bold text-orange-500">{totalDeliveries}</p>
               </div>
-              <ShoppingCart size={24} className="text-primary opacity-50" />
+              <ShoppingCart size={24} className="text-orange-500 opacity-50" />
             </div>
           </div>
 
@@ -85,9 +85,9 @@ export default function RiderDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-600 text-sm">Completed</p>
-                <p className="text-3xl font-bold text-success">{completedDeliveries}</p>
+                <p className="text-3xl font-bold text-emerald-500">{completedDeliveries}</p>
               </div>
-              <AlertCircle size={24} className="text-success opacity-50" />
+              <AlertCircle size={24} className="text-emerald-500 opacity-50" />
             </div>
           </div>
 
@@ -95,9 +95,9 @@ export default function RiderDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-600 text-sm">Total Earnings</p>
-                <p className="text-3xl font-bold text-warning">₹{totalEarnings}</p>
+                <p className="text-3xl font-bold text-yellow-500">₹{totalEarnings}</p>
               </div>
-              <TrendingUp size={24} className="text-warning opacity-50" />
+              <TrendingUp size={24} className="text-yellow-500 opacity-50" />
             </div>
           </div>
 
@@ -105,11 +105,11 @@ export default function RiderDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-600 text-sm">Status</p>
-                <p className={`text-3xl font-bold ${isOnline ? 'text-success' : 'text-danger'}`}>
+                <p className={`text-3xl font-bold ${isOnline ? 'text-emerald-500' : 'text-red-500'}`}>
                   {isOnline ? 'Online' : 'Offline'}
                 </p>
               </div>
-              <MapPin size={24} className={isOnline ? 'text-success opacity-50' : 'text-danger opacity-50'} />
+              <MapPin size={24} className={isOnline ? 'text-emerald-500 opacity-50' : 'text-red-500 opacity-50'} />
             </div>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function RiderDashboard() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-6 py-4 font-semibold transition ${activeTab === tab
-                  ? 'border-b-2 border-primary text-primary'
+                  ? 'border-b-2 border-orange-500 text-orange-500'
                   : 'text-gray-600 hover:text-gray-800'
                   }`}
               >
@@ -148,8 +148,8 @@ export default function RiderDashboard() {
                           <p className="text-sm text-gray-600">{order.restaurant.name}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-primary">₹{order.deliveryFee}</p>
-                          <button className="text-primary text-sm font-semibold hover:underline">
+                          <p className="font-bold text-orange-500">₹{order.deliveryFee}</p>
+                          <button className="text-orange-500 text-sm font-semibold hover:underline">
                             Get Directions
                           </button>
                         </div>
@@ -167,7 +167,7 @@ export default function RiderDashboard() {
                           <p className="font-bold">Order #{order.orderId}</p>
                           <p className="text-sm text-gray-600">{order.restaurant.name}</p>
                         </div>
-                        <p className="font-bold text-success">✓ Delivered</p>
+                        <p className="font-bold text-emerald-500">✓ Delivered</p>
                       </div>
                     </div>
                   ))

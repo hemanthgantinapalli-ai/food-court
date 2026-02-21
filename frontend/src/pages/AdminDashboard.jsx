@@ -7,6 +7,17 @@ export default function AdminDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = React.useState('overview');
 
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FB]">
+        <div className="text-center bg-white p-12 rounded-[2rem] shadow-sm border border-slate-100 max-w-sm w-full mx-4 font-sans">
+          <h1 className="text-2xl font-black text-slate-900 mb-2">Access Denied</h1>
+          <p className="text-slate-500 font-medium">You do not have permission to view the Admin Dashboard.</p>
+        </div>
+      </div>
+    );
+  }
+
   const stats = [
     { label: 'Total Revenue', value: '₹45,290', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Active Users', value: '1,204', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -68,6 +79,66 @@ export default function AdminDashboard() {
                       Restaurant "Pizza Hut" reported a delay.
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'users' && (
+              <div className="p-8 border-2 border-slate-50 rounded-[2rem]">
+                <h4 className="font-bold text-xl mb-4 text-slate-900">Active Users</h4>
+                <div className="space-y-4">
+                  {[1, 2, 3].map((u) => (
+                    <div key={u} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">U{u}</div>
+                        <div>
+                          <p className="font-bold text-slate-900">User {u}</p>
+                          <p className="text-sm text-slate-500">user{u}@example.com</p>
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">Active</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'restaurants' && (
+              <div className="p-8 border-2 border-slate-50 rounded-[2rem]">
+                <h4 className="font-bold text-xl mb-4 text-slate-900">Registered Restaurants</h4>
+                <div className="space-y-4">
+                  {[1, 2, 3].map((r) => (
+                    <div key={r} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold">R{r}</div>
+                        <div>
+                          <p className="font-bold text-slate-900">Restaurant {r}</p>
+                          <p className="text-sm text-slate-500">Location {r}</p>
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">Open</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'orders' && (
+              <div className="p-8 border-2 border-slate-50 rounded-[2rem]">
+                <h4 className="font-bold text-xl mb-4 text-slate-900">Recent Orders</h4>
+                <div className="space-y-4">
+                  {[1, 2, 3].map((o) => (
+                    <div key={o} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-bold">#{o}</div>
+                        <div>
+                          <p className="font-bold text-slate-900">Order #{1000 + o}</p>
+                          <p className="text-sm text-slate-500">₹{400 + (o * 50)}</p>
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-blue-500 bg-blue-50 px-3 py-1 rounded-full">Processing</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
