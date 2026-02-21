@@ -122,8 +122,8 @@ export default function RiderDashboard() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-6 py-4 font-semibold transition ${activeTab === tab
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-gray-600 hover:text-gray-800'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 hover:text-gray-800'
                   }`}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)} Orders
