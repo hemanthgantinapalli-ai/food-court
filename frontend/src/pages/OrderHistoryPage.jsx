@@ -13,7 +13,7 @@ export default function OrderHistoryPage() {
 
   useEffect(() => {
     if (user) {
-      setMyOrders(getUserOrders(user.id));
+      setMyOrders(getUserOrders(user._id || user.id));
     }
   }, [user, getUserOrders]);
 
@@ -77,9 +77,9 @@ export default function OrderHistoryPage() {
                     <Receipt size={24} className="text-orange-500" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900">{order.id}</h3>
+                    <h3 className="text-lg font-black text-slate-900">{order._id || order.id}</h3>
                     <p className="text-sm text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
-                      <Clock size={14} /> {order.date}
+                      <Clock size={14} /> {order.createdAt ? new Date(order.createdAt).toLocaleString() : order.date}
                     </p>
                   </div>
                 </div>
@@ -105,13 +105,13 @@ export default function OrderHistoryPage() {
                   {order.items.map((item, idx) => (
                     <div key={idx} className="flex gap-4 items-center">
                       <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden shrink-0">
-                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        <img src={item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&q=60'} alt={item.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-slate-900 text-sm">{item.name}</p>
-                        <p className="text-slate-400 font-medium text-xs">Qty: {item.qty}</p>
+                        <p className="text-slate-400 font-medium text-xs">Qty: {item.quantity || item.qty}</p>
                       </div>
-                      <p className="font-black text-slate-900">₹{item.price * item.qty}</p>
+                      <p className="font-black text-slate-900">₹{(item.price * (item.quantity || item.qty)).toFixed(0)}</p>
                     </div>
                   ))}
                 </div>
@@ -128,8 +128,8 @@ export default function OrderHistoryPage() {
                         <span className="text-xl font-black text-orange-500 tracking-tight">₹{order.total}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        {getPaymentIcon(order.paymentMethod.type)}
-                        <span className="text-slate-700 font-bold">{order.paymentMethod.label}</span>
+                        {order.paymentMethod?.type ? getPaymentIcon(order.paymentMethod.type) : getPaymentIcon(order.paymentMethod)}
+                        <span className="text-slate-700 font-bold capitalize">{order.paymentMethod?.label || order.paymentMethod}</span>
                         <span className="ml-auto text-green-600 bg-green-100 px-2 py-0.5 rounded-md text-[10px] font-black uppercase">Paid</span>
                       </div>
                     </div>
@@ -140,7 +140,9 @@ export default function OrderHistoryPage() {
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Delivered To</h4>
                     <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <MapPin size={16} className="text-orange-500 shrink-0 mt-0.5" />
-                      <p className="text-sm font-medium text-slate-600 leading-relaxed">{order.address}</p>
+                      <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                        {order.deliveryAddress ? `${order.deliveryAddress.street}, ${order.deliveryAddress.area}, ${order.deliveryAddress.city}` : order.address}
+                      </p>
                     </div>
                   </div>
 
