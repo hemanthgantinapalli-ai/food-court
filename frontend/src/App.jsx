@@ -17,6 +17,10 @@ import ProfilePage from "./pages/ProfilePage";
 import OffersPage from "./pages/OffersPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminMenu from "./pages/AdminMenu";
+import RiderDashboard from "./pages/RiderDashboard";
+import OrderDetailPage from "./pages/OrderDetailPage";
 
 // Smooth scroll to top on page change
 const ScrollToTop = () => {
@@ -52,6 +56,10 @@ export default function App() {
             <Route path="/offers" element={<OffersPage />} />
             <Route path="/track-order" element={<TrackOrderPage />} />
             <Route path="/orders" element={<OrderHistoryPage />} />
+            <Route path="/order/:orderId" element={<OrderDetailPage />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/menu" element={<AdminMenu />} />
+            <Route path="/rider" element={<RiderDashboard />} />
           </Routes>
         </main>
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import Hero from '../components/Hero';
 import RestaurantCard from '../components/RestaurantCard';
@@ -185,8 +186,8 @@ const Home = () => {
               key={filter}
               onClick={() => { setActiveFilter(filter); setSearchQuery(''); }}
               className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeFilter === filter
-                  ? 'bg-slate-900 text-white shadow-lg'
-                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
+                ? 'bg-slate-900 text-white shadow-lg'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
                 }`}
             >
               {filter}
@@ -245,6 +246,27 @@ const Home = () => {
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Become a Rider CTA */}
+      <div className="bg-gradient-to-r from-orange-100 to-orange-50 py-16 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+          <div>
+            <span className="text-orange-500 font-black tracking-widest text-sm uppercase mb-2 block">Join our fleet</span>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-4">
+              Earn on your own schedule.
+            </h2>
+            <p className="text-slate-600 font-medium text-lg max-w-xl">
+              Become a FoodCourt rider, enjoy flexible hours, instant payouts, and great incentives. Setup your Rider account today!
+            </p>
+          </div>
+          <Link
+            to="/rider"
+            className="flex items-center gap-3 bg-orange-500 text-white px-8 py-4 rounded-2xl font-black text-lg hover:bg-orange-600 transition-colors shadow-xl shadow-orange-200"
+          >
+            <span>🏍️</span> Go to Rider Dashboard
+          </Link>
         </div>
       </div>
 
