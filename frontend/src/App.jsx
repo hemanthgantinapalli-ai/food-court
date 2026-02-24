@@ -21,6 +21,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import RiderDashboard from "./pages/RiderDashboard";
 import OrderDetailPage from "./pages/OrderDetailPage";
+import RestaurantDashboard from "./pages/RestaurantDashboard";
 
 // Smooth scroll to top on page change
 const ScrollToTop = () => {
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/menu" element={<AdminMenu />} />
             <Route path="/rider" element={<RiderDashboard />} />
+            <Route path="/restaurant" element={<RestaurantDashboard />} />
           </Routes>
         </main>
 

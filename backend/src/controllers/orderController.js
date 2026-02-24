@@ -7,19 +7,25 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 export const createOrder = async (req, res) => {
   try {
+    console.log(`📦 [Create Order API] Request from user: ${req.userId}`);
     const { deliveryAddress, paymentMethod } = req.body;
+    console.log(`📥 [Create Order API] Payload received (partial):`, { deliveryAddress, paymentMethod });
 
     // Get cart
+    console.log(`🛒 [Create Order API] Fetching cart for user: ${req.userId}...`);
     const cart = await Cart.findOne({ user: req.userId }).populate('restaurant');
 
     let orderPayload;
     if (!cart || cart.items.length === 0) {
+      console.log(`⚠️ [Create Order API] Cart is empty or not found. Checking request body for items...`);
       const { items, subtotal, tax, deliveryFee, discount, discountCode, total, restaurant } = req.body;
       if (!items || items.length === 0) {
+        console.log(`❌ [Create Order API] No items found in cart or request body. Aborting.`);
         return res.status(400).json({ success: false, message: 'Cart is empty and no items provided' });
       }
 
       const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
+      console.log(`💳 [Create Order API] Payment method normalized to: ${normalizedPaymentMethod}`);
 
       orderPayload = {
         customer: req.userId,
@@ -44,10 +50,12 @@ export const createOrder = async (req, res) => {
         paymentMethod: normalizedPaymentMethod,
       };
     } else {
+      console.log(`🛒 [Create Order API] Cart found with ${cart.items.length} items. Fetching full details...`);
       // Re-fetch cart with populated items for names
       const fullCart = await Cart.findOne({ user: req.userId }).populate('items.menuItem');
 
       if (!fullCart) {
+        console.log(`❌ [Create Order API] Failed to re-fetch full cart.`);
         return res.status(404).json({ success: false, message: 'Cart not found' });
       }
 
@@ -72,15 +80,19 @@ export const createOrder = async (req, res) => {
       };
     }
 
+    console.log(`✨ [Create Order API] Creating order in database...`);
     const order = await Order.create(orderPayload);
 
     // For demo, mark as pending for cash payments
     if ((order.paymentMethod || '').toLowerCase() === 'cash') {
+      console.log(`💵 [Create Order API] Cash payment detected. Setting status to 'pending'.`);
       order.paymentStatus = 'pending';
     }
 
+    console.log(`💾 [Create Order API] Saving order updates...`);
     await order.save();
 
+    console.log(`🧹 [Create Order API] Clearing user's cart...`);
     // Clear cart (if exists)
     await Cart.findOneAndUpdate(
       { user: req.userId },
@@ -94,13 +106,14 @@ export const createOrder = async (req, res) => {
       }
     );
 
+    console.log(`✅ [Create Order API] Order created successfully: ${order._id}`);
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
       data: order,
     });
   } catch (error) {
-    console.error('Order Creation Failure:', error);
+    console.error('🔥 [Create Order API] Order Creation Failure:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create order',
@@ -113,36 +126,45 @@ export const createOrder = async (req, res) => {
 export const getOrderHistory = async (req, res) => {
   try {
     const { type } = req.query;
+    console.log(`📋 [Get Order History API] Request from user: ${req.userId}, Role: ${req.userRole}, Type: ${type || 'all'}`);
     let query = { customer: req.userId };
 
     // If type=delivery and user is rider, show orders assigned to them
     if (type === 'delivery' && req.userRole === 'rider') {
+      console.log(`🛵 [Get Order History API] Fetching assigned deliveries for rider.`);
       query = { rider: req.userId };
     } else if (type === 'available' && req.userRole === 'rider') {
-      query = { rider: null, orderStatus: { $in: ['placed', 'confirmed', 'preparing', 'ready'] } };
+      console.log(`🛎️ [Get Order History API] Fetching available orders for rider.`);
+      query = { rider: null, orderStatus: { $in: ['confirmed', 'preparing', 'ready'] } };
     } else if (req.userRole === 'restaurant') {
+      console.log(`🏪 [Get Order History API] Fetching orders for restaurant owner.`);
       const restaurant = await Restaurant.findOne({ owner: req.userId });
       if (restaurant) {
         query = { restaurant: restaurant._id };
       } else {
+        console.log(`⚠️ [Get Order History API] No restaurant found for owner: ${req.userId}`);
         return res.status(200).json({ success: true, count: 0, data: [], message: 'No restaurant linked to this account' });
       }
     } else if (req.userRole === 'admin' && type === 'all') {
+      console.log(`👑 [Get Order History API] Admin fetching all orders.`);
       query = {}; // Admins can see everything if they ask for 'all'
     }
 
+    console.log(`🔍 [Get Order History API] Executing query...`);
     const orders = await Order.find(query)
       .populate('restaurant', 'name image')
       .populate('items.menuItem')
       .populate('rider', 'name email')
       .sort({ createdAt: -1 });
 
+    console.log(`✅ [Get Order History API] Found ${orders.length} orders.`);
     res.status(200).json({
       success: true,
       count: orders.length,
       data: orders,
     });
   } catch (error) {
+    console.error(`🔥 [Get Order History API] Error fetching history: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch order history',
@@ -156,6 +178,7 @@ export const getOrderHistory = async (req, res) => {
 export const getOrderById = async (req, res) => {
   try {
     const { orderId } = req.params;
+    console.log(`🔍 [Get Order By ID API] Request from user: ${req.userId}, Role: ${req.userRole} for order: ${orderId}`);
 
     const order = await Order.findById(orderId)
       .populate('customer')
@@ -164,6 +187,7 @@ export const getOrderById = async (req, res) => {
       .populate('items.menuItem');
 
     if (!order) {
+      console.log(`⚠️ [Get Order By ID API] Order not found: ${orderId}`);
       return res.status(404).json({
         success: false,
         message: 'Order not found',
@@ -172,17 +196,20 @@ export const getOrderById = async (req, res) => {
 
     // Check authorization
     if (order.customer._id.toString() !== req.userId && req.userRole !== 'admin') {
+      console.log(`🚫 [Get Order By ID API] Unauthorized access attempt for order: ${orderId} by user: ${req.userId}`);
       return res.status(403).json({
         success: false,
         message: 'Unauthorized',
       });
     }
 
+    console.log(`✅ [Get Order By ID API] Successfully fetched order: ${orderId}`);
     res.status(200).json({
       success: true,
       data: order,
     });
   } catch (error) {
+    console.error(`🔥 [Get Order By ID API] Error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch order',
@@ -195,16 +222,19 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
+    console.log(`📝 [Update Order Status API] Updating order ${orderId} to status: ${status}`);
 
     const order = await Order.findById(orderId);
 
     if (!order) {
+      console.log(`⚠️ [Update Order Status API] Order not found: ${orderId}`);
       return res.status(404).json({
         success: false,
         message: 'Order not found',
       });
     }
 
+    console.log(`🔄 [Update Order Status API] Changing status from ${order.orderStatus} to ${status}`);
     order.orderStatus = status;
     order.statusHistory.push({
       status,
@@ -212,17 +242,21 @@ export const updateOrderStatus = async (req, res) => {
     });
 
     if (status === 'delivered') {
+      console.log(`🏠 [Update Order Status API] Order marked as delivered. Updating actualDeliveryTime.`);
       order.actualDeliveryTime = new Date();
     }
 
+    console.log(`💾 [Update Order Status API] Saving updates...`);
     await order.save();
 
+    console.log(`✅ [Update Order Status API] Order status updated successfully.`);
     res.status(200).json({
       success: true,
       message: 'Order status updated',
       data: order,
     });
   } catch (error) {
+    console.error(`🔥 [Update Order Status API] Error updating status: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to update order status',
@@ -234,6 +268,7 @@ export const updateOrderStatus = async (req, res) => {
 export const assignRiderToOrder = async (req, res) => {
   try {
     const { orderId, riderId } = req.body;
+    console.log(`🤝 [Assign Rider API] Assigning rider ${riderId} to order ${orderId}`);
 
     const order = await Order.findByIdAndUpdate(
       orderId,
@@ -241,12 +276,19 @@ export const assignRiderToOrder = async (req, res) => {
       { new: true }
     ).populate('rider');
 
+    if (!order) {
+      console.log(`⚠️ [Assign Rider API] Order not found: ${orderId}`);
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    console.log(`✅ [Assign Rider API] Rider successfully assigned.`);
     res.status(200).json({
       success: true,
       message: 'Rider assigned to order',
       data: order,
     });
   } catch (error) {
+    console.error(`🔥 [Assign Rider API] Error assigning rider: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to assign rider',
@@ -258,21 +300,26 @@ export const assignRiderToOrder = async (req, res) => {
 export const acceptOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
+    console.log(`🛵 [Accept Order API] Rider ${req.userId} accepting order ${orderId}`);
 
     const order = await Order.findById(orderId);
 
     if (!order) {
+      console.log(`⚠️ [Accept Order API] Order not found: ${orderId}`);
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
     if (order.rider) {
+      console.log(`🚫 [Accept Order API] Order ${orderId} is already assigned to rider: ${order.rider}`);
       return res.status(400).json({ success: false, message: 'Order already assigned to a rider' });
     }
 
+    console.log(`🔄 [Accept Order API] Assigning order to rider...`);
     order.rider = req.userId;
     order.orderStatus = 'confirmed'; // Automatically confirm when rider accepts? Or keep as is.
     // Let's just assign and maybe update status if it was 'placed'
     if (order.orderStatus === 'placed') {
+      console.log(`🏷️ [Accept Order API] Changing status from 'placed' to 'confirmed'`);
       order.orderStatus = 'confirmed';
     }
 
@@ -282,14 +329,17 @@ export const acceptOrder = async (req, res) => {
       note: 'Rider accepted the order'
     });
 
+    console.log(`💾 [Accept Order API] Saving order updates...`);
     await order.save();
 
+    console.log(`✅ [Accept Order API] Order accepted successfully.`);
     res.status(200).json({
       success: true,
       message: 'Order accepted successfully',
       data: order,
     });
   } catch (error) {
+    console.error(`🔥 [Accept Order API] Error accepting order: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to accept order',
@@ -302,6 +352,7 @@ export const rateOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { score, review } = req.body;
+    console.log(`⭐ [Rate Order API] Rating order ${orderId} with score: ${score}`);
 
     const order = await Order.findByIdAndUpdate(
       orderId,
@@ -315,12 +366,19 @@ export const rateOrder = async (req, res) => {
       { new: true }
     );
 
+    if (!order) {
+      console.log(`⚠️ [Rate Order API] Order not found: ${orderId}`);
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    console.log(`✅ [Rate Order API] Order rated successfully.`);
     res.status(200).json({
       success: true,
       message: 'Order rated successfully',
       data: order,
     });
   } catch (error) {
+    console.error(`🔥 [Rate Order API] Error rating order: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to rate order',
@@ -332,13 +390,16 @@ export const rateOrder = async (req, res) => {
 export const requestRefund = async (req, res) => {
   try {
     const { orderId, reason } = req.body;
+    console.log(`💸 [Request Refund API] Requesting refund for order ${orderId}. Reason: ${reason}`);
 
     const existingOrder = await Order.findById(orderId);
     if (!existingOrder) {
+      console.log(`⚠️ [Request Refund API] Order not found: ${orderId}`);
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
     const refundAmount = existingOrder.total || 0;
+    console.log(`🧮 [Request Refund API] Refund amount calculated: ${refundAmount}`);
 
     const order = await Order.findByIdAndUpdate(
       orderId,
@@ -350,12 +411,14 @@ export const requestRefund = async (req, res) => {
       { new: true }
     );
 
+    console.log(`✅ [Request Refund API] Refund requested successfully.`);
     res.status(200).json({
       success: true,
       message: 'Refund requested',
       data: order,
     });
   } catch (error) {
+    console.error(`🔥 [Request Refund API] Error requesting refund: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Failed to request refund',
