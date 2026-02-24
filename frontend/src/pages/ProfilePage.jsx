@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Phone, MapPin, Edit2, LogOut, Package, CreditCard, Save, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Mail, Phone, MapPin, Edit2, LogOut, Package, CreditCard, Save, X, LayoutDashboard, Bike, Store } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 
 export default function ProfilePage() {
@@ -50,16 +51,40 @@ export default function ProfilePage() {
               {initial}
             </div>
             <div>
-              <h1 className="text-5xl font-black text-slate-900 tracking-tighter">
-                Hello, <span className="text-orange-600">{displayName}</span>
-              </h1>
-              <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Elite Member Since 2026</p>
+              <div className="flex items-center gap-3">
+                <h1 className="text-5xl font-black text-slate-900 tracking-tighter">
+                  Hello, <span className="text-orange-600">{displayName}</span>
+                </h1>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${user?.role === 'admin' ? 'bg-purple-100 text-purple-600' : user?.role === 'rider' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>
+                  {user?.role || 'Member'}
+                </span>
+              </div>
+              <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Elite {user?.role || 'Member'} Since 2026</p>
             </div>
           </div>
-          <button onClick={logout} className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-rose-500 font-black text-xs uppercase tracking-widest hover:bg-rose-50 transition-all">
-            <LogOut size={16} /> Sign Out
-          </button>
+          <div className="flex gap-3 w-full md:w-auto">
+            {user?.role === 'admin' && (
+              <Link to="/admin" className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-purple-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-purple-700 transition-all shadow-lg active:scale-[0.98]">
+                <LayoutDashboard size={16} /> Admin Console
+              </Link>
+            )}
+            {user?.role === 'restaurant' && (
+              <Link to="/restaurant" className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg active:scale-[0.98]">
+                <Store size={16} /> Restaurant Console
+              </Link>
+            )}
+            {user?.role === 'rider' && (
+              <Link to="/rider" className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98]">
+                <Bike size={16} /> Task Center
+              </Link>
+            )}
+            <button onClick={logout} className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-rose-500 font-black text-xs uppercase tracking-widest hover:bg-rose-50 transition-all shadow-sm active:scale-[0.98]">
+              <LogOut size={16} /> Sign Out
+            </button>
+          </div>
+
         </div>
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Contact Details */}

@@ -7,17 +7,22 @@ import { useOrderStore } from '../store/orderStore';
 export default function OrderHistoryPage() {
   const [activeTab, setActiveTab] = useState('all');
   const { user } = useAuthStore();
-  const { getUserOrders } = useOrderStore();
-
-  const [myOrders, setMyOrders] = useState([]);
+  const { orders, fetchOrders } = useOrderStore();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadOrders = async () => {
+      setLoading(true);
+      await fetchOrders();
+      setLoading(false);
+    };
     if (user) {
-      setMyOrders(getUserOrders(user._id || user.id));
+      loadOrders();
     }
-  }, [user, getUserOrders]);
+  }, [user, fetchOrders]);
 
-  const filteredOrders = myOrders.filter(o => {
+  const filteredOrders = orders.filter(o => {
+
     const rawStatus = o.status || o.orderStatus || '';
     const status = rawStatus.toLowerCase();
     if (activeTab === 'ongoing') {
@@ -84,7 +89,7 @@ export default function OrderHistoryPage() {
                     <Receipt size={24} className="text-orange-500" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900">{order._id || order.id}</h3>
+                    <h3 className="text-lg font-black text-slate-900">{order.orderId || order._id}</h3>
                     <p className="text-sm text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
                       <Clock size={14} /> {order.createdAt ? new Date(order.createdAt).toLocaleString() : order.date}
                     </p>

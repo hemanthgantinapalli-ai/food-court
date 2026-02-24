@@ -1,99 +1,73 @@
 import { create } from 'zustand';
+import API from '../api/axios';
 
-// ─── Local-storage helpers ───────────────────────────────────────────────────
-const USERS_KEY = 'fc_users_db';
-const SESSION_KEY = 'fc_session';
-
-function getUsers() {
-  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
-  catch { return []; }
-}
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-function getSession() {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY)); }
-  catch { return null; }
-}
-function saveSession(user) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-}
-function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
-}
-
-// ─── Store ────────────────────────────────────────────────────────────────────
 export const useAuthStore = create((set) => ({
-  user: getSession(),
+  user: JSON.parse(localStorage.getItem('user')) || null,
+  token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
 
-  signUp: async ({ name, email, password }) => {
+  signUp: async (userData) => {
     set({ loading: true, error: null });
-    await new Promise((r) => setTimeout(r, 700)); // simulate network
-    const users = getUsers();
-    if (users.find((u) => u.email === email)) {
-      set({ loading: false, error: 'Email already registered' });
-      throw new Error('Email already registered');
+    try {
+      const response = await API.post('/auth/register', userData);
+      const { token, user } = response.data;
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      set({ user, token, loading: false });
+      return user;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Registration failed';
+      set({ error: message, loading: false });
+      throw new Error(message);
     }
-    const newUser = { id: Date.now(), name, email, password, createdAt: new Date().toISOString() };
-    saveUsers([...users, newUser]);
-    const { password: _, ...safeUser } = newUser;
-    saveSession(safeUser);
-    set({ user: safeUser, loading: false });
-    return safeUser;
   },
 
-  signIn: async ({ email, password, role }) => {
+  signIn: async (credentials) => {
     set({ loading: true, error: null });
-    await new Promise((r) => setTimeout(r, 700));
+    try {
+      const response = await API.post('/auth/login', credentials);
+      const { token, user } = response.data;
 
-    // Hardcoded Admin Login
-    if (email === 'admin@foodcourt.com' && password === 'admin123') {
-      const adminUser = { id: 'admin1', name: 'System Admin', email, role: 'admin' };
-      saveSession(adminUser);
-      set({ user: adminUser, loading: false });
-      return adminUser;
-    }
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
-    // Hardcoded Rider Login
-    if (email === 'rider@foodcourt.com' && password === 'rider123') {
-      const riderUser = { id: 'rider1', name: 'Fast Rider', email, role: 'rider' };
-      saveSession(riderUser);
-      set({ user: riderUser, loading: false });
-      return riderUser;
+      set({ user, token, loading: false });
+      return user;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Login failed';
+      set({ error: message, loading: false });
+      throw new Error(message);
     }
-
-    const users = getUsers();
-    const found = users.find((u) => u.email === email && u.password === password);
-    if (!found) {
-      set({ loading: false, error: 'Invalid email or password' });
-      throw new Error('Invalid email or password');
-    }
-    const { password: _, ...safeUser } = found;
-    // ensure user always has a default role if none
-    safeUser.role = safeUser.role || 'user';
-    saveSession(safeUser);
-    set({ user: safeUser, loading: false });
-    return safeUser;
   },
 
   logout: () => {
-    clearSession();
-    set({ user: null });
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    set({ user: null, token: null });
   },
 
   updateProfile: async (updates) => {
-    const session = getSession();
-    if (!session) throw new Error('Not logged in');
-    const users = getUsers();
-    const updated = users.map((u) => u.id === session.id ? { ...u, ...updates } : u);
-    saveUsers(updated);
-    const newSession = { ...session, ...updates };
-    saveSession(newSession);
-    set({ user: newSession });
-    return newSession;
+    set({ loading: true, error: null });
+    try {
+      const response = await API.put('/auth/profile', updates);
+      const updatedUser = response.data.user;
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      set({ user: updatedUser, loading: false });
+      return updatedUser;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Update failed';
+      set({ error: message, loading: false });
+      throw new Error(message);
+    }
   },
 
-  isAuthenticated: () => !!getSession(),
+  isAuthenticated: () => {
+    const token = localStorage.getItem('token');
+    return !!token;
+  },
 }));
+

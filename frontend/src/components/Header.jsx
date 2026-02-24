@@ -52,23 +52,78 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
-          {[
-            { label: 'Restaurants', to: '/' },
-            { label: 'Offers', to: '/offers' },
-            { label: 'Track Order', to: '/track-order' },
-          ].map(({ label, to }) => (
-            <Link
-              key={label}
-              to={to}
-              className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
-                ? 'text-slate-500 hover:text-orange-600'
-                : 'text-white/70 hover:text-white'
-                }`}
-            >
-              {label}
-            </Link>
-          ))}
+          {user?.role === 'admin' ? (
+            [
+              { label: 'Admin Panel', to: '/admin' },
+              { label: 'Inventory', to: '/admin/menu' },
+              { label: 'System Stats', to: '/admin' },
+            ].map(({ label, to }) => (
+              <Link
+                key={label}
+                to={to}
+                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
+                  ? 'text-slate-500 hover:text-orange-600'
+                  : 'text-white/70 hover:text-white'
+                  }`}
+              >
+                {label}
+              </Link>
+            ))
+          ) : user?.role === 'restaurant' ? (
+            [
+              { label: 'Restaurant Panel', to: '/restaurant' },
+              { label: 'My Menu', to: '/admin/menu' },
+              { label: 'Insights', to: '/restaurant' },
+            ].map(({ label, to }) => (
+              <Link
+                key={label}
+                to={to}
+                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
+                  ? 'text-slate-500 hover:text-orange-600'
+                  : 'text-white/70 hover:text-white'
+                  }`}
+              >
+                {label}
+              </Link>
+            ))
+          ) : user?.role === 'rider' ? (
+            [
+              { label: 'Active Tasks', to: '/rider' },
+              { label: 'Earnings', to: '/rider' },
+              { label: 'Support', to: '/profile' },
+            ].map(({ label, to }) => (
+              <Link
+                key={label}
+                to={to}
+                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
+                  ? 'text-slate-500 hover:text-orange-600'
+                  : 'text-white/70 hover:text-white'
+                  }`}
+              >
+                {label}
+              </Link>
+            ))
+
+          ) : (
+            [
+              { label: 'Restaurants', to: '/' },
+              { label: 'Offers', to: '/offers' },
+              { label: 'Track Order', to: '/track-order' },
+            ].map(({ label, to }) => (
+              <Link
+                key={label}
+                to={to}
+                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
+                  ? 'text-slate-500 hover:text-orange-600'
+                  : 'text-white/70 hover:text-white'
+                  }`}
+              >
+                {label}
+              </Link>
+            ))
+          )}
         </nav>
+
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
@@ -119,27 +174,28 @@ export default function Header() {
 
               {userMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50">
-                  <Link to="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                    <User size={16} /> My Profile
-                  </Link>
-                  <Link to="/orders" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                    <ShoppingBag size={16} /> My Orders
-                  </Link>
-                  {user.role === 'admin' && (
+                  {user.role === 'admin' ? (
                     <>
                       <Link to="/admin" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
                         <LayoutDashboard size={16} /> Admin Dashboard
                       </Link>
                       <Link to="/admin/menu" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                        <FileText size={16} /> Admin Menu
+                        <FileText size={16} /> Menu Management
                       </Link>
                     </>
-                  )}
-                  {user.role === 'rider' && (
+                  ) : user.role === 'rider' ? (
                     <Link to="/rider" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                      <Bike size={16} /> Rider Dashboard
+                      <Bike size={16} /> Delivery Dashboard
+                    </Link>
+                  ) : (
+                    <Link to="/orders" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                      <ShoppingBag size={16} /> My Orders
                     </Link>
                   )}
+                  <Link to="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                    <User size={16} /> Profile Settings
+                  </Link>
+
                   <div className="border-t border-slate-100" />
                   <button
                     onClick={() => { logout(); navigate('/'); }}

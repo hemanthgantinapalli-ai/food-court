@@ -58,26 +58,20 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     setLoading(true);
-    // Simulate payment processing
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const paymentSelected = PAYMENT_METHODS.find((m) => m.id === paymentMethod) || PAYMENT_METHODS[0];
 
     const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
 
     const orderPayload = {
       deliveryAddress: {
-        name: address.name,
-        phone: address.phone,
         street: address.street,
-        area: address.area,
         city: address.city,
-        pincode: address.pincode,
-        landmark: address.landmark,
+        state: address.state || '',
+        zipCode: address.pincode,
+        label: address.landmark || 'Home',
       },
       paymentMethod: normalizedPaymentMethod,
       items: items.map((i) => ({
-        _id: i._id,
+        menuItem: i._id,
         name: i.name,
         quantity: i.quantity,
         price: i.price,
@@ -92,15 +86,7 @@ export default function CheckoutPage() {
     };
 
     try {
-      const newOrder = {
-        ...orderPayload,
-        _id: 'ORD' + Date.now().toString(),
-        userId: user?._id || user?.id || 'guest',
-        createdAt: new Date().toISOString(),
-        status: 'Processing',
-      };
-
-      addOrder(newOrder);
+      await addOrder(orderPayload);
       clearCart();
       setLoading(false);
       setSuccess(true);
@@ -108,9 +94,10 @@ export default function CheckoutPage() {
     } catch (err) {
       console.error('Order create error:', err);
       setLoading(false);
-      alert('Failed to create order');
+      alert(err.message || 'Failed to create order');
     }
   };
+
 
   const field = (name, placeholder, type = 'text', half = false) => (
     <div className={half ? 'flex-1' : 'w-full'}>

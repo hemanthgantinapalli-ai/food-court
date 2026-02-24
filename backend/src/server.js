@@ -12,6 +12,8 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import riderRoutes from "./routes/riderRoutes.js";
 import webhookRoutes from './routes/webhookRoutes.js';
 import menuRoutes from './routes/menuRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+
 
 dotenv.config();
 connectDB();
@@ -33,7 +35,9 @@ app.use("/api/payments", paymentRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/riders', riderRoutes);
 app.use('/api/menu', menuRoutes);
+app.use('/api/admin', adminRoutes);
 // Keep webhook route at /webhook for Stripe
+
 
 app.get("/", (req, res) => {
   res.send("FoodCourt API running 🚀");
