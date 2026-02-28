@@ -78,3 +78,59 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "Server error during login", error: error.message });
   }
 };
+
+// ====== GET CURRENT USER PROFILE ======
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone || "",
+        addresses: user.addresses || [],
+        wallet: user.wallet || { balance: 0 },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching profile", error: error.message });
+  }
+};
+
+// ====== UPDATE USER PROFILE ======
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, addresses } = req.body;
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (addresses) user.addresses = addresses;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone || "",
+        addresses: user.addresses || [],
+        wallet: user.wallet || { balance: 0 },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating profile", error: error.message });
+  }
+};

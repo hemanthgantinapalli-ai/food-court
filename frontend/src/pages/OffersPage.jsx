@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Tag, Clock, Copy, CheckCheck, Flame } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Tag, Clock, Copy, CheckCheck, Flame, ChevronRight } from 'lucide-react';
 
 const OFFERS = [
     {
@@ -124,8 +125,8 @@ export default function OffersPage() {
                                     <button
                                         onClick={() => handleCopy(offer.code)}
                                         className={`p-2.5 rounded-xl font-bold transition-all ${copiedCode === offer.code
-                                                ? 'bg-green-500 text-white'
-                                                : 'bg-slate-900 text-white hover:bg-orange-500'
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-slate-900 text-white hover:bg-orange-500'
                                             }`}
                                     >
                                         {copiedCode === offer.code ? (
@@ -136,10 +137,15 @@ export default function OffersPage() {
                                     </button>
                                 </div>
 
-                                {/* Expiry */}
-                                <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
-                                    <Clock size={12} />
-                                    {offer.expiry}
+                                {/* Expiry & CTA */}
+                                <div className="flex items-center justify-between mt-6">
+                                    <div className="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-wider">
+                                        <Clock size={12} />
+                                        {offer.expiry}
+                                    </div>
+                                    <Link to="/" className="text-orange-600 font-black text-xs uppercase tracking-widest hover:underline flex items-center gap-1">
+                                        Use Now <ChevronRight size={14} />
+                                    </Link>
                                 </div>
                             </div>
                         </div>

@@ -11,6 +11,8 @@ import {
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
+import QuickRoleSwitcher from "./components/QuickRoleSwitcher";
+import { useAuthStore } from "./context/authStore";
 
 // ---------- Customer Pages ----------
 import Home from "./pages/Home";
@@ -47,6 +49,14 @@ const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/rider", "/restaurant"];
 // ─── Inner App (inside Router context) ───────────────────────────
 function AppInner() {
   const { pathname } = useLocation();
+  const { token, getProfile } = useAuthStore();
+
+  useEffect(() => {
+    if (token) {
+      getProfile();
+    }
+  }, [token, getProfile]);
+
   const isDashboard = DASHBOARD_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
@@ -65,7 +75,6 @@ function AppInner() {
             {/* ── Public Routes ─────────────────────────────── */}
             <Route path="/" element={<Home />} />
             <Route path="/signin" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
             <Route path="/restaurant/:id" element={<RestaurantDetail />} />
             <Route path="/offers" element={<OffersPage />} />
 
@@ -73,7 +82,7 @@ function AppInner() {
             <Route
               path="/cart"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <CartPage />
                 </ProtectedRoute>
               }
@@ -81,7 +90,7 @@ function AppInner() {
             <Route
               path="/checkout"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <CheckoutPage />
                 </ProtectedRoute>
               }
@@ -89,7 +98,7 @@ function AppInner() {
             <Route
               path="/payment-success"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <PaymentSuccess />
                 </ProtectedRoute>
               }
@@ -97,7 +106,7 @@ function AppInner() {
             <Route
               path="/profile"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <ProfilePage />
                 </ProtectedRoute>
               }
@@ -105,7 +114,7 @@ function AppInner() {
             <Route
               path="/track-order"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <TrackOrderPage />
                 </ProtectedRoute>
               }
@@ -113,7 +122,7 @@ function AppInner() {
             <Route
               path="/orders"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <OrderHistoryPage />
                 </ProtectedRoute>
               }
@@ -121,7 +130,7 @@ function AppInner() {
             <Route
               path="/order/:orderId"
               element={
-                <ProtectedRoute allowedRoles={["customer"]}>
+                <ProtectedRoute allowedRoles={[]}>
                   <OrderDetailPage />
                 </ProtectedRoute>
               }
@@ -173,6 +182,9 @@ function AppInner() {
 
         {/* Consumer Footer — hidden on all dashboard routes */}
         {!isDashboard && <Footer />}
+
+        {/* Floating Quick Role Switcher (Development/Demo Helper) */}
+        <QuickRoleSwitcher />
       </div>
     </>
   );

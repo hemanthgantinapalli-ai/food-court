@@ -52,76 +52,28 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
-          {user?.role === 'admin' ? (
+          {user?.role === 'admin' && (
             [
               { label: 'Admin Panel', to: '/admin' },
               { label: 'Inventory', to: '/admin/menu' },
-              { label: 'System Stats', to: '/admin' },
             ].map(({ label, to }) => (
-              <Link
-                key={label}
-                to={to}
-                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
-                  ? 'text-slate-500 hover:text-orange-600'
-                  : 'text-white/70 hover:text-white'
-                  }`}
-              >
-                {label}
-              </Link>
+              <Link key={label} to={to} className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>{label}</Link>
             ))
-          ) : user?.role === 'restaurant' ? (
-            [
-              { label: 'Restaurant Panel', to: '/restaurant' },
-              { label: 'My Menu', to: '/admin/menu' },
-              { label: 'Insights', to: '/restaurant' },
-            ].map(({ label, to }) => (
-              <Link
-                key={label}
-                to={to}
-                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
-                  ? 'text-slate-500 hover:text-orange-600'
-                  : 'text-white/70 hover:text-white'
-                  }`}
-              >
-                {label}
-              </Link>
-            ))
-          ) : user?.role === 'rider' ? (
+          )}
+          {user?.role === 'rider' && (
             [
               { label: 'Active Tasks', to: '/rider' },
               { label: 'Earnings', to: '/rider' },
-              { label: 'Support', to: '/profile' },
             ].map(({ label, to }) => (
-              <Link
-                key={label}
-                to={to}
-                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
-                  ? 'text-slate-500 hover:text-orange-600'
-                  : 'text-white/70 hover:text-white'
-                  }`}
-              >
-                {label}
-              </Link>
-            ))
-
-          ) : (
-            [
-              { label: 'Restaurants', to: '/' },
-              { label: 'Offers', to: '/offers' },
-              { label: 'Track Order', to: '/track-order' },
-            ].map(({ label, to }) => (
-              <Link
-                key={label}
-                to={to}
-                className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage
-                  ? 'text-slate-500 hover:text-orange-600'
-                  : 'text-white/70 hover:text-white'
-                  }`}
-              >
-                {label}
-              </Link>
+              <Link key={label} to={to} className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>{label}</Link>
             ))
           )}
+          {(!user || user.role === 'customer') && (
+            <Link to="/" className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>Restaurants</Link>
+          )}
+
+          <Link to="/offers" className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>Offers</Link>
+          <Link to="/track-order" className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>Track Order</Link>
         </nav>
 
 

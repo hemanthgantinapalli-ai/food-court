@@ -20,7 +20,10 @@ API.interceptors.request.use((config) => {
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isAuthRequest = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register');
+    const isAlreadyOnSignIn = window.location.pathname === '/signin';
+
+    if (error.response?.status === 401 && !isAuthRequest && !isAlreadyOnSignIn) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/signin';

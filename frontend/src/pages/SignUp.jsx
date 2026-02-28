@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, ArrowRight, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, User as UserIcon, Eye, EyeOff, ArrowRight, CheckCircle, ShieldCheck, Bike } from 'lucide-react';
 import { useAuthStore } from '../context/authStore.js';
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: searchParams.get('role') || 'customer' });
+
+  useEffect(() => {
+    const role = searchParams.get('role');
+    if (role) setFormData(prev => ({ ...prev, role }));
+  }, [searchParams]);
 
   // Fixed: declare signUp before using it
   const signUp = useAuthStore((s) => s.signUp);
@@ -30,7 +36,8 @@ export default function SignUp() {
         navigate('/');
       }, 2000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create account. Please try again.');
+      const msg = err.response?.data?.message || err.message || 'Failed to create account. Please try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -64,7 +71,7 @@ export default function SignUp() {
 
           <div className="mb-10">
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">Join FoodCourt 🍽️</h1>
-            <p className="text-slate-400 font-medium mt-2">Create your free account in seconds</p>
+            <p className="text-slate-400 font-medium mt-2 text-sm uppercase tracking-widest">Create an account or <Link to="/" className="text-orange-500 hover:underline">browse as guest</Link></p>
           </div>
 
           {/* Perks */}
@@ -77,22 +84,33 @@ export default function SignUp() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 font-medium text-sm">
-              {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-red-500 rounded-full" /> {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Role Indicator */}
+            <div className={`mb-6 p-4 rounded-2xl border flex items-center gap-4 ${formData.role === 'admin' ? 'border-purple-100 bg-purple-50 text-purple-700' : formData.role === 'rider' ? 'border-blue-100 bg-blue-50 text-blue-700' : 'border-orange-100 bg-orange-50 text-orange-700'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white shadow-sm`}>
+                {formData.role === 'admin' ? <ShieldCheck size={20} /> : formData.role === 'rider' ? <Bike size={20} /> : <UserIcon size={20} />}
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Registering as</p>
+                <p className="font-black text-sm uppercase tracking-wider">{formData.role}</p>
+              </div>
+            </div>
+
             {/* Name */}
             <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Full Name</label>
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2 font-sans">Full Name</label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 <input
                   id="signup-name"
                   name="name"
                   type="text"
-                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-white border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all font-medium text-slate-900"
+                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-white border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all font-bold text-slate-900"
                   placeholder="John Doe"
                   onChange={handleChange}
                   required
@@ -102,14 +120,14 @@ export default function SignUp() {
 
             {/* Email */}
             <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Email Address</label>
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2 font-sans">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 <input
                   id="signup-email"
                   name="email"
                   type="email"
-                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-white border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all font-medium text-slate-900"
+                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-white border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all font-bold text-slate-900"
                   placeholder="you@example.com"
                   onChange={handleChange}
                   required
@@ -119,14 +137,14 @@ export default function SignUp() {
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Password</label>
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2 font-sans">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 <input
                   id="signup-password"
                   name="password"
                   type={showPass ? 'text' : 'password'}
-                  className="w-full pl-12 pr-12 py-4 rounded-xl bg-white border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all font-medium text-slate-900"
+                  className="w-full pl-12 pr-12 py-4 rounded-xl bg-white border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all font-bold text-slate-900"
                   placeholder="Min. 8 characters"
                   onChange={handleChange}
                   minLength={8}
@@ -142,18 +160,18 @@ export default function SignUp() {
               </div>
             </div>
 
-            <p className="text-xs text-slate-400 font-medium">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
               By signing up, you agree to our{' '}
-              <Link to="#" className="text-orange-500 font-bold hover:underline">Terms</Link>
+              <Link to="#" className="text-orange-500 hover:underline">Terms</Link>
               {' '}and{' '}
-              <Link to="#" className="text-orange-500 font-bold hover:underline">Privacy Policy</Link>.
+              <Link to="#" className="text-orange-500 hover:underline">Privacy Policy</Link>.
             </p>
 
             <button
               id="signup-submit-btn"
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl font-black text-base hover:opacity-90 active:scale-[0.98] transition-all shadow-xl shadow-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] hover:bg-orange-600 active:scale-[0.98] transition-all shadow-xl shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -163,12 +181,17 @@ export default function SignUp() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-slate-500 font-medium">
-            Already have an account?{' '}
-            <Link to="/signin" className="text-orange-500 font-bold hover:underline">
-              Sign in →
+          <div className="mt-10 pt-8 border-t border-slate-100 text-center">
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+              Already a foodie?{' '}
+              <Link to="/signin" className="text-orange-500 hover:underline ml-2">
+                Sign in instead →
+              </Link>
+            </p>
+            <Link to="/" className="mt-4 inline-block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-colors">
+              Continue as Guest
             </Link>
-          </p>
+          </div>
         </div>
       </div>
 

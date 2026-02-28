@@ -6,8 +6,9 @@ import { useAuthStore } from "../context/authStore";
  * ProtectedRoute — RBAC-enforced route wrapper
  *
  * Props:
- *   allowedRoles: string[] — e.g. ['customer'], ['admin'], ['rider', 'admin']
- *   children: JSX element to render if access granted
+ *   allowedRoles: string[]  e.g. ['customer'], ['admin'], ['rider', 'admin']
+ *                           Pass empty array [] to allow ANY authenticated user.
+ *   children: JSX element to render if access is granted
  *
  * Behavior:
  *   - Not logged in         → redirect to /signin (saves intended path)
@@ -26,17 +27,20 @@ export default function ProtectedRoute({ allowedRoles = [], children }) {
     const { user, token } = useAuthStore();
     const location = useLocation();
 
-    // 1. Not authenticated at all
+    // ── 1. Not authenticated at all ────────────────────────────────────────────
     if (!token || !user) {
         return <Navigate to="/signin" state={{ from: location }} replace />;
     }
 
-    // 2. Authenticated but wrong role
-    if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-        const redirectTo = ROLE_HOME[user.role] || "/";
+    // ── 2. Normalise role (guard against missing/undefined role) ────────────────
+    const role = user?.role || "customer";
+
+    // ── 3. Role check (skip if allowedRoles is empty → any role allowed) ────────
+    if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+        const redirectTo = ROLE_HOME[role] || "/";
         return <Navigate to={redirectTo} replace />;
     }
 
-    // 3. Authorised ✅
+    // ── 4. Authorised ✅ ────────────────────────────────────────────────────────
     return children;
 }

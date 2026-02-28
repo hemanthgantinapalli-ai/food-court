@@ -146,12 +146,20 @@ export default function RestaurantDashboard() {
                       </Link>
 
                       {order.orderStatus === 'placed' && (
-                        <button
-                          onClick={() => handleStatusUpdate(order._id, 'confirmed')}
-                          className="flex-1 lg:flex-none px-8 py-3 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-orange-700 shadow-lg shadow-orange-100"
-                        >
-                          Accept & Confirm
-                        </button>
+                        <div className="flex gap-2 flex-1 lg:flex-none">
+                          <button
+                            onClick={() => handleStatusUpdate(order._id, 'confirmed')}
+                            className="flex-1 px-8 py-3 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-orange-700 shadow-lg shadow-orange-100"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleStatusUpdate(order._id, 'cancelled')}
+                            className="px-6 py-3 bg-white border border-rose-200 text-rose-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-50 transition-all"
+                          >
+                            Reject
+                          </button>
+                        </div>
                       )}
 
                       {order.orderStatus === 'confirmed' && (

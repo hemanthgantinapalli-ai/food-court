@@ -135,8 +135,8 @@ export const getOrderHistory = async (req, res) => {
       query = { rider: req.userId };
     } else if (type === 'available' && req.userRole === 'rider') {
       console.log(`🛎️ [Get Order History API] Fetching available orders for rider.`);
-      // Only show orders that are READY (restaurant done preparing) and have no rider
-      query = { rider: null, orderStatus: 'ready' };
+      // Show orders that are waiting for acceptance, being prepared, or ready, and have no rider
+      query = { rider: null, orderStatus: { $in: ['placed', 'confirmed', 'preparing', 'ready'] } };
     } else if (req.userRole === 'restaurant') {
       console.log(`🏪 [Get Order History API] Fetching orders for restaurant owner.`);
       const restaurant = await Restaurant.findOne({ owner: req.userId });
@@ -153,9 +153,10 @@ export const getOrderHistory = async (req, res) => {
 
     console.log(`🔍 [Get Order History API] Executing query...`);
     const orders = await Order.find(query)
-      .populate('restaurant', 'name image')
+      .populate('restaurant', 'name image location')
+      .populate('customer', 'name phone email')
       .populate('items.menuItem')
-      .populate('rider', 'name email')
+      .populate('rider', 'name email phone')
       .sort({ createdAt: -1 });
 
     console.log(`✅ [Get Order History API] Found ${orders.length} orders.`);
@@ -181,11 +182,23 @@ export const getOrderById = async (req, res) => {
     const { orderId } = req.params;
     console.log(`🔍 [Get Order By ID API] Request from user: ${req.userId}, Role: ${req.userRole} for order: ${orderId}`);
 
-    const order = await Order.findById(orderId)
-      .populate('customer')
-      .populate('restaurant')
-      .populate('rider')
-      .populate('items.menuItem');
+    // Try finding by MongoDB _id first, then by human-readable orderId
+    let order;
+    if (isValidObjectId(orderId)) {
+      order = await Order.findById(orderId)
+        .populate('customer', 'name email phone')
+        .populate('restaurant')
+        .populate('rider', 'name email phone')
+        .populate('items.menuItem');
+    }
+
+    if (!order) {
+      order = await Order.findOne({ orderId })
+        .populate('customer', 'name email phone')
+        .populate('restaurant')
+        .populate('rider', 'name email phone')
+        .populate('items.menuItem');
+    }
 
     if (!order) {
       console.log(`⚠️ [Get Order By ID API] Order not found: ${orderId}`);
@@ -196,7 +209,12 @@ export const getOrderById = async (req, res) => {
     }
 
     // Check authorization
-    if (order.customer._id.toString() !== req.userId && req.userRole !== 'admin') {
+    const isCustomer = order.customer?._id.toString() === req.userId;
+    const isAdmin = req.userRole === 'admin';
+    const isRider = order.rider?._id.toString() === req.userId;
+    const isRestaurantOwner = order.restaurant?.owner?.toString() === req.userId;
+
+    if (!isCustomer && !isAdmin && !isRider && !isRestaurantOwner) {
       console.log(`🚫 [Get Order By ID API] Unauthorized access attempt for order: ${orderId} by user: ${req.userId}`);
       return res.status(403).json({
         success: false,

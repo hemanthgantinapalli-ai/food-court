@@ -4,12 +4,24 @@ import bcrypt from "bcryptjs";
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, unique: true, required: true },
+    email: { type: String, unique: true, required: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     role: {
       type: String,
       enum: ["customer", "admin", "restaurant", "rider"],
       default: "customer",
+    },
+    phone: { type: String, default: "" },
+    addresses: [
+      {
+        label: { type: String },
+        street: { type: String },
+        city: { type: String },
+        zipCode: { type: String },
+      },
+    ],
+    wallet: {
+      balance: { type: Number, default: 0 },
     },
   },
   { timestamps: true }

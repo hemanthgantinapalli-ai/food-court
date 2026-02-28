@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, MapPin, TrendingUp, AlertCircle } from 'lucide-react';
+import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
+import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
 
 export default function RiderDashboard() {
@@ -52,6 +53,16 @@ export default function RiderDashboard() {
     }
   };
 
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    try {
+      await useOrderStore.getState().updateStatus(orderId, newStatus);
+      fetchData(); // Refresh list
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      alert('Failed to update order status');
+    }
+  };
+
   if (!user || user.role !== 'rider') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8F9FB] pt-20">
@@ -71,9 +82,9 @@ export default function RiderDashboard() {
 
   if (loading && assignedOrders.length === 0) return <Loader />;
 
-  const completedDeliveries = assignedOrders.filter((o) => o.orderStatus === 'delivered');
+  const completedDeliveries = assignedOrders.filter((o) => ['delivered', 'cancelled'].includes(o.orderStatus));
   const activeDeliveries = assignedOrders.filter((o) => ['confirmed', 'preparing', 'ready', 'picked_up'].includes(o.orderStatus));
-  const totalEarnings = completedDeliveries.reduce((sum, order) => sum + (order.deliveryFee || 0), 0);
+  const totalEarnings = completedDeliveries.reduce((sum, order) => sum + (order.orderStatus === 'delivered' ? (order.deliveryFee || 0) : 0), 0);
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] pt-24 pb-12">
@@ -83,24 +94,32 @@ export default function RiderDashboard() {
         <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-8">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">Delivery <span className="text-orange-600">Center</span></h1>
+              <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">Rider <span className="text-orange-600">Portal</span></h1>
               <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isOnline ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                {isOnline ? 'Active' : 'Standby'}
+                {isOnline ? 'Online' : 'Offline'}
               </span>
             </div>
-            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Manage your tasks and track your daily performance</p>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Track your earnings and manage your deliveries</p>
           </div>
 
-          <button
-            onClick={() => setIsOnline(!isOnline)}
-            className={`group relative overflow-hidden px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-500 shadow-lg active:scale-95 ${isOnline ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-200'
-              }`}
-          >
-            <div className="relative z-10 flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full animate-ping ${isOnline ? 'bg-white' : 'bg-rose-500'}`} />
-              {isOnline ? 'Go Offline' : 'Go Online'}
-            </div>
-          </button>
+          <div className="flex flex-col items-center md:items-end gap-3">
+            <button
+              id="rider-online-toggle"
+              onClick={() => setIsOnline(!isOnline)}
+              className={`group relative overflow-hidden px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-500 shadow-xl active:scale-95 ${isOnline
+                ? 'bg-emerald-500 text-white shadow-emerald-200 hover:bg-emerald-600'
+                : 'bg-slate-900 text-white shadow-slate-200 hover:bg-orange-600 ring-4 ring-orange-500/20'
+                }`}
+            >
+              <div className="relative z-10 flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-white animate-pulse' : 'bg-rose-500'}`} />
+                {isOnline ? 'Go Offline' : 'Go Online & Sync'}
+              </div>
+            </button>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">
+              {isOnline ? 'You are receiving real-time updates' : 'Going online activates the Marketplace'}
+            </p>
+          </div>
         </div>
 
         {/* Dynamic Stats Grid */}
@@ -128,9 +147,9 @@ export default function RiderDashboard() {
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50">
             {[
-              { id: 'available', label: 'Marketplace', count: availableOrders.length },
-              { id: 'active', label: 'My Queue', count: activeDeliveries.length },
-              { id: 'completed', label: 'History', count: completedDeliveries.length }
+              { id: 'available', label: 'New Orders', count: availableOrders.length },
+              { id: 'active', label: 'Current Tasks', count: activeDeliveries.length },
+              { id: 'completed', label: 'Past Work', count: completedDeliveries.length }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -160,8 +179,18 @@ export default function RiderDashboard() {
                     <p className="text-slate-900 font-black text-lg mt-2">Go online to start seeing available deliveries</p>
                   </div>
                 ) : availableOrders.length === 0 ? (
-                  <div className="text-center py-16">
-                    <p className="text-slate-400 font-bold italic">No orders in your area right now...</p>
+                  <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                    <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                      <ShoppingCart className="text-slate-300" size={32} />
+                    </div>
+                    <p className="text-slate-900 font-black text-xl mb-2">No orders in your area right now...</p>
+                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-8">Pull to refresh or wait for new tasks</p>
+                    <button
+                      onClick={fetchData}
+                      className="px-8 py-4 bg-white border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-orange-200 hover:text-orange-600 transition-all shadow-sm"
+                    >
+                      Check for Tasks
+                    </button>
                   </div>
                 ) : (
                   availableOrders.map((order) => (
@@ -171,10 +200,26 @@ export default function RiderDashboard() {
                           FC
                         </div>
                         <div>
-                          <p className="font-black text-slate-900 text-lg">Order #{order.orderId || order._id.slice(-6)}</p>
+                          <div className="flex items-center gap-3">
+                            <p className="font-black text-slate-900 text-lg">Order #{order.orderId || order._id.slice(-6)}</p>
+                            <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${order.orderStatus === 'ready' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+                              }`}>
+                              {order.orderStatus === 'ready' ? 'Ready' : 'In Kitchen'}
+                            </span>
+                          </div>
                           <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mt-1">
-                            {order.restaurant?.name} • <span className="text-emerald-600">₹{order.deliveryFee} tip</span>
+                            {order.restaurant?.name} • <span className="text-emerald-600">₹{order.deliveryFee} fee</span>
                           </p>
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-start gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                              <Package size={12} className="text-orange-400 shrink-0 mt-0.5" />
+                              <span>Pickup: {order.restaurant?.location?.address || 'Restaurant Address'}</span>
+                            </div>
+                            <div className="flex items-start gap-2 text-[10px] font-bold text-slate-600 uppercase tracking-tight">
+                              <MapPin size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                              <span>Deliver to: {order.deliveryAddress?.street || 'Customer Address'}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-3 w-full md:w-auto">
@@ -206,17 +251,46 @@ export default function RiderDashboard() {
                             {order.orderStatus[0]}
                           </div>
                           <div>
-                            <p className="font-black text-slate-900">Order #{order.orderId || order._id.slice(-6)}</p>
-                            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">{order.restaurant?.name}</p>
+                            <p className="font-black text-slate-900 leading-tight">Order #{order.orderId || order._id.slice(-6)}</p>
+                            <p className="text-slate-400 font-black text-[9px] uppercase tracking-widest mt-1 flex items-center gap-1">
+                              <UserIcon size={10} className="text-slate-300" /> {order.customer?.name || 'Customer'}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-right hidden sm:block">
+                        <div className="flex-1 px-4 space-y-1.5 hidden lg:block">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <Package size={12} /> From: {order.restaurant?.location?.address || 'Pickup'}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                            <MapPin size={12} className="text-blue-500" /> To: {order.deliveryAddress?.street || 'Destination'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right hidden sm:block mr-3">
                             <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Current Status</p>
                             <p className="font-black text-orange-600 uppercase text-xs mt-1">{order.orderStatus.replace('_', ' ')}</p>
                           </div>
+
+                          {order.orderStatus === 'ready' && (
+                            <button
+                              onClick={() => handleStatusUpdate(order._id, 'picked_up')}
+                              className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                            >
+                              Pickup
+                            </button>
+                          )}
+
+                          {order.orderStatus === 'picked_up' && (
+                            <button
+                              onClick={() => handleStatusUpdate(order._id, 'delivered')}
+                              className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                            >
+                              Deliver
+                            </button>
+                          )}
+
                           <Link to={`/order/${order._id}`} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all">
-                            Manage Task
+                            Details
                           </Link>
                         </div>
                       </div>
@@ -227,20 +301,36 @@ export default function RiderDashboard() {
 
               {activeTab === 'completed' && (
                 completedDeliveries.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400">No completed tasks yet.</div>
+                  <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                    <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                      <Clock className="text-slate-300" size={32} />
+                    </div>
+                    <p className="text-slate-900 font-black text-xl mb-2">No completed tasks yet</p>
+                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Your successfully delivered orders will appear here</p>
+                  </div>
                 ) : (
                   completedDeliveries.map((order) => (
-                    <div key={order._id} className="p-6 bg-slate-50/50 rounded-[2rem] border border-slate-50 transition-all flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center">
-                          <AlertCircle size={20} />
+                    <div key={order._id} className="group p-6 bg-slate-50/50 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="flex items-center gap-6 w-full md:w-auto">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0 ${order.orderStatus === 'delivered' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500'}`}>
+                          {order.orderStatus === 'delivered' ? '✓' : '×'}
                         </div>
                         <div>
-                          <p className="font-black text-slate-900 text-sm">Order #{order.orderId || order._id.slice(-6)}</p>
-                          <p className="text-slate-400 font-bold text-[10px]">{new Date(order.updatedAt).toLocaleTimeString()}</p>
+                          <p className="font-black text-slate-900 text-lg">Order #{order.orderId || order._id.slice(-6)}</p>
+                          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mt-1">
+                            {order.restaurant?.name} • <span className="text-slate-400">{new Date(order.updatedAt).toLocaleDateString()} at {new Date(order.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </p>
                         </div>
                       </div>
-                      <p className="font-black text-slate-900">₹{order.deliveryFee}</p>
+                      <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
+                        <div className="text-right">
+                          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-1">Fee Earned</p>
+                          <p className={`text-xl font-black ${order.orderStatus === 'delivered' ? 'text-emerald-600' : 'text-slate-400 line-through'}`}>₹{order.deliveryFee}</p>
+                        </div>
+                        <Link to={`/order/${order._id}`} className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">
+                          View Details
+                        </Link>
+                      </div>
                     </div>
                   ))
                 )
@@ -248,8 +338,36 @@ export default function RiderDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Global Recent Activity - Persistent Footer */}
+        {completedDeliveries.length > 0 && (
+          <div className="mt-12 bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200 text-white">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h3 className="text-xl font-black tracking-tight">Recent Successes</h3>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Keep up the great work</p>
+              </div>
+              <TrendingUp className="text-emerald-500" size={24} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {completedDeliveries.slice(0, 3).map((order) => (
+                <div key={order._id} className="p-5 bg-white/5 rounded-2xl border border-white/10 flex items-center gap-4">
+                  <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center font-black">
+                    ✓
+                  </div>
+                  <div>
+                    <p className="font-black text-sm text-white">#{(order.orderId || order._id).slice(-6)}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate max-w-[120px]">{order.restaurant?.name}</p>
+                  </div>
+                  <div className="ml-auto text-right">
+                    <p className="text-sm font-black text-emerald-400">₹{order.deliveryFee}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

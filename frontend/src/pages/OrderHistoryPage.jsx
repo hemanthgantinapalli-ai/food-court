@@ -166,7 +166,7 @@ export default function OrderHistoryPage() {
               <div className="pt-5 border-t border-slate-100 flex gap-3 sm:justify-end">
                 {(order.status || order.orderStatus)?.toLowerCase() !== 'delivered' && (
                   <Link
-                    to="/track-order"
+                    to={`/track-order?orderId=${order.orderId || order._id}`}
                     className="flex-1 sm:flex-none justify-center bg-orange-500 text-white px-6 py-2.5 rounded-xl font-black text-sm hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 flex items-center gap-2"
                   >
                     Track Order <Map size={16} />

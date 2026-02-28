@@ -128,17 +128,59 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Wallet / Credits */}
-          <div className="bg-slate-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200 relative overflow-hidden">
-            <div className="relative z-10">
-              <h3 className="text-xl font-black mb-2">FoodCourt Credit</h3>
-              <p className="text-5xl font-black text-orange-500 tracking-tighter mb-8">₹{user?.wallet?.balance || '0.00'}</p>
-              <button className="w-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
-                Add Funds
-              </button>
+          {/* Role-Specific Metric Card */}
+          {user?.role === 'admin' ? (
+            <div className="bg-purple-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-purple-200 relative overflow-hidden">
+              <div className="relative z-10">
+                <h3 className="text-xl font-black mb-6">Platform Overview</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-[10px] font-black text-purple-300 uppercase tracking-[0.2em] mb-1">Total Users</p>
+                    <p className="text-3xl font-black">12.4k</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-purple-300 uppercase tracking-[0.2em] mb-1">Live Orders</p>
+                    <p className="text-3xl font-black">148</p>
+                  </div>
+                </div>
+                <Link to="/admin" className="mt-10 w-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                  <LayoutDashboard size={14} /> Open Admin Dashboard
+                </Link>
+              </div>
+              <ShieldCheck className="absolute -bottom-4 -right-4 text-white/5 w-40 h-40" />
             </div>
-            <CreditCard className="absolute -bottom-4 -right-4 text-white/5 w-40 h-40 -rotate-12" />
-          </div>
+          ) : user?.role === 'rider' ? (
+            <div className="bg-blue-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-blue-200 relative overflow-hidden">
+              <div className="relative z-10">
+                <h3 className="text-xl font-black mb-6">Delivery Performance</h3>
+                <div className="grid grid-cols-2 gap-6 transition-all">
+                  <div>
+                    <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.2em] mb-1">Rating</p>
+                    <p className="text-3xl font-black text-emerald-400 flex items-center gap-2">4.9 <span className="text-xs">★</span></p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.2em] mb-1">Total Earned</p>
+                    <p className="text-3xl font-black">₹4,280</p>
+                  </div>
+                </div>
+                <Link to="/rider" className="mt-10 w-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                  <Bike size={14} /> View Task Center
+                </Link>
+              </div>
+              <Bike className="absolute -bottom-4 -right-4 text-white/5 w-40 h-40" />
+            </div>
+          ) : (
+            <div className="bg-slate-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200 relative overflow-hidden">
+              <div className="relative z-10">
+                <h3 className="text-xl font-black mb-2">FoodCourt Credit</h3>
+                <p className="text-5xl font-black text-orange-500 tracking-tighter mb-8">₹{user?.wallet?.balance || '0.00'}</p>
+                <button className="w-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
+                  Add Funds
+                </button>
+              </div>
+              <CreditCard className="absolute -bottom-4 -right-4 text-white/5 w-40 h-40 -rotate-12" />
+            </div>
+          )}
         </div>
 
         {/* Saved Addresses */}

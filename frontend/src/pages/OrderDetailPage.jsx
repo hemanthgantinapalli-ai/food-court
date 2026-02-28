@@ -65,15 +65,6 @@ export default function OrderDetailPage() {
           {/* Rider Actions */}
           {user?.role === 'rider' && order.rider?._id === user._id && !['delivered', 'cancelled'].includes(order.orderStatus) && (
             <div className="flex gap-2">
-              {order.orderStatus === 'confirmed' && (
-                <button
-                  onClick={() => handleStatusUpdate('preparing')}
-                  disabled={actionLoading}
-                  className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all disabled:opacity-50"
-                >
-                  {actionLoading ? 'Updating...' : 'Start Preparing'}
-                </button>
-              )}
               {order.orderStatus === 'ready' && (
                 <button
                   onClick={() => handleStatusUpdate('picked_up')}
@@ -105,8 +96,8 @@ export default function OrderDetailPage() {
             </p>
           </div>
           <div className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest border shadow-sm ${order.orderStatus === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-              order.orderStatus === 'cancelled' ? 'bg-rose-50 text-rose-500 border-rose-100' :
-                'bg-orange-50 text-orange-600 border-orange-100'
+            order.orderStatus === 'cancelled' ? 'bg-rose-50 text-rose-500 border-rose-100' :
+              'bg-orange-50 text-orange-600 border-orange-100'
             }`}>
             {order.orderStatus.replace('_', ' ')}
           </div>
@@ -119,6 +110,14 @@ export default function OrderDetailPage() {
             <div className="flex justify-between relative z-10">
               {statusSteps.map((step, idx) => {
                 const isActive = statusSteps.indexOf(order.orderStatus) >= statusSteps.indexOf(step);
+                const labels = {
+                  'placed': 'Placed',
+                  'confirmed': 'Confirmed',
+                  'preparing': 'Preparing',
+                  'ready': 'Ready',
+                  'picked_up': 'Picked Up',
+                  'delivered': 'Delivered'
+                };
                 return (
                   <div key={step} className="flex flex-col items-center flex-1">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs mb-4 transition-all duration-500 border ${isActive ? 'bg-orange-500 text-white border-orange-400 shadow-lg shadow-orange-100' : 'bg-slate-50 text-slate-300 border-slate-100'
@@ -126,7 +125,7 @@ export default function OrderDetailPage() {
                       {idx + 1}
                     </div>
                     <p className={`text-[9px] font-black uppercase tracking-widest text-center hidden md:block ${isActive ? 'text-slate-900' : 'text-slate-300'}`}>
-                      {step.replace('_', ' ')}
+                      {labels[step]}
                     </p>
                   </div>
                 );

@@ -96,3 +96,23 @@ body {
 .card-hover {
   @apply transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl;
 }
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-4px);
+  }
+
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.2s ease-in-out 0s 2;
+}

@@ -1,11 +1,38 @@
 import { create } from 'zustand';
 import API from '../api/axios';
 
-export const useAuthStore = create((set) => ({
-  user: JSON.parse(localStorage.getItem('user')) || null,
+const getInitialUser = () => {
+  try {
+    const saved = localStorage.getItem('user');
+    return saved ? JSON.parse(saved) : null;
+  } catch (error) {
+    console.error('Error parsing user from localStorage:', error);
+    localStorage.removeItem('user');
+    return null;
+  }
+};
+
+export const useAuthStore = create((set, get) => ({
+  user: getInitialUser(),
   token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
+
+  getProfile: async () => {
+    if (!get().token) return null;
+    try {
+      const response = await API.get('/auth/profile');
+      const user = response.data.user;
+      localStorage.setItem('user', JSON.stringify(user));
+      set({ user });
+      return user;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        get().logout();
+      }
+      return null;
+    }
+  },
 
   signUp: async (userData) => {
     set({ loading: true, error: null });

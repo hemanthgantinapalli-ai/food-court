@@ -38,6 +38,16 @@ const seedUsers = async () => {
         await rider.save();
         console.log('✅ Rider user created');
 
+        // Create Customer
+        const customer = new User({
+            name: 'Demo Customer',
+            email: 'user@foodcourt.com',
+            password: 'user123',
+            role: 'customer'
+        });
+        await customer.save();
+        console.log('✅ Customer user created');
+
         process.exit(0);
     } catch (err) {
         console.error('❌ Seeding failed:', err);
