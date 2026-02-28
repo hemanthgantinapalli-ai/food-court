@@ -67,7 +67,16 @@ const orderSchema = new mongoose.Schema(
     invoiceId: String,
     orderStatus: {
       type: String,
-      enum: ['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled'],
+      enum: [
+        'placed',
+        'confirmed',
+        'preparing',
+        'ready',
+        'out_for_delivery',
+        'picked_up',
+        'delivered',
+        'cancelled',
+      ],
       default: 'placed',
     },
     statusHistory: [
@@ -100,6 +109,10 @@ const orderSchema = new mongoose.Schema(
       type: String,
       enum: ['none', 'pending', 'completed'],
       default: 'none',
+    },
+    refundReason: {
+      type: String,
+      default: '',
     },
   },
   {

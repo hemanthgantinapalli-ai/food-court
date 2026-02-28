@@ -135,7 +135,8 @@ export const getOrderHistory = async (req, res) => {
       query = { rider: req.userId };
     } else if (type === 'available' && req.userRole === 'rider') {
       console.log(`🛎️ [Get Order History API] Fetching available orders for rider.`);
-      query = { rider: null, orderStatus: { $in: ['confirmed', 'preparing', 'ready'] } };
+      // Only show orders that are READY (restaurant done preparing) and have no rider
+      query = { rider: null, orderStatus: 'ready' };
     } else if (req.userRole === 'restaurant') {
       console.log(`🏪 [Get Order History API] Fetching orders for restaurant owner.`);
       const restaurant = await Restaurant.findOne({ owner: req.userId });

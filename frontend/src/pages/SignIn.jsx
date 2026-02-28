@@ -19,11 +19,15 @@ export default function SignIn() {
     setLoading(true);
     try {
       const loggedInUser = await signIn({ email, password });
+      // Route each role to their correct dashboard
       if (loggedInUser.role === 'admin') {
         navigate('/admin');
       } else if (loggedInUser.role === 'rider') {
         navigate('/rider');
+      } else if (loggedInUser.role === 'restaurant') {
+        navigate('/restaurant');
       } else {
+        // customer (default)
         navigate('/');
       }
     } catch (err) {

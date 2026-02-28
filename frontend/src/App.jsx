@@ -1,11 +1,18 @@
 import React, { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+  Navigate,
+} from "react-router-dom";
 
-// ---------- Components ----------
+// ---------- Layout ----------
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// ---------- Pages ----------
+// ---------- Customer Pages ----------
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
@@ -17,13 +24,15 @@ import ProfilePage from "./pages/ProfilePage";
 import OffersPage from "./pages/OffersPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
+
+// ---------- Role Dashboards (no shared Header/Footer) ----------
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import RiderDashboard from "./pages/RiderDashboard";
-import OrderDetailPage from "./pages/OrderDetailPage";
 import RestaurantDashboard from "./pages/RestaurantDashboard";
 
-// Smooth scroll to top on page change
+// ─── Scroll To Top ────────────────────────────────────────────────
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -32,41 +41,148 @@ const ScrollToTop = () => {
   return null;
 };
 
-export default function App() {
+// ─── Paths that should NOT show the consumer Header/Footer ────────
+const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/rider", "/restaurant"];
+
+// ─── Inner App (inside Router context) ───────────────────────────
+function AppInner() {
+  const { pathname } = useLocation();
+  const isDashboard = DASHBOARD_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+
   return (
-    <Router>
+    <>
       <ScrollToTop />
       <div className="flex min-h-screen flex-col bg-[#F8F9FB] text-slate-900 font-sans antialiased">
 
-        {/* The Header is sticky, so it stays at the top */}
-        <Header />
+        {/* Consumer Header — hidden on all dashboard routes */}
+        {!isDashboard && <Header />}
 
-        {/* Main Content: 'grow' pushes footer to bottom. 
-           We use 'pt-20' if your header is fixed to avoid overlapping content.
-        */}
         <main className="grow">
           <Routes>
+
+            {/* ── Public Routes ─────────────────────────────── */}
             <Route path="/" element={<Home />} />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/restaurant/:id" element={<RestaurantDetail />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/payment-success" element={<PaymentSuccess />} />
-            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/offers" element={<OffersPage />} />
-            <Route path="/track-order" element={<TrackOrderPage />} />
-            <Route path="/orders" element={<OrderHistoryPage />} />
-            <Route path="/order/:orderId" element={<OrderDetailPage />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/menu" element={<AdminMenu />} />
-            <Route path="/rider" element={<RiderDashboard />} />
-            <Route path="/restaurant" element={<RestaurantDashboard />} />
+
+            {/* ── Customer-Only Routes ──────────────────────── */}
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <CartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payment-success"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <PaymentSuccess />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/track-order"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <TrackOrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <OrderHistoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/order/:orderId"
+              element={
+                <ProtectedRoute allowedRoles={["customer"]}>
+                  <OrderDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ── Admin Dashboard (no consumer Header/Footer) ── */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/menu"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminMenu />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ── Rider Dashboard (no consumer Header/Footer) ── */}
+            <Route
+              path="/rider"
+              element={
+                <ProtectedRoute allowedRoles={["rider"]}>
+                  <RiderDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ── Restaurant Dashboard (no consumer Header/Footer) */}
+            <Route
+              path="/restaurant"
+              element={
+                <ProtectedRoute allowedRoles={["restaurant"]}>
+                  <RestaurantDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ── Catch-all 404 ─────────────────────────────── */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+
           </Routes>
         </main>
 
-        <Footer />
+        {/* Consumer Footer — hidden on all dashboard routes */}
+        {!isDashboard && <Footer />}
       </div>
+    </>
+  );
+}
+
+// ─── Root Export ─────────────────────────────────────────────────
+export default function App() {
+  return (
+    <Router>
+      <AppInner />
     </Router>
   );
 }
