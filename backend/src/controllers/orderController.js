@@ -2,6 +2,8 @@ import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import mongoose from 'mongoose';
 import Restaurant from '../models/Restaurant.js';
+import User from '../models/User.js';
+import { getIO } from '../utils/socket.js';
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -107,9 +109,18 @@ export const createOrder = async (req, res) => {
     );
 
     console.log(`✅ [Create Order API] Order created successfully: ${order._id}`);
+
+    // Notify Admin via Socket.io
+    const io = getIO();
+    io.to('admins').emit('new_order', {
+      orderId: order.orderId,
+      customerName: order.customer.name,
+      total: order.total
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Order created successfully',
+      message: 'Order created successfully. Admin notified.',
       data: order,
     });
   } catch (error) {
@@ -269,6 +280,44 @@ export const updateOrderStatus = async (req, res) => {
     await order.save();
 
     console.log(`✅ [Update Order Status API] Order status updated successfully.`);
+
+    // Notify User via Socket.io
+    const io = getIO();
+    const customerId = order.customer.toString();
+
+    let notificationMessage = '';
+    switch (status) {
+      case 'preparing': notificationMessage = 'Restaurant is preparing your food.'; break;
+      case 'dispatched': notificationMessage = 'Food is ready and waiting for a rider.'; break;
+      case 'on_the_way': notificationMessage = 'Your order is on the way!'; break;
+      case 'delivered': notificationMessage = 'Order has been delivered. Enjoy your meal!'; break;
+    }
+
+    if (notificationMessage) {
+      io.to(customerId).emit('order_status_update', {
+        orderId: order._id,
+        status: order.orderStatus,
+        message: notificationMessage
+      });
+    }
+
+    // Phase 2 Logic: If dispatched, notify all available riders
+    if (status === 'dispatched') {
+      const availableRiders = await User.find({ role: 'rider', isAvailable: true });
+      availableRiders.forEach(rider => {
+        io.to(rider._id.toString()).emit('delivery_available', {
+          orderId: order._id,
+          restaurantName: order.restaurant?.name || 'Local Restaurant',
+          deliveryAddress: order.deliveryAddress
+        });
+      });
+    }
+
+    // Phase 4 Logic: If delivered, reset rider availability
+    if (status === 'delivered' && order.rider) {
+      await User.findByIdAndUpdate(order.rider, { isAvailable: true });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Order status updated',
@@ -352,9 +401,25 @@ export const acceptOrder = async (req, res) => {
     await order.save();
 
     console.log(`✅ [Accept Order API] Order accepted successfully.`);
+
+    // Phase 3 Logic: Update rider availability
+    await User.findByIdAndUpdate(req.userId, { isAvailable: false });
+
+    // Notify User & Admin
+    const io = getIO();
+    io.to(order.customer.toString()).emit('order_status_update', {
+      orderId: order._id,
+      status: 'on_the_way',
+      message: 'A rider has accepted your order and is on the way!'
+    });
+    io.to('admins').emit('order_claimed', {
+      orderId: order._id,
+      riderId: req.userId
+    });
+
     res.status(200).json({
       success: true,
-      message: 'Order accepted successfully',
+      message: 'Order accepted successfully. You are now on the way!',
       data: order,
     });
   } catch (error) {

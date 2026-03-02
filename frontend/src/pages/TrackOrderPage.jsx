@@ -3,24 +3,22 @@ import { MapPin, Package, Truck, CheckCircle, Clock, Phone, ChevronRight, AlertC
 import API from '../api/axios';
 import { useAuthStore } from '../context/authStore';
 import { useSearchParams, Link } from 'react-router-dom';
+import { socket, connectSocket, disconnectSocket } from '../api/socket.js';
 
 const STATUS_MAPPING = {
-    'placed': 0,
-    'confirmed': 1,
-    'preparing': 2,
-    'ready': 3,
-    'picked_up': 4,
-    'out_for_delivery': 4,
-    'delivered': 5,
+    'pending': 0,
+    'preparing': 1,
+    'dispatched': 2,
+    'on_the_way': 3,
+    'delivered': 4,
     'cancelled': -1
 };
 
 const STEPS = [
     { label: 'Placed', icon: CheckCircle, desc: 'Wait for confirmation' },
-    { label: 'Confirmed', icon: CheckCircle, desc: 'Restaurant confirmed your order' },
     { label: 'Preparing', icon: Clock, desc: 'Chef is cooking your meal' },
-    { label: 'Ready', icon: Package, desc: 'Food is ready for pickup' },
-    { label: 'Picked Up', icon: Truck, desc: 'Rider is on the way' },
+    { label: 'Dispatched', icon: Package, desc: 'Food is ready and waiting for a rider' },
+    { label: 'On the Way', icon: Truck, desc: 'Rider is on the way to you' },
     { label: 'Delivered', icon: CheckCircle, desc: 'Order delivered successfully!' },
 ];
 
@@ -60,7 +58,39 @@ export default function TrackOrderPage() {
             }
         };
         fetchLatestOrder();
-    }, [user, searchParams]);
+
+        // Socket logic for real-time tracking
+        if (user) {
+            connectSocket(user._id);
+            socket.on('order_status_update', (data) => {
+                console.log('🔄 Live status update recieved:', data);
+                if (order && (data.orderId === order._id || data.orderId === order.orderId)) {
+                    setOrder(prev => ({ ...prev, orderStatus: data.status }));
+                } else if (!order) {
+                    // If no order yet, maybe this update is for the latest one we are about to fetch
+                    handleExplicitTrack(data.orderId);
+                }
+            });
+
+            socket.on('rider_location_update', (data) => {
+                console.log('📍 Live rider location received:', data);
+                if (order && (data.orderId === order._id || data.orderId === order.orderId)) {
+                    setOrder(prev => ({
+                        ...prev,
+                        rider: {
+                            ...prev.rider,
+                            currentLocation: { latitude: data.latitude, longitude: data.longitude }
+                        }
+                    }));
+                }
+            });
+        }
+
+        return () => {
+            socket.off('order_status_update');
+            socket.off('rider_location_update');
+        };
+    }, [user, searchParams, order?._id]);
 
     const handleExplicitTrack = async (id) => {
         setSearching(true);
@@ -160,7 +190,7 @@ export default function TrackOrderPage() {
                 {order && (
                     <div className="space-y-6 animate-fade-up">
                         {/* Success / Delivery Message */}
-                        {currentStatus === 5 && (
+                        {currentStatus === 4 && (
                             <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[2rem] p-10 text-white text-center shadow-xl shadow-emerald-100 animate-bounce-short">
                                 <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-4xl">
                                     😋
@@ -209,7 +239,7 @@ export default function TrackOrderPage() {
                             <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
                                 <div className="flex items-center justify-between mb-8">
                                     <h3 className="font-black text-slate-900 text-lg">Journey Tracker</h3>
-                                    {currentStatus === 5 && <span className="text-emerald-500 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1.5"><CheckCircle size={12} /> Journey Completed</span>}
+                                    {currentStatus === 4 && <span className="text-emerald-500 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1.5"><CheckCircle size={12} /> Journey Completed</span>}
                                 </div>
                                 <div className="relative">
                                     {/* Progress line */}
@@ -241,7 +271,7 @@ export default function TrackOrderPage() {
                                                     <div className="pt-2">
                                                         <p className={`font-black ${done ? 'text-slate-900' : 'text-slate-400'} ${active && isDelivered ? 'text-emerald-600' : ''}`}>
                                                             {step.label}
-                                                            {active && currentStatus < 5 && <span className="ml-2 text-xs text-orange-500 font-black uppercase tracking-widest">● Now</span>}
+                                                            {active && currentStatus < 4 && <span className="ml-2 text-xs text-orange-500 font-black uppercase tracking-widest">● Now</span>}
                                                             {active && isDelivered && <span className="ml-2 text-xs text-emerald-500 font-black uppercase tracking-widest">● Completed</span>}
                                                         </p>
                                                         <p className="text-slate-400 text-sm font-medium">{step.desc}</p>
@@ -261,7 +291,7 @@ export default function TrackOrderPage() {
                         )}
 
                         {/* Rider Info - show once rider is assigned and until delivered */}
-                        {order.rider && currentStatus >= 1 && currentStatus < 5 && (
+                        {order.rider && currentStatus >= 1 && currentStatus < 4 && (
                             <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-8 text-white">
                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Your Rider</p>
                                 <div className="flex items-center justify-between">

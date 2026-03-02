@@ -5,6 +5,7 @@ import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
+import { socket, connectSocket, disconnectSocket } from '../api/socket.js';
 
 export default function RiderDashboard() {
   const { user } = useAuthStore();
@@ -17,9 +18,54 @@ export default function RiderDashboard() {
   React.useEffect(() => {
     if (user?.role === 'rider') {
       fetchData();
+
+      // Manage socket connection
+      if (isOnline) {
+        connectSocket(user._id);
+        socket.on('delivery_available', (data) => {
+          console.log('📬 Live delivery offer received:', data);
+          setAvailableOrders(prev => [data, ...prev]);
+        });
+      } else {
+        disconnectSocket();
+      }
     }
+    return () => {
+      socket.off('delivery_available');
+    };
   }, [user, isOnline]);
 
+  // Location tracking effect
+  React.useEffect(() => {
+    let interval;
+    if (isOnline && user?.role === 'rider') {
+      interval = setInterval(() => {
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+              await API.post('/riders/update-location', { latitude, longitude });
+              console.log('📍 Location updated successfully');
+            } catch (err) {
+              console.error('Failed to update live location:', err);
+            }
+          });
+        }
+      }, 30000); // Update every 30 seconds
+    }
+    return () => interval && clearInterval(interval);
+  }, [isOnline, user]);
+
+  const handleToggleOnline = async () => {
+    try {
+      const newStatus = !isOnline;
+      await API.put('/riders/toggle-online', { isOnline: newStatus });
+      setIsOnline(newStatus);
+      fetchData();
+    } catch (err) {
+      console.error('Failed to toggle status:', err);
+    }
+  };
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -43,7 +89,7 @@ export default function RiderDashboard() {
 
   const handleAcceptOrder = async (orderId) => {
     try {
-      await API.post(`/orders/${orderId}/accept`);
+      await API.post(`/riders/orders/${orderId}/claim`);
       // Refresh data
       fetchData();
       setActiveTab('active');
@@ -105,7 +151,7 @@ export default function RiderDashboard() {
           <div className="flex flex-col items-center md:items-end gap-3">
             <button
               id="rider-online-toggle"
-              onClick={() => setIsOnline(!isOnline)}
+              onClick={handleToggleOnline}
               className={`group relative overflow-hidden px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-500 shadow-xl active:scale-95 ${isOnline
                 ? 'bg-emerald-500 text-white shadow-emerald-200 hover:bg-emerald-600'
                 : 'bg-slate-900 text-white shadow-slate-200 hover:bg-orange-600 ring-4 ring-orange-500/20'
@@ -246,7 +292,7 @@ export default function RiderDashboard() {
                     <div key={order._id} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
                       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                         <div className="flex items-center gap-5">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black uppercase text-[10px] ${order.orderStatus === 'ready' ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black uppercase text-[10px] ${order.orderStatus === 'dispatched' ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'
                             }`}>
                             {order.orderStatus[0]}
                           </div>
@@ -271,21 +317,21 @@ export default function RiderDashboard() {
                             <p className="font-black text-orange-600 uppercase text-xs mt-1">{order.orderStatus.replace('_', ' ')}</p>
                           </div>
 
-                          {order.orderStatus === 'ready' && (
+                          {order.orderStatus === 'dispatched' && (
                             <button
-                              onClick={() => handleStatusUpdate(order._id, 'picked_up')}
+                              onClick={() => handleStatusUpdate(order._id, 'on_the_way')}
                               className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
                             >
-                              Pickup
+                              Finalize Accept
                             </button>
                           )}
 
-                          {order.orderStatus === 'picked_up' && (
+                          {order.orderStatus === 'on_the_way' && (
                             <button
                               onClick={() => handleStatusUpdate(order._id, 'delivered')}
                               className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
                             >
-                              Deliver
+                              Mark Delivered
                             </button>
                           )}
 

@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema(
     wallet: {
       balance: { type: Number, default: 0 },
     },
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

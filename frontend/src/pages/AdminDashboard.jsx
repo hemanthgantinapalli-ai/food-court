@@ -295,7 +295,7 @@ export default function AdminDashboard() {
                             }}
                             className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer"
                           >
-                            {['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled'].map(s => (
+                            {['pending', 'preparing', 'dispatched', 'on_the_way', 'delivered', 'cancelled'].map(s => (
                               <option key={s} value={s}>{s.replace('_', ' ')}</option>
                             ))}
                           </select>

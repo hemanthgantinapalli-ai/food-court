@@ -3,6 +3,7 @@ import { authenticateUser, authorizeRole } from '../middleware/auth.js';
 import Rider from '../models/Rider.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
+import { getIO } from '../utils/socket.js';
 
 const router = express.Router();
 
@@ -47,6 +48,9 @@ router.put('/toggle-online', authenticateUser, authorizeRole('rider'), async (re
       { isOnline: !!isOnline },
       { new: true, upsert: true }
     );
+
+    // Also update User isAvailable status
+    await User.findByIdAndUpdate(req.userId, { isAvailable: !!isOnline });
 
     console.log(`✅ [Rider Toggle Online] Rider status updated to: ${rider.isOnline ? 'ONLINE' : 'OFFLINE'}`);
     res.status(200).json({ success: true, data: rider });
@@ -94,9 +98,9 @@ router.get('/orders/available', authenticateUser, authorizeRole('rider'), async 
       });
     }
 
-    // Only show orders that are READY_FOR_PICKUP and have no rider assigned
+    // Only show orders that are DISPATCHED and have no rider assigned
     const orders = await Order.find({
-      orderStatus: 'ready',
+      orderStatus: 'dispatched',
       rider: null,
     })
       .populate('restaurant', 'name image address')
@@ -120,7 +124,7 @@ router.get('/orders/assigned', authenticateUser, authorizeRole('rider'), async (
 
     const orders = await Order.find({
       rider: req.userId,
-      orderStatus: { $in: ['confirmed', 'out_for_delivery', 'picked_up'] },
+      orderStatus: { $in: ['on_the_way'] },
     })
       .populate('restaurant', 'name image address')
       .populate('customer', 'name phone')
@@ -188,9 +192,20 @@ router.post('/orders/:orderId/claim', authenticateUser, authorizeRole('rider'), 
     }
 
     order.rider = req.userId;
-    order.orderStatus = 'out_for_delivery';
-    order.statusHistory.push({ status: 'out_for_delivery', timestamp: new Date(), note: 'Rider claimed the order' });
+    order.orderStatus = 'on_the_way';
+    order.statusHistory.push({ status: 'on_the_way', timestamp: new Date(), note: 'Rider claimed the order' });
     await order.save();
+
+    // Mark rider as unavailable
+    await User.findByIdAndUpdate(req.userId, { isAvailable: false });
+
+    // Notify user
+    const io = getIO();
+    io.to(order.customer.toString()).emit('order_status_update', {
+      orderId: order._id,
+      status: 'on_the_way',
+      message: 'A rider has claimed your order and is on the way!'
+    });
 
     console.log(`✅ [Rider Claim] Order ${orderId} claimed successfully.`);
     res.status(200).json({ success: true, message: 'Order claimed successfully', data: order });
@@ -242,7 +257,18 @@ router.put('/orders/:orderId/deliver', authenticateUser, authorizeRole('rider'),
     order.statusHistory.push({ status: 'delivered', timestamp: new Date(), note: 'Rider confirmed delivery' });
     await order.save();
 
-    console.log(`✅ [Rider Deliver] Order ${orderId} delivered. Earnings updated.`);
+    // Mark rider as available again
+    await User.findByIdAndUpdate(req.userId, { isAvailable: true });
+
+    // Notify user
+    const io = getIO();
+    io.to(order.customer.toString()).emit('order_status_update', {
+      orderId: order._id,
+      status: 'delivered',
+      message: 'Order has been delivered! Enjoy your meal.'
+    });
+
+    console.log(`✅ [Rider Deliver] Order ${orderId} delivered. Rider marked as available.`);
     res.status(200).json({ success: true, message: 'Order marked as delivered', data: order });
   } catch (error) {
     console.error(`🔥 [Rider Deliver] Error: ${error.message}`);
@@ -271,6 +297,40 @@ router.put('/:riderId/verify', authenticateUser, authorizeRole('admin'), async (
     res.status(200).json({ success: true, data: rider });
   } catch (error) {
     console.error(`🔥 [Admin Verify Rider] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── POST /api/riders/update-location ────────────────────────────────────────
+// Rider updates their live coordinates
+router.post('/update-location', authenticateUser, authorizeRole('rider'), async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+    console.log(`📍 [Rider Location] Updating location for rider: ${req.userId} → ${latitude}, ${longitude}`);
+
+    await Rider.findOneAndUpdate(
+      { user: req.userId },
+      { currentLocation: { latitude, longitude } }
+    );
+
+    // Notify active customers linked to this rider
+    const activeOrders = await Order.find({
+      rider: req.userId,
+      orderStatus: 'on_the_way'
+    });
+
+    const io = getIO();
+    activeOrders.forEach(order => {
+      io.to(order.customer.toString()).emit('rider_location_update', {
+        orderId: order._id,
+        latitude,
+        longitude
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'Location updated' });
+  } catch (error) {
+    console.error(`🔥 [Rider Location] Error: ${error.message}`);
     res.status(500).json({ success: false, message: error.message });
   }
 });

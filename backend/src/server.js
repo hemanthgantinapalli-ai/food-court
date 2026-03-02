@@ -12,6 +12,8 @@ import riderRoutes from './routes/riderRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import menuRoutes from './routes/menuRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import { createServer } from 'http';
+import { initSocket } from './utils/socket.js';
 
 
 dotenv.config();
@@ -42,6 +44,9 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(PORT, () =>
   console.log(`🚀 Server running on port ${PORT}`)
 );
