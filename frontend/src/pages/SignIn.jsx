@@ -53,7 +53,6 @@ export default function SignIn() {
 
       if (loggedInUser.role === 'admin') navigate('/admin');
       else if (loggedInUser.role === 'rider') navigate('/rider');
-      else if (loggedInUser.role === 'restaurant') navigate('/restaurant');
       else navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid credentials. Check the demo buttons above!');
@@ -206,8 +205,8 @@ export default function SignIn() {
           {/* Debug/Creds Hint */}
           {activeRole && (
             <div className={`mt-10 p-4 rounded-2xl border border-dashed flex items-center gap-4 ${activeRole === 'admin' ? 'border-purple-200 bg-purple-50' :
-                activeRole === 'rider' ? 'border-blue-200 bg-blue-50' :
-                  'border-orange-200 bg-orange-50'
+              activeRole === 'rider' ? 'border-blue-200 bg-blue-50' :
+                'border-orange-200 bg-orange-50'
               }`}>
               <ShieldCheck size={20} className={
                 activeRole === 'admin' ? 'text-purple-500' :

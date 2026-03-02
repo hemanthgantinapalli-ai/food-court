@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -27,6 +27,19 @@ export default function AdminDashboard() {
   const [ordersList, setOrdersList] = useState([]);
   const [liveOrders, setLiveOrders] = useState([]); // real-time new orders
   const [notifications, setNotifications] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [ridersList, setRidersList] = useState([]);
+  const [assigningRider, setAssigningRider] = useState(null);
+  const [showAddRestaurant, setShowAddRestaurant] = useState(false);
+  const [newRestaurantForm, setNewRestaurantForm] = useState({
+    name: '',
+    description: '',
+    image: '',
+    cuisines: '',
+    address: '',
+    city: ''
+  });
+  const [isSubmittingRest, setIsSubmittingRest] = useState(false);
 
   const addNotif = (msg, type = 'info') => {
     const id = Date.now();
@@ -98,7 +111,10 @@ export default function AdminDashboard() {
   }, [user]);
 
   const fetchData = async () => {
-    setLoading(true);
+    // Only show loader if we don't have data yet to prevent flickering on updates
+    const isInitialLoad = !stats || usersList.length === 0;
+    if (isInitialLoad) setLoading(true);
+
     try {
       const [statsRes, usersRes, restRes, ordersRes] = await Promise.all([
         API.get('/admin/stats'),
@@ -110,10 +126,52 @@ export default function AdminDashboard() {
       setUsersList(usersRes.data.data);
       setRestaurantsList(restRes.data.data);
       setOrdersList(ordersRes.data.data);
+
+      const supportRes = await API.get('/support/my-requests');
+      setSupportTickets(supportRes.data.data);
+      setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) setLoading(false);
+    }
+  };
+
+  const handleCreateRestaurant = async (e) => {
+    e.preventDefault();
+    setIsSubmittingRest(true);
+    try {
+      const payload = {
+        name: newRestaurantForm.name,
+        description: newRestaurantForm.description,
+        image: newRestaurantForm.image,
+        cuisines: newRestaurantForm.cuisines.split(',').map(c => c.trim()).filter(c => c !== ''),
+        location: {
+          address: newRestaurantForm.address,
+          city: newRestaurantForm.city
+        }
+      };
+      const res = await API.post('/api/restaurants', payload);
+      setRestaurantsList(prev => [res.data.data, ...prev]);
+      setShowAddRestaurant(false);
+      setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '' });
+      addNotif('🏪 Restaurant added successfully!', 'info');
+    } catch (err) {
+      console.error('Failed to create restaurant:', err);
+      alert(err.response?.data?.message || 'Error adding restaurant');
+    } finally {
+      setIsSubmittingRest(false);
+    }
+  };
+
+  const handleDeleteRestaurant = async (id) => {
+    if (!window.confirm('Delete this restaurant forever?')) return;
+    try {
+      await API.delete(`/api/restaurants/${id}`);
+      setRestaurantsList(prev => prev.filter(r => r._id !== id));
+      addNotif('🗑️ Restaurant deleted', 'info');
+    } catch (err) {
+      alert('Delete failed');
     }
   };
 
@@ -133,8 +191,8 @@ export default function AdminDashboard() {
   const statCards = [
     { label: 'Total Revenue', value: `₹${stats?.totalRevenue?.toLocaleString() || 0}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Total Orders', value: stats?.totalOrders || 0, icon: ShoppingCart, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Restaurants', value: stats?.totalRestaurants || 0, icon: Building, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Live Orders', value: activeOrders.length || 0, icon: ShoppingCart, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Kitchens', value: stats?.totalRestaurants || 0, icon: Building, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   const activeOrders = ordersList.filter(o => !['delivered', 'cancelled'].includes(o.orderStatus));
@@ -148,8 +206,8 @@ export default function AdminDashboard() {
           <div
             key={n.id}
             className={`px-5 py-4 rounded-2xl shadow-2xl font-black text-sm text-white transition-all ${n.type === 'order' ? 'bg-orange-600' :
-                n.type === 'rider' ? 'bg-indigo-600' :
-                  n.type === 'delivered' ? 'bg-emerald-600' : 'bg-slate-900'
+              n.type === 'rider' ? 'bg-indigo-600' :
+                n.type === 'delivered' ? 'bg-emerald-600' : 'bg-slate-900'
               }`}
           >
             {n.msg}
@@ -208,6 +266,7 @@ export default function AdminDashboard() {
               { id: 'overview', label: 'Overview' },
               { id: 'live', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
               { id: 'orders', label: 'All Orders' },
+              { id: 'support', label: `Support ${supportTickets.filter(t => t.status === 'open').length > 0 ? `(${supportTickets.filter(t => t.status === 'open').length})` : ''}` },
               { id: 'users', label: 'Users' },
               { id: 'restaurants', label: 'Restaurants' },
             ].map(tab => (
@@ -228,38 +287,70 @@ export default function AdminDashboard() {
 
             {/* ─── OVERVIEW ─── */}
             {activeTab === 'overview' && (
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="p-10 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200">
-                  <div className="flex justify-between items-start mb-8">
-                    <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Order Traffic</h4>
-                    <ArrowUpRight className="text-orange-500" />
-                  </div>
-                  <div className="h-40 flex items-end gap-3 mb-6">
-                    {[40, 70, 45, 90, 65, 80, 40, 60].map((h, i) => (
-                      <div key={i} style={{ height: `${h}%` }} className="flex-1 bg-gradient-to-t from-orange-600 to-orange-400 rounded-xl opacity-90 transition-all hover:scale-110" />
-                    ))}
-                  </div>
-                  <p className="text-slate-400 text-xs font-bold leading-relaxed">Daily user activity peaks around dinner time.</p>
-                </div>
-
-                <div className="p-10 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between">
-                  <div>
-                    <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-8">Platform Status</h4>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest p-4 bg-white rounded-2xl border border-slate-100 text-emerald-600 shadow-sm">
-                        <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" /> System: Active
-                      </div>
-                      <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest p-4 bg-white rounded-2xl border border-slate-100 text-blue-600 shadow-sm">
-                        <div className="w-2 h-2 rounded-full bg-blue-600" /> Payments: Ready
-                      </div>
-                      <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest p-4 bg-white rounded-2xl border border-slate-100 text-indigo-600 shadow-sm">
-                        <Truck size={12} /> Active Orders: {activeOrders.length}
+              <div className="space-y-8">
+                {stats?.unapprovedRestaurants > 0 && (
+                  <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-[2rem] flex items-center justify-between animate-pulse">
+                    <div className="flex items-center gap-4">
+                      <AlertCircle className="text-amber-600" size={24} />
+                      <div>
+                        <p className="font-black text-amber-900 uppercase tracking-widest text-xs">{stats.unapprovedRestaurants} Kitchens Pending Approval</p>
+                        <p className="text-[10px] text-amber-600 font-bold uppercase mt-0.5">They won't appear on the home page until verified.</p>
                       </div>
                     </div>
+                    <button onClick={() => setActiveTab('restaurants')} className="bg-amber-600 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-700 transition-all">
+                      Review Now
+                    </button>
                   </div>
-                  <div className="mt-8 flex items-center gap-4 p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                    <AlertCircle className="text-orange-500" size={20} />
-                    <p className="text-[10px] font-black text-orange-700 uppercase tracking-widest">No critical alerts</p>
+                )}
+
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {/* Traffic Chart */}
+                  <div className="lg:col-span-2 p-10 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200">
+                    <div className="flex justify-between items-start mb-8">
+                      <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Order Traffic</h4>
+                      <ArrowUpRight className="text-orange-500" />
+                    </div>
+                    <div className="h-40 flex items-end gap-3 mb-6">
+                      {[40, 70, 45, 90, 65, 80, 40, 60, 55, 75, 50, 85].map((h, i) => (
+                        <div key={i} style={{ height: `${h}%` }} className="flex-1 bg-gradient-to-t from-orange-600 to-orange-400 rounded-xl opacity-90 transition-all hover:scale-110" />
+                      ))}
+                    </div>
+                    <p className="text-slate-400 text-xs font-bold leading-relaxed italic">Real-time platform activity monitoring</p>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="p-10 bg-white rounded-[2.5rem] border border-slate-100 flex flex-col gap-6 shadow-sm">
+                    <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Quick Actions</h4>
+                    <div className="space-y-3">
+                      <button onClick={() => setActiveTab('live')} className="w-full flex items-center justify-between p-4 bg-orange-50 rounded-2xl border border-orange-100 group hover:bg-orange-600 transition-all">
+                        <span className="text-[10px] font-black uppercase text-orange-700 group-hover:text-white">Live Tracking</span>
+                        <ArrowUpRight size={14} className="text-orange-500 group-hover:text-white" />
+                      </button>
+                      <button onClick={() => setActiveTab('restaurants')} className="w-full flex items-center justify-between p-4 bg-purple-50 rounded-2xl border border-purple-100 group hover:bg-purple-600 transition-all">
+                        <span className="text-[10px] font-black uppercase text-purple-700 group-hover:text-white">Kitchen Portal</span>
+                        <ArrowUpRight size={14} className="text-purple-500 group-hover:text-white" />
+                      </button>
+                      <Link to="/admin/menu" className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-2xl border border-blue-100 group hover:bg-blue-600 transition-all">
+                        <span className="text-[10px] font-black uppercase text-blue-700 group-hover:text-white">Global Menu</span>
+                        <ArrowUpRight size={14} className="text-blue-500 group-hover:text-white" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Cards */}
+                <div className="p-10 bg-slate-50 rounded-[2.5rem] border border-slate-100">
+                  <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-8">Infrastructure Health</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest p-5 bg-white rounded-2xl border border-slate-100 text-emerald-600 shadow-sm">
+                      <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" /> Core System: Operational
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest p-5 bg-white rounded-2xl border border-slate-100 text-blue-600 shadow-sm">
+                      <div className="w-2 h-2 rounded-full bg-blue-600" /> Gateway: Secure
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest p-5 bg-white rounded-2xl border border-slate-100 text-indigo-600 shadow-sm">
+                      <Truck size={12} /> Active Couriers: {ridersList.length}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -290,7 +381,7 @@ export default function AdminDashboard() {
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-5">
                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-xs ${order.orderStatus === 'on_the_way' ? 'bg-indigo-500 animate-pulse' :
-                              order.orderStatus === 'preparing' ? 'bg-orange-500' : 'bg-blue-500'
+                            order.orderStatus === 'preparing' ? 'bg-orange-500' : 'bg-blue-500'
                             }`}>
                             {order.orderStatus === 'on_the_way' ? <Truck size={18} /> : order.orderStatus?.[0]?.toUpperCase()}
                           </div>
@@ -313,12 +404,37 @@ export default function AdminDashboard() {
                             </div>
                           ) : (
                             <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
-                              ⏳ Awaiting Rider
+                              Pending Assignment
                             </span>
                           )}
                         </div>
 
                         <div className="flex items-center gap-3">
+                          {/* Manual Rider Assignment Dropdown */}
+                          {!order.rider && (
+                            <div className="relative">
+                              <select
+                                onChange={async (e) => {
+                                  const riderId = e.target.value;
+                                  if (!riderId) return;
+                                  try {
+                                    await API.post(`/admin/orders/${order._id}/assign`, { riderId });
+                                    addNotif(`🛵 Assigned to rider!`, 'info');
+                                    fetchData();
+                                  } catch (err) {
+                                    alert('Failed to assign rider');
+                                  }
+                                }}
+                                className="bg-orange-50 text-orange-600 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-orange-200 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer"
+                              >
+                                <option value="">Assign Rider</option>
+                                {ridersList.map(r => (
+                                  <option key={r._id} value={r._id}>{r.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
                           <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${STATUS_COLORS[order.orderStatus] || 'bg-slate-100 text-slate-600'}`}>
                             {order.orderStatus?.replace('_', ' ')}
                           </span>
@@ -447,7 +563,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="py-6">
                           <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-purple-50 text-purple-600' :
-                              u.role === 'rider' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-500'
+                            u.role === 'rider' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-500'
                             }`}>
                             {u.role}
                           </span>
@@ -483,41 +599,241 @@ export default function AdminDashboard() {
 
             {/* ─── RESTAURANTS ─── */}
             {activeTab === 'restaurants' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {restaurantsList.map((r) => (
-                  <div key={r._id} className="p-8 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 flex flex-col gap-8 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
-                    <div className="flex justify-between items-start">
-                      <div className="flex gap-5">
-                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-inner border border-slate-100 overflow-hidden shrink-0">
-                          {r.image ? <img src={r.image} alt={r.name} className="w-full h-full object-cover" /> : r.name?.[0]}
+              <div className="space-y-8">
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900">Manage Kitchens</h3>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Add or remove restaurant partners</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddRestaurant(!showAddRestaurant)}
+                    className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl active:scale-95"
+                  >
+                    {showAddRestaurant ? <X size={16} /> : <Plus size={16} />}
+                    {showAddRestaurant ? 'Cancel' : 'Add New Restaurant'}
+                  </button>
+                </div>
+
+                {showAddRestaurant && (
+                  <form onSubmit={handleCreateRestaurant} className="bg-white p-10 rounded-[2.5rem] border-2 border-orange-100 shadow-2xl animate-fade-up">
+                    <h4 className="font-black text-2xl mb-8 flex items-center gap-4 text-slate-900">
+                      <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center">
+                        <Building size={24} />
+                      </div>
+                      Restaurant Registration
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Display Name</label>
+                          <input
+                            required
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="e.g. Punjabi Tadka"
+                            value={newRestaurantForm.name}
+                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, name: e.target.value })}
+                          />
                         </div>
                         <div>
-                          <h4 className="font-black text-slate-900 text-lg leading-tight">{r.name}</h4>
-                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">{r.cuisine || 'Multi-cuisine'}</p>
-                          <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mt-2">Owner: {r.owner?.name || 'Partner'}</p>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Image URL</label>
+                          <input
+                            required
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="https://images.unsplash.com/..."
+                            value={newRestaurantForm.image}
+                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, image: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Cuisines (comma separated)</label>
+                          <input
+                            required
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="North Indian, Chinese, Mughlai"
+                            value={newRestaurantForm.cuisines}
+                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, cuisines: e.target.value })}
+                          />
                         </div>
                       </div>
-                      <span className={`text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${r.isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                        {r.isApproved ? 'Verified' : 'Reviewing'}
-                      </span>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Public Description</label>
+                          <textarea
+                            required
+                            rows={3}
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all resize-none"
+                            placeholder="Authentic flavors from the heart of Punjab..."
+                            value={newRestaurantForm.description}
+                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, description: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Street Address</label>
+                            <input
+                              required
+                              className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                              placeholder="123 Food Street"
+                              value={newRestaurantForm.address}
+                              onChange={e => setNewRestaurantForm({ ...newRestaurantForm, address: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">City</label>
+                            <input
+                              required
+                              className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                              placeholder="New Delhi"
+                              value={newRestaurantForm.city}
+                              onChange={e => setNewRestaurantForm({ ...newRestaurantForm, city: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    {!r.isApproved && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            await API.put(`/admin/restaurants/${r._id}/approve`);
-                            setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
-                          } catch (err) {
-                            console.error('Approval failed:', err);
-                          }
-                        }}
-                        className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
-                      >
-                        Approve Merchant
-                      </button>
-                    )}
+                    <button
+                      disabled={isSubmittingRest}
+                      className="w-full mt-10 py-5 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-orange-200 active:scale-95 disabled:opacity-50 transition-all"
+                    >
+                      {isSubmittingRest ? 'Launching...' : 'Register Restaurant'}
+                    </button>
+                  </form>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {restaurantsList.map((r) => (
+                    <div key={r._id} className="p-8 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 flex flex-col gap-8 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
+                      <div className="flex justify-between items-start">
+                        <div className="flex gap-5">
+                          <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-inner border border-slate-100 overflow-hidden shrink-0">
+                            {r.image ? <img src={r.image} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <Building className="text-slate-200" size={32} />}
+                          </div>
+                          <div>
+                            <h4 className="font-black text-slate-900 text-xl leading-tight">{r.name}</h4>
+                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">{r.cuisines?.join(', ') || 'Multi-cuisine'}</p>
+                            <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mt-2">📍 {r.location?.city || 'Local'}</p>
+                          </div>
+                        </div>
+                        <span className={`text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${r.isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                          {r.isApproved ? 'Verified' : 'Reviewing'}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Link
+                          to={`/admin/menu?restaurantId=${r._id}`}
+                          className="flex-1 py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:border-slate-300 transition-all text-center flex items-center justify-center gap-2"
+                        >
+                          <Edit3 size={14} /> Manage Menu
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteRestaurant(r._id)}
+                          className="w-14 h-14 flex items-center justify-center bg-white border border-slate-200 text-rose-500 rounded-2xl hover:bg-rose-50 hover:border-rose-100 transition-all"
+                          title="Delete Restaurant"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+
+                      {!r.isApproved && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await API.put(`/admin/restaurants/${r._id}/approve`);
+                              setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
+                              addNotif(`✅ ${r.name} approved!`, 'info');
+                            } catch (err) {
+                              console.error('Approval failed:', err);
+                            }
+                          }}
+                          className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg active:scale-95"
+                        >
+                          Approve Partner
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─── SUPPORT TICKETS ─── */}
+            {activeTab === 'support' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-black text-xl text-slate-900">Help Desk Management</h3>
+                  <div className="flex gap-2">
+                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                      {supportTickets.filter(t => t.status === 'open').length} Open
+                    </span>
                   </div>
-                ))}
+                </div>
+
+                {supportTickets.length === 0 ? (
+                  <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                    <AlertCircle className="text-slate-300 mx-auto mb-4" size={40} />
+                    <p className="font-black text-slate-900 text-xl mb-2">No support tickets</p>
+                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Customer and rider problems will appear here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {supportTickets.map(ticket => (
+                      <div key={ticket._id} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                          <div className="flex items-center gap-6">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black uppercase text-[10px] ${ticket.role === 'rider' ? 'bg-indigo-50 text-indigo-600' : 'bg-orange-50 text-orange-600'
+                              }`}>
+                              {ticket.role}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-3">
+                                <h5 className="font-black text-lg text-slate-900">{ticket.subject}</h5>
+                                <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${ticket.priority === 'urgent' ? 'bg-rose-100 text-rose-600 animate-pulse' :
+                                  ticket.priority === 'high' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'
+                                  }`}>
+                                  {ticket.priority}
+                                </span>
+                              </div>
+                              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+                                {ticket.user?.name} ({ticket.user?.phone || 'No phone'}) • {new Date(ticket.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 px-6">
+                            <p className="text-slate-500 text-sm font-medium">"{ticket.message}"</p>
+                            {ticket.order && (
+                              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-2">Order: #{ticket.order.orderId || 'N/A'}</p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <select
+                              value={ticket.status}
+                              onChange={async (e) => {
+                                const newStatus = e.target.value;
+                                try {
+                                  await API.put(`/support/${ticket._id}/status`, { status: newStatus });
+                                  setSupportTickets(prev => prev.map(t => t._id === ticket._id ? { ...t, status: newStatus } : t));
+                                } catch (err) {
+                                  alert('Failed to update ticket status');
+                                }
+                              }}
+                              className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl outline-none cursor-pointer border-none shadow-sm ${ticket.status === 'open' ? 'bg-amber-50 text-amber-600' :
+                                ticket.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                                }`}
+                            >
+                              <option value="open">Open</option>
+                              <option value="pending">Pending</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

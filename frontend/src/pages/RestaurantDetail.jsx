@@ -4,6 +4,8 @@ import { Star, Clock, Bike, MapPin, Heart, ArrowLeft, Phone, Users, Copy, Check,
 import API from '../api/axios';
 import MenuItemCard from '../components/MenuItemCard';
 
+import { useAuthStore } from '../context/authStore';
+
 // Fallback menu items for demo
 const DEMO_MENU = [
   { _id: 'm1', name: 'Signature Smash Burger', price: 349, description: 'Double smash patty with aged cheddar, caramelized onions, and our secret sauce on a brioche bun.', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80', category: 'Mains' },
@@ -15,6 +17,7 @@ const DEMO_MENU = [
 
 export default function RestaurantDetail() {
   const { id } = useParams();
+  const { user, toggleFavorite } = useAuthStore();
   const [restaurant, setRestaurant] = useState(null);
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,13 +34,30 @@ export default function RestaurantDetail() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  const toggleLike = async () => {
+    if (!user) return alert("Please sign in to save favorites");
+    try {
+      await toggleFavorite(id);
+      // Locally update favorite state
+      setIsFavorited(!isFavorited);
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchDetails = async () => {
       try {
         const res = await API.get(`/restaurants/${id}`);
         const payload = res.data.data;
-        setRestaurant(payload.restaurant || payload);
+        const restData = payload.restaurant || payload;
+        setRestaurant(restData);
         setMenu(payload.menu?.length ? payload.menu : DEMO_MENU);
+
+        // Initial state from user profile
+        if (user?.favorites) {
+          setIsFavorited(user.favorites.some(f => (f._id || f) === id));
+        }
       } catch (error) {
         console.warn('Using demo data:', error.message);
         setRestaurant({
@@ -56,7 +76,7 @@ export default function RestaurantDetail() {
       }
     };
     fetchDetails();
-  }, [id]);
+  }, [id, user]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -93,7 +113,7 @@ export default function RestaurantDetail() {
 
         {/* Favorite button */}
         <button
-          onClick={() => setIsFavorited(!isFavorited)}
+          onClick={toggleLike}
           className="absolute top-6 right-6 w-11 h-11 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl hover:bg-black/60 transition-all"
         >
           <Heart

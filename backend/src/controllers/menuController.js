@@ -4,10 +4,10 @@ import Restaurant from '../models/Restaurant.js';
 export const createMenuItem = async (req, res, next) => {
   try {
     console.log("🍔 [Create Menu Item API] Request received with body:", req.body);
-    const { name, description, price, image, restaurantId, category } = req.body;
+    const { name, description, price, image, restaurantId, category, recipe } = req.body;
 
     console.log("✨ [Create Menu Item API] Creating menu item in DB for restaurant:", restaurantId);
-    const menuItem = await MenuItem.create({ name, description, price, image, restaurant: restaurantId, category });
+    const menuItem = await MenuItem.create({ name, description, price, image, restaurant: restaurantId, category, recipe });
 
     if (restaurantId) {
       console.log("🔗 [Create Menu Item API] Linking menu item to restaurant:", restaurantId);

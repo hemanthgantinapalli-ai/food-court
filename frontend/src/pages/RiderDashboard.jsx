@@ -5,7 +5,7 @@ import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
-import { socket, connectSocket, disconnectSocket } from '../api/socket.js';
+import { socket, connectSocket, disconnectSocket, joinRoleRoom } from '../api/socket.js';
 
 export default function RiderDashboard() {
   const { user } = useAuthStore();
@@ -16,6 +16,12 @@ export default function RiderDashboard() {
   const [isOnline, setIsOnline] = React.useState(false);
   const [toastMsg, setToastMsg] = React.useState('');
 
+  // Support state
+  const [supportTickets, setSupportTickets] = React.useState([]);
+  const [showSupportForm, setShowSupportForm] = React.useState(false);
+  const [supportForm, setSupportForm] = React.useState({ subject: '', message: '', orderId: '', priority: 'medium' });
+  const [submittingSupport, setSubmittingSupport] = React.useState(false);
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3500);
@@ -24,8 +30,34 @@ export default function RiderDashboard() {
   React.useEffect(() => {
     if (user?.role === 'rider') {
       fetchData();
+      fetchSupportTickets();
     }
   }, [user]);
+
+  const fetchSupportTickets = async () => {
+    try {
+      const res = await API.get('/support/my-requests');
+      setSupportTickets(res.data.data);
+    } catch (error) {
+      console.error('Error fetching support tickets:', error);
+    }
+  };
+
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+    setSubmittingSupport(true);
+    try {
+      await API.post('/support/create', supportForm);
+      setSupportForm({ subject: '', message: '', orderId: '', priority: 'medium' });
+      setShowSupportForm(false);
+      fetchSupportTickets();
+      showToast('✅ Help request submitted!');
+    } catch (error) {
+      alert('Failed to submit support request');
+    } finally {
+      setSubmittingSupport(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!user || user.role !== 'rider') return;
@@ -34,7 +66,7 @@ export default function RiderDashboard() {
       connectSocket(user._id);
 
       // Join the riders room to receive broadcasts
-      socket.emit('join_role', 'riders');
+      joinRoleRoom('riders');
 
       // New order placed by a customer — add to marketplace
       socket.on('new_order_available', (data) => {
@@ -50,6 +82,15 @@ export default function RiderDashboard() {
       socket.on('order_taken', ({ orderId }) => {
         console.log('🚫 Order taken by another rider:', orderId);
         setAvailableOrders(prev => prev.filter(o => o._id !== orderId));
+      });
+
+      socket.on('order_assigned', (data) => {
+        console.log('🛵 Order strictly assigned to you:', data);
+        setAssignedOrders((prev) => [data, ...prev]);
+        showToast('🛵 New Order Assigned by Admin!');
+        if (window.Notification && Notification.permission === 'granted') {
+          new Notification('New Task!', { body: `Admin assigned you Order #${(data.orderId || data._id)?.slice(-6)}` });
+        }
       });
 
       // Order status updated by admin/restaurant
@@ -249,7 +290,8 @@ export default function RiderDashboard() {
             {[
               { id: 'available', label: 'New Orders', count: availableOrders.length },
               { id: 'active', label: 'Active Deliveries', count: activeDeliveries.length },
-              { id: 'completed', label: 'Completed', count: completedDeliveries.length }
+              { id: 'completed', label: 'Completed', count: completedDeliveries.length },
+              { id: 'help', label: 'Help Desk', count: 0 }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -376,20 +418,12 @@ export default function RiderDashboard() {
 
                         <div className="flex items-center gap-3 flex-wrap justify-end">
                           {/* Status progression buttons */}
-                          {order.orderStatus === 'confirmed' && (
+                          {(order.orderStatus === 'confirmed' || order.orderStatus === 'ready' || order.orderStatus === 'preparing') && (
                             <button
                               onClick={() => handleStatusUpdate(order._id, 'on_the_way')}
                               className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
                             >
-                              🛵 Start Delivery
-                            </button>
-                          )}
-                          {order.orderStatus === 'preparing' && (
-                            <button
-                              onClick={() => handleStatusUpdate(order._id, 'on_the_way')}
-                              className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                            >
-                              🛵 Picked Up
+                              🛵 {order.orderStatus === 'ready' ? 'Start Delivery' : 'Picked Up'}
                             </button>
                           )}
                           {order.orderStatus === 'on_the_way' && (
@@ -446,6 +480,128 @@ export default function RiderDashboard() {
                     </div>
                   ))
                 )
+              )}
+
+              {/* ────── HELP DESK ────── */}
+              {activeTab === 'help' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
+                    <div className="relative z-10 max-w-lg">
+                      <h3 className="text-3xl font-black tracking-tight mb-4">Rider <span className="text-orange-500">Support</span></h3>
+                      <p className="text-slate-400 font-bold mb-8 leading-relaxed">Report delivery issues, payment discrepancies, or app bugs. Our team is here to help you 24/7.</p>
+                      <button
+                        onClick={() => setShowSupportForm(!showSupportForm)}
+                        className="bg-white text-slate-900 px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition-all"
+                      >
+                        {showSupportForm ? 'View Tickets' : 'Raise New Issue'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {showSupportForm ? (
+                    <div className="bg-slate-50 rounded-[2.5rem] p-10 border border-slate-100 max-w-2xl mx-auto w-full">
+                      <h4 className="font-black text-xl mb-8 flex items-center gap-4 text-slate-900">
+                        <AlertCircle className="text-orange-500" /> New Support Ticket
+                      </h4>
+                      <form onSubmit={handleSupportSubmit} className="space-y-6">
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Issue Subject</label>
+                          <input
+                            required
+                            className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="e.g. Delivery delay, App crashing"
+                            value={supportForm.subject}
+                            onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Priority</label>
+                            <select
+                              className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none"
+                              value={supportForm.priority}
+                              onChange={e => setSupportForm({ ...supportForm, priority: e.target.value })}
+                            >
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                              <option value="urgent">Urgent</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Related OrderID (if any)</label>
+                            <select
+                              className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none"
+                              value={supportForm.orderId}
+                              onChange={e => setSupportForm({ ...supportForm, orderId: e.target.value })}
+                            >
+                              <option value="">None</option>
+                              {activeDeliveries.concat(completedDeliveries.slice(0, 5)).map(o => (
+                                <option key={o._id} value={o._id}>#{o.orderId?.slice(-6) || o._id.slice(-6)} - ₹{o.total}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Detailed Message</label>
+                          <textarea
+                            required
+                            rows={4}
+                            className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all resize-none"
+                            placeholder="Explain the problem as clearly as possible..."
+                            value={supportForm.message}
+                            onChange={e => setSupportForm({ ...supportForm, message: e.target.value })}
+                          />
+                        </div>
+                        <button
+                          disabled={submittingSupport}
+                          className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl disabled:opacity-50"
+                        >
+                          {submittingSupport ? 'Submitting...' : 'Send to Admin'}
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <h4 className="font-black text-xl text-slate-900 flex items-center gap-4">
+                        Your Recent Support Requests <span className="text-slate-300 text-sm">({supportTickets.length})</span>
+                      </h4>
+                      {supportTickets.length === 0 ? (
+                        <div className="bg-slate-50 rounded-[2.5rem] p-16 text-center border border-dashed border-slate-200 text-slate-400 font-bold">
+                          No issues reported yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {supportTickets.map(ticket => (
+                            <div key={ticket._id} className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                <div className="flex items-center gap-6">
+                                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black uppercase text-[10px] ${ticket.status === 'open' ? 'bg-amber-100 text-amber-600' :
+                                    ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                                    }`}>
+                                    {ticket.status}
+                                  </div>
+                                  <div>
+                                    <h5 className="font-black text-lg text-slate-900">{ticket.subject}</h5>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+                                      {new Date(ticket.createdAt).toLocaleDateString()} • Priority: <span className={
+                                        ticket.priority === 'urgent' ? 'text-rose-500' :
+                                          ticket.priority === 'high' ? 'text-orange-500' : 'text-slate-500'
+                                      }>{ticket.priority}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-left md:text-right max-w-md">
+                                  <p className="text-slate-500 text-xs font-bold leading-relaxed italic">"{ticket.message}"</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

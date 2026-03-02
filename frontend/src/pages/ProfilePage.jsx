@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, Edit2, LogOut, Package, CreditCard, Save, X, LayoutDashboard, Bike, Store } from 'lucide-react';
+import { Mail, Phone, MapPin, Edit2, LogOut, Package, CreditCard, Save, X, LayoutDashboard, Bike, Store, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 
 export default function ProfilePage() {
@@ -68,11 +68,7 @@ export default function ProfilePage() {
                 <LayoutDashboard size={16} /> Admin Console
               </Link>
             )}
-            {user?.role === 'restaurant' && (
-              <Link to="/restaurant" className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg active:scale-[0.98]">
-                <Store size={16} /> Restaurant Console
-              </Link>
-            )}
+
             {user?.role === 'rider' && (
               <Link to="/rider" className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98]">
                 <Bike size={16} /> Task Center

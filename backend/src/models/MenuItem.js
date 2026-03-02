@@ -68,6 +68,7 @@ const menuItemSchema = new mongoose.Schema(
       carbs: String,
       fat: String,
     },
+    recipe: String,
     popularityScore: {
       type: Number,
       default: 0,

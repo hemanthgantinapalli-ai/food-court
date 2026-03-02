@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: {
       type: String,
-      enum: ["customer", "admin", "restaurant", "rider"],
+      enum: ["customer", "admin", "rider"],
       default: "customer",
     },
     phone: { type: String, default: "" },
@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    favorites: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Restaurant",
+      },
+    ],
   },
   { timestamps: true }
 );

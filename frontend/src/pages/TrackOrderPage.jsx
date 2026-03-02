@@ -6,9 +6,10 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { socket, connectSocket, disconnectSocket } from '../api/socket.js';
 
 const STATUS_MAPPING = {
-    'pending': 0,
+    'placed': 0,
+    'confirmed': 0,
     'preparing': 1,
-    'dispatched': 2,
+    'ready': 2,
     'on_the_way': 3,
     'delivered': 4,
     'cancelled': -1
@@ -17,7 +18,7 @@ const STATUS_MAPPING = {
 const STEPS = [
     { label: 'Placed', icon: CheckCircle, desc: 'Wait for confirmation' },
     { label: 'Preparing', icon: Clock, desc: 'Chef is cooking your meal' },
-    { label: 'Dispatched', icon: Package, desc: 'Food is ready and waiting for a rider' },
+    { label: 'Ready', icon: Package, desc: 'Food is ready and waiting for a rider' },
     { label: 'On the Way', icon: Truck, desc: 'Rider is on the way to you' },
     { label: 'Delivered', icon: CheckCircle, desc: 'Order delivered successfully!' },
 ];
@@ -254,7 +255,7 @@ export default function TrackOrderPage() {
                                             const Icon = step.icon;
                                             const done = i <= currentStatus;
                                             const active = i === currentStatus;
-                                            const isDelivered = i === 5;
+                                            const isDelivered = i === 4;
                                             return (
                                                 <div key={step.label} className="flex items-start gap-6 relative">
                                                     <div className={`relative z-10 w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-all ${done
@@ -264,7 +265,7 @@ export default function TrackOrderPage() {
                                                         : 'bg-slate-100'
                                                         }`}>
                                                         <Icon size={20} className={done ? 'text-white' : 'text-slate-400'} />
-                                                        {active && currentStatus < 5 && (
+                                                        {active && currentStatus < 4 && (
                                                             <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-ping" />
                                                         )}
                                                     </div>

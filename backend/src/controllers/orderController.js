@@ -163,7 +163,7 @@ export const getOrderHistory = async (req, res) => {
     } else if (type === 'available' && req.userRole === 'rider') {
       console.log(`🛎️ [Get Order History API] Fetching available orders for rider.`);
       // Show orders that are waiting for acceptance, being prepared, or ready, and have no rider
-      query = { rider: null, orderStatus: { $in: ['placed', 'confirmed', 'preparing', 'ready'] } };
+      query = { rider: null, orderStatus: { $in: ['placed', 'preparing', 'ready'] } };
     } else if (req.userRole === 'restaurant') {
       console.log(`🏪 [Get Order History API] Fetching orders for restaurant owner.`);
       const restaurant = await Restaurant.findOne({ owner: req.userId });
@@ -304,7 +304,7 @@ export const updateOrderStatus = async (req, res) => {
     const statusMessages = {
       confirmed: 'Your order has been confirmed!',
       preparing: 'The restaurant is preparing your food. 🍳',
-      dispatched: 'Food is ready and a rider is being assigned. 🏍️',
+      ready: 'Food is ready and a rider is being assigned. 🏍️',
       on_the_way: 'Your order is on the way! 🛵',
       delivered: 'Order delivered! Enjoy your meal! 🎉',
       cancelled: 'Your order has been cancelled.',

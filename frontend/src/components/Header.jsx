@@ -140,8 +140,8 @@ export default function Header() {
                       <Bike size={16} /> Delivery Dashboard
                     </Link>
                   ) : (
-                    <Link to="/orders" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
-                      <ShoppingBag size={16} /> My Orders
+                    <Link to="/dashboard?tab=overview" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                      <LayoutDashboard size={16} /> My Dashboard
                     </Link>
                   )}
                   <Link to="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">

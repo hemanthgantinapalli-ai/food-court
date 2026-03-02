@@ -92,6 +92,22 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  toggleFavorite: async (restaurantId) => {
+    try {
+      const response = await API.post('/auth/favorites/toggle', { restaurantId });
+      const { favorites } = response.data;
+
+      const currentUser = get().user;
+      const updatedUser = { ...currentUser, favorites };
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      set({ user: updatedUser });
+      return favorites;
+    } catch (error) {
+      console.error('Toggle favorite failed:', error);
+      throw error;
+    }
+  },
   isAuthenticated: () => {
     const token = localStorage.getItem('token');
     return !!token;

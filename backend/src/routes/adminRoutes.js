@@ -15,7 +15,8 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
       { $match: { paymentStatus: 'completed' } },
       { $group: { _id: null, total: { $sum: '$total' } } },
     ]);
-    const totalRestaurants = await Restaurant.countDocuments({ isApproved: true });
+    const totalRestaurants = await Restaurant.countDocuments();
+    const unapprovedRestaurants = await Restaurant.countDocuments({ isApproved: false });
     const totalRiders = await User.countDocuments({ role: 'rider' });
 
     res.status(200).json({
@@ -25,6 +26,7 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
         totalOrders,
         totalRevenue: totalRevenue[0]?.total || 0,
         totalRestaurants,
+        unapprovedRestaurants,
         totalRiders,
       },
     });
@@ -76,7 +78,7 @@ router.put('/users/:userId/status', authenticateUser, authorizeRole('admin'), as
 // Manage restaurants
 router.get('/restaurants', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const restaurants = await Restaurant.find().populate('owner', 'firstName lastName email');
+    const restaurants = await Restaurant.find().populate('owner', 'name email');
     res.status(200).json({
       success: true,
       data: restaurants,
@@ -119,9 +121,9 @@ router.put('/restaurants/:restaurantId/approve', authenticateUser, authorizeRole
 router.get('/orders', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
     const orders = await Order.find()
-      .populate('customer', 'firstName lastName phone')
+      .populate('customer', 'name phone')
       .populate('restaurant', 'name')
-      .populate('rider', 'firstName lastName')
+      .populate('rider', 'name')
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -155,6 +157,41 @@ router.get('/analytics/orders', authenticateUser, authorizeRole('admin'), async 
       message: 'Failed to fetch analytics',
       error: error.message,
     });
+  }
+});
+
+// Assign rider to order
+router.post('/orders/:orderId/assign', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { riderId } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    order.rider = riderId;
+    if (order.orderStatus === 'placed') {
+      order.orderStatus = 'confirmed';
+    }
+    await order.save();
+
+    // Populate for socket
+    const updatedOrder = await Order.findById(orderId)
+      .populate('customer', 'name phone')
+      .populate('restaurant', 'name location');
+
+    // Notify rider via socket
+    const { getIO } = await import('../utils/socket.js');
+    const io = getIO();
+    io.to(riderId).emit('order_assigned', updatedOrder);
+
+    res.status(200).json({
+      success: true,
+      message: 'Rider assigned successfully',
+      data: updatedOrder
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

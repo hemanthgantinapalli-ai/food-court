@@ -19,7 +19,6 @@ import { useAuthStore } from "../context/authStore";
 const ROLE_HOME = {
     customer: "/",
     admin: "/admin",
-    restaurant: "/restaurant",
     rider: "/rider",
 };
 

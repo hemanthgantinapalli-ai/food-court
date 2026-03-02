@@ -27,12 +27,12 @@ import OffersPage from "./pages/OffersPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
+import CustomerDashboard from "./pages/CustomerDashboard";
 
 // ---------- Role Dashboards (no shared Header/Footer) ----------
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import RiderDashboard from "./pages/RiderDashboard";
-import RestaurantDashboard from "./pages/RestaurantDashboard";
 
 // ─── Scroll To Top ────────────────────────────────────────────────
 const ScrollToTop = () => {
@@ -44,7 +44,7 @@ const ScrollToTop = () => {
 };
 
 // ─── Paths that should NOT show the consumer Header/Footer ────────
-const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/rider", "/restaurant"];
+const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/rider"];
 
 // ─── Inner App (inside Router context) ───────────────────────────
 function AppInner() {
@@ -112,6 +112,14 @@ function AppInner() {
               }
             />
             <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={[]}>
+                  <CustomerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/track-order"
               element={
                 <ProtectedRoute allowedRoles={[]}>
@@ -164,15 +172,7 @@ function AppInner() {
               }
             />
 
-            {/* ── Restaurant Dashboard (no consumer Header/Footer) */}
-            <Route
-              path="/restaurant"
-              element={
-                <ProtectedRoute allowedRoles={["restaurant"]}>
-                  <RestaurantDashboard />
-                </ProtectedRoute>
-              }
-            />
+
 
             {/* ── Catch-all 404 ─────────────────────────────── */}
             <Route path="*" element={<Navigate to="/" replace />} />

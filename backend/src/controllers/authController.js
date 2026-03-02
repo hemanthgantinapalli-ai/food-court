@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Restaurant from "../models/Restaurant.js";
 import { generateToken } from "../utils/jwt.js";
 
 // ====== REGISTER USER ======
@@ -82,7 +83,7 @@ export const login = async (req, res) => {
 // ====== GET CURRENT USER PROFILE ======
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("-password");
+    const user = await User.findById(req.userId).populate("favorites", "name image rating cuisines location").select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -95,10 +96,40 @@ export const getProfile = async (req, res) => {
         phone: user.phone || "",
         addresses: user.addresses || [],
         wallet: user.wallet || { balance: 0 },
+        favorites: user.favorites || [],
       },
     });
   } catch (error) {
     res.status(500).json({ message: "Error fetching profile", error: error.message });
+  }
+};
+
+// ====== TOGGLE FAVORITE RESTAURANT ======
+export const toggleFavorite = async (req, res) => {
+  try {
+    const { restaurantId } = req.body;
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const index = user.favorites.indexOf(restaurantId);
+    if (index === -1) {
+      user.favorites.push(restaurantId);
+    } else {
+      user.favorites.splice(index, 1);
+    }
+
+    await user.save();
+    const updatedUser = await User.findById(req.userId).populate("favorites", "name image rating cuisines location");
+
+    res.status(200).json({
+      message: "Favorites updated",
+      favorites: updatedUser.favorites,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error toggling favorite", error: error.message });
   }
 };
 
@@ -128,6 +159,7 @@ export const updateProfile = async (req, res) => {
         phone: user.phone || "",
         addresses: user.addresses || [],
         wallet: user.wallet || { balance: 0 },
+        favorites: user.favorites || [],
       },
     });
   } catch (error) {
