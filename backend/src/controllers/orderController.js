@@ -110,17 +110,33 @@ export const createOrder = async (req, res) => {
 
     console.log(`✅ [Create Order API] Order created successfully: ${order._id}`);
 
-    // Notify Admin via Socket.io
+    // Notify Riders & Admin via Socket.io
     const io = getIO();
-    io.to('admins').emit('new_order', {
-      orderId: order.orderId,
-      customerName: order.customer.name,
-      total: order.total
-    });
+    const populatedOrder = await Order.findById(order._id)
+      .populate('customer', 'name phone')
+      .populate('restaurant', 'name location');
+
+    const orderPayloadForRider = {
+      _id: populatedOrder._id,
+      orderId: populatedOrder.orderId,
+      customerName: populatedOrder.customer?.name,
+      restaurantName: populatedOrder.restaurant?.name,
+      restaurantAddress: populatedOrder.restaurant?.location?.address,
+      deliveryAddress: populatedOrder.deliveryAddress,
+      total: populatedOrder.total,
+      deliveryFee: populatedOrder.deliveryFee,
+      orderStatus: populatedOrder.orderStatus,
+      items: populatedOrder.items,
+    };
+
+    // Broadcast to ALL riders so they see it in the marketplace
+    io.to('riders').emit('new_order_available', orderPayloadForRider);
+    // Also inform admin immediately
+    io.to('admins').emit('new_order', orderPayloadForRider);
 
     res.status(201).json({
       success: true,
-      message: 'Order created successfully. Admin notified.',
+      message: 'Order created successfully. Riders notified.',
       data: order,
     });
   } catch (error) {
@@ -281,41 +297,36 @@ export const updateOrderStatus = async (req, res) => {
 
     console.log(`✅ [Update Order Status API] Order status updated successfully.`);
 
-    // Notify User via Socket.io
+    // Notify Customer + Admin via Socket.io
     const io = getIO();
     const customerId = order.customer.toString();
 
-    let notificationMessage = '';
-    switch (status) {
-      case 'preparing': notificationMessage = 'Restaurant is preparing your food.'; break;
-      case 'dispatched': notificationMessage = 'Food is ready and waiting for a rider.'; break;
-      case 'on_the_way': notificationMessage = 'Your order is on the way!'; break;
-      case 'delivered': notificationMessage = 'Order has been delivered. Enjoy your meal!'; break;
-    }
+    const statusMessages = {
+      confirmed: 'Your order has been confirmed!',
+      preparing: 'The restaurant is preparing your food. 🍳',
+      dispatched: 'Food is ready and a rider is being assigned. 🏍️',
+      on_the_way: 'Your order is on the way! 🛵',
+      delivered: 'Order delivered! Enjoy your meal! 🎉',
+      cancelled: 'Your order has been cancelled.',
+    };
+
+    const notificationMessage = statusMessages[status] || '';
+    const statusPayload = {
+      orderId: order._id,
+      status: order.orderStatus,
+      message: notificationMessage,
+    };
 
     if (notificationMessage) {
-      io.to(customerId).emit('order_status_update', {
-        orderId: order._id,
-        status: order.orderStatus,
-        message: notificationMessage
-      });
+      io.to(customerId).emit('order_status_update', statusPayload);
     }
+    // Always keep admin in sync
+    io.to('admins').emit('order_status_update', { ...statusPayload, forAdmin: true });
 
-    // Phase 2 Logic: If dispatched, notify all available riders
-    if (status === 'dispatched') {
-      const availableRiders = await User.find({ role: 'rider', isAvailable: true });
-      availableRiders.forEach(rider => {
-        io.to(rider._id.toString()).emit('delivery_available', {
-          orderId: order._id,
-          restaurantName: order.restaurant?.name || 'Local Restaurant',
-          deliveryAddress: order.deliveryAddress
-        });
-      });
-    }
-
-    // Phase 4 Logic: If delivered, reset rider availability
+    // If delivered, reset rider availability
     if (status === 'delivered' && order.rider) {
       await User.findByIdAndUpdate(order.rider, { isAvailable: true });
+      console.log(`🏁 [Update Order Status API] Rider availability reset after delivery.`);
     }
 
     res.status(200).json({
@@ -384,42 +395,50 @@ export const acceptOrder = async (req, res) => {
 
     console.log(`🔄 [Accept Order API] Assigning order to rider...`);
     order.rider = req.userId;
-    order.orderStatus = 'confirmed'; // Automatically confirm when rider accepts? Or keep as is.
-    // Let's just assign and maybe update status if it was 'placed'
-    if (order.orderStatus === 'placed') {
-      console.log(`🏷️ [Accept Order API] Changing status from 'placed' to 'confirmed'`);
-      order.orderStatus = 'confirmed';
-    }
+    // Set status to on_the_way when rider accepts
+    order.orderStatus = 'on_the_way';
 
     order.statusHistory.push({
-      status: order.orderStatus,
+      status: 'on_the_way',
       timestamp: new Date(),
-      note: 'Rider accepted the order'
+      note: 'Rider accepted the order and is on the way'
     });
 
     console.log(`💾 [Accept Order API] Saving order updates...`);
     await order.save();
 
+    // Populate rider info for notifications
+    const riderInfo = await User.findById(req.userId).select('name phone email');
+
     console.log(`✅ [Accept Order API] Order accepted successfully.`);
 
-    // Phase 3 Logic: Update rider availability
+    // Mark rider as busy
     await User.findByIdAndUpdate(req.userId, { isAvailable: false });
 
-    // Notify User & Admin
+    // Notify Customer, Admin, and other riders
     const io = getIO();
+
+    // Tell customer their rider is on the way
     io.to(order.customer.toString()).emit('order_status_update', {
       orderId: order._id,
       status: 'on_the_way',
-      message: 'A rider has accepted your order and is on the way!'
+      message: `🛵 Your rider ${riderInfo?.name || 'is'} on the way!`,
+      rider: { name: riderInfo?.name, phone: riderInfo?.phone },
     });
+
+    // Tell admin which rider claimed it + full order info
     io.to('admins').emit('order_claimed', {
       orderId: order._id,
-      riderId: req.userId
+      orderStatus: 'on_the_way',
+      rider: { _id: req.userId, name: riderInfo?.name, phone: riderInfo?.phone, email: riderInfo?.email },
     });
+
+    // Remove this order from other riders' available list
+    io.to('riders').emit('order_taken', { orderId: order._id });
 
     res.status(200).json({
       success: true,
-      message: 'Order accepted successfully. You are now on the way!',
+      message: 'Order accepted! You are now on the way.',
       data: order,
     });
   } catch (error) {

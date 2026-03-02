@@ -13,9 +13,16 @@ export const initSocket = (server) => {
     io.on('connection', (socket) => {
         console.log(`🔌 New client connected: ${socket.id}`);
 
+        // Join a personal room (by userId)
         socket.on('join', (userId) => {
             socket.join(userId);
-            console.log(`👤 User ${userId} joined their room.`);
+            console.log(`👤 User ${userId} joined their personal room.`);
+        });
+
+        // Join a role-based room: 'admins' or 'riders'
+        socket.on('join_role', (role) => {
+            socket.join(role);
+            console.log(`🎭 Socket ${socket.id} joined role room: ${role}`);
         });
 
         socket.on('disconnect', () => {
