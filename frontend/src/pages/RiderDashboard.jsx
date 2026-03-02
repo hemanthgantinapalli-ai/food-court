@@ -144,7 +144,9 @@ export default function RiderDashboard() {
   };
 
   const fetchData = async () => {
-    setLoading(true);
+    // Only show loader if we don't have assigned orders yet to prevent flickering on updates
+    const isInitialLoad = assignedOrders.length === 0;
+    if (isInitialLoad) setLoading(true);
     try {
       const assignedRes = await API.get('/orders/history?type=delivery');
       setAssignedOrders(assignedRes.data.data || []);
@@ -156,7 +158,7 @@ export default function RiderDashboard() {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) setLoading(false);
     }
   };
 

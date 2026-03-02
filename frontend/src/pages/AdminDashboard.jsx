@@ -37,9 +37,11 @@ export default function AdminDashboard() {
     image: '',
     cuisines: '',
     address: '',
-    city: ''
+    city: '',
+    ownerId: ''
   });
   const [isSubmittingRest, setIsSubmittingRest] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const addNotif = (msg, type = 'info') => {
     const id = Date.now();
@@ -52,8 +54,10 @@ export default function AdminDashboard() {
       fetchData();
 
       // Connect socket & join admins room
-      connectSocket(user._id);
-      socket.emit('join_role', 'admins');
+      if (user?._id) {
+        connectSocket(user._id);
+        socket.emit('join_role', 'admins');
+      }
 
       // ── Real-time event handlers ──
       socket.on('new_order', (data) => {
@@ -116,18 +120,17 @@ export default function AdminDashboard() {
     if (isInitialLoad) setLoading(true);
 
     try {
-      const [statsRes, usersRes, restRes, ordersRes] = await Promise.all([
+      const [statsRes, usersRes, restRes, ordersRes, supportRes] = await Promise.all([
         API.get('/admin/stats'),
         API.get('/admin/users'),
         API.get('/admin/restaurants'),
         API.get('/admin/orders'),
+        API.get('/support/my-requests'),
       ]);
       setStats(statsRes.data.data);
       setUsersList(usersRes.data.data);
       setRestaurantsList(restRes.data.data);
       setOrdersList(ordersRes.data.data);
-
-      const supportRes = await API.get('/support/my-requests');
       setSupportTickets(supportRes.data.data);
       setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
     } catch (error) {
@@ -149,13 +152,23 @@ export default function AdminDashboard() {
         location: {
           address: newRestaurantForm.address,
           city: newRestaurantForm.city
-        }
+        },
+        owner: newRestaurantForm.ownerId || null
       };
-      const res = await API.post('/api/restaurants', payload);
-      setRestaurantsList(prev => [res.data.data, ...prev]);
+
+      if (editingId) {
+        const res = await API.put(`/restaurants/${editingId}`, payload);
+        setRestaurantsList(prev => prev.map(r => r._id === editingId ? res.data.data : r));
+        addNotif('✨ Restaurant updated successfully!', 'info');
+      } else {
+        const res = await API.post('/restaurants', payload);
+        setRestaurantsList(prev => [res.data.data, ...prev]);
+        addNotif('🏪 Restaurant added successfully!', 'info');
+      }
+
       setShowAddRestaurant(false);
-      setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '' });
-      addNotif('🏪 Restaurant added successfully!', 'info');
+      setEditingId(null);
+      setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '', ownerId: '' });
     } catch (err) {
       console.error('Failed to create restaurant:', err);
       alert(err.response?.data?.message || 'Error adding restaurant');
@@ -167,7 +180,7 @@ export default function AdminDashboard() {
   const handleDeleteRestaurant = async (id) => {
     if (!window.confirm('Delete this restaurant forever?')) return;
     try {
-      await API.delete(`/api/restaurants/${id}`);
+      await API.delete(`/restaurants/${id}`);
       setRestaurantsList(prev => prev.filter(r => r._id !== id));
       addNotif('🗑️ Restaurant deleted', 'info');
     } catch (err) {
@@ -188,14 +201,14 @@ export default function AdminDashboard() {
 
   if (loading) return <Loader />;
 
+  const activeOrders = ordersList.filter(o => !['delivered', 'cancelled'].includes(o.orderStatus));
+
   const statCards = [
     { label: 'Total Revenue', value: `₹${stats?.totalRevenue?.toLocaleString() || 0}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Live Orders', value: activeOrders.length || 0, icon: ShoppingCart, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'Kitchens', value: stats?.totalRestaurants || 0, icon: Building, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
-
-  const activeOrders = ordersList.filter(o => !['delivered', 'cancelled'].includes(o.orderStatus));
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] pt-24 pb-12">
@@ -606,7 +619,15 @@ export default function AdminDashboard() {
                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Add or remove restaurant partners</p>
                   </div>
                   <button
-                    onClick={() => setShowAddRestaurant(!showAddRestaurant)}
+                    onClick={() => {
+                      if (showAddRestaurant) {
+                        setShowAddRestaurant(false);
+                        setEditingId(null);
+                      } else {
+                        setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '', ownerId: '' });
+                        setShowAddRestaurant(true);
+                      }
+                    }}
                     className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl active:scale-95"
                   >
                     {showAddRestaurant ? <X size={16} /> : <Plus size={16} />}
@@ -620,7 +641,7 @@ export default function AdminDashboard() {
                       <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center">
                         <Building size={24} />
                       </div>
-                      Restaurant Registration
+                      {editingId ? 'Edit Restaurant' : 'Restaurant Registration'}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
@@ -644,6 +665,14 @@ export default function AdminDashboard() {
                             onChange={e => setNewRestaurantForm({ ...newRestaurantForm, image: e.target.value })}
                           />
                         </div>
+                        {newRestaurantForm.image && (
+                          <div className="animate-in fade-in zoom-in duration-300">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Preview</label>
+                            <div className="w-full h-32 rounded-2xl overflow-hidden border-2 border-orange-100 shadow-inner">
+                              <img src={newRestaurantForm.image} alt="Preview" className="w-full h-full object-cover" />
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Cuisines (comma separated)</label>
                           <input
@@ -653,6 +682,19 @@ export default function AdminDashboard() {
                             value={newRestaurantForm.cuisines}
                             onChange={e => setNewRestaurantForm({ ...newRestaurantForm, cuisines: e.target.value })}
                           />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Assign Owner (Optional)</label>
+                          <select
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all cursor-pointer"
+                            value={newRestaurantForm.ownerId}
+                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, ownerId: e.target.value })}
+                          >
+                            <option value="">No Owner Assigned</option>
+                            {usersList.map(u => (
+                              <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                       <div className="space-y-4">
@@ -695,62 +737,91 @@ export default function AdminDashboard() {
                       disabled={isSubmittingRest}
                       className="w-full mt-10 py-5 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-orange-200 active:scale-95 disabled:opacity-50 transition-all"
                     >
-                      {isSubmittingRest ? 'Launching...' : 'Register Restaurant'}
+                      {isSubmittingRest ? 'Saving Changes...' : (editingId ? 'Update Restaurant' : 'Register Restaurant')}
                     </button>
                   </form>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {restaurantsList.map((r) => (
-                    <div key={r._id} className="p-8 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 flex flex-col gap-8 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-5">
-                          <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-inner border border-slate-100 overflow-hidden shrink-0">
-                            {r.image ? <img src={r.image} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <Building className="text-slate-200" size={32} />}
-                          </div>
+                    <div key={r._id} className="bg-white rounded-[2.5rem] border border-slate-100 flex flex-col group hover:shadow-2xl hover:shadow-slate-200/50 transition-all overflow-hidden relative">
+                      {/* Banner at top */}
+                      <div className="h-40 overflow-hidden relative group">
+                        <img src={r.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt="" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent flex items-end p-6">
                           <div>
-                            <h4 className="font-black text-slate-900 text-xl leading-tight">{r.name}</h4>
-                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">{r.cuisines?.join(', ') || 'Multi-cuisine'}</p>
-                            <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mt-2">📍 {r.location?.city || 'Local'}</p>
+                            <h4 className="font-black text-white text-xl leading-tight">{r.name}</h4>
+                            <p className="text-[10px] text-white/70 font-black uppercase tracking-[0.15em] mt-1">{r.cuisines?.join(', ') || 'Multi-cuisine'}</p>
                           </div>
                         </div>
-                        <span className={`text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${r.isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                          {r.isApproved ? 'Verified' : 'Reviewing'}
-                        </span>
+                        <div className="absolute top-4 right-4 animate-in slide-in-from-right-4 duration-500">
+                          <span className={`text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest backdrop-blur-md border ${r.isApproved ? 'bg-emerald-500/80 text-white border-emerald-400' : 'bg-amber-500/80 text-white border-amber-400'}`}>
+                            {r.isApproved ? 'Verified' : 'Reviewing'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex gap-3">
-                        <Link
-                          to={`/admin/menu?restaurantId=${r._id}`}
-                          className="flex-1 py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:border-slate-300 transition-all text-center flex items-center justify-center gap-2"
-                        >
-                          <Edit3 size={14} /> Manage Menu
-                        </Link>
-                        <button
-                          onClick={() => handleDeleteRestaurant(r._id)}
-                          className="w-14 h-14 flex items-center justify-center bg-white border border-slate-200 text-rose-500 rounded-2xl hover:bg-rose-50 hover:border-rose-100 transition-all"
-                          title="Delete Restaurant"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
+                      <div className="p-8 space-y-6">
+                        <div className="flex gap-4">
+                          <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest bg-orange-50 px-3 py-1.5 rounded-xl">📍 {r.location?.city || 'Local'}</p>
+                          {r.owner && (
+                            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest bg-blue-50 px-3 py-1.5 rounded-xl">👤 Owner: {r.owner.name || 'Assigned'}</p>
+                          )}
+                        </div>
 
-                      {!r.isApproved && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              await API.put(`/admin/restaurants/${r._id}/approve`);
-                              setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
-                              addNotif(`✅ ${r.name} approved!`, 'info');
-                            } catch (err) {
-                              console.error('Approval failed:', err);
-                            }
-                          }}
-                          className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg active:scale-95"
-                        >
-                          Approve Partner
-                        </button>
-                      )}
+                        <div className="flex gap-3">
+                          <Link
+                            to={`/admin/menu?restaurantId=${r._id}`}
+                            className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all text-center flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                          >
+                            <Edit3 size={14} /> Manage Menu
+                          </Link>
+                          <button
+                            onClick={() => {
+                              setEditingId(r._id);
+                              setNewRestaurantForm({
+                                name: r.name,
+                                description: r.description,
+                                image: r.image,
+                                cuisines: r.cuisines?.join(', ') || '',
+                                address: r.location?.address || '',
+                                city: r.location?.city || '',
+                                ownerId: r.owner?._id || r.owner || ''
+                              });
+                              setShowAddRestaurant(true);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="w-14 h-14 flex items-center justify-center bg-white border border-slate-100 text-slate-600 rounded-2xl hover:bg-blue-50 hover:border-blue-100 transition-all shadow-sm active:scale-95"
+                            title="Edit Restaurant"
+                          >
+                            <Edit3 size={20} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRestaurant(r._id)}
+                            className="w-14 h-14 flex items-center justify-center bg-white border border-slate-100 text-rose-500 rounded-2xl hover:bg-rose-50 hover:border-rose-100 transition-all shadow-sm active:scale-95"
+                            title="Delete Restaurant"
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+
+                        {!r.isApproved && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await API.put(`/admin/restaurants/${r._id}/approve`);
+                                setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
+                                addNotif(`✅ ${r.name} approved!`, 'info');
+                              } catch (err) {
+                                console.error('Approval failed:', err);
+                              }
+                            }}
+                            className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg active:scale-95"
+                          >
+                            Approve Partner
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -33,6 +33,12 @@ const userSchema = new mongoose.Schema(
         ref: "Restaurant",
       },
     ],
+    favoriteFoods: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "MenuItem",
+      },
+    ],
   },
   { timestamps: true }
 );

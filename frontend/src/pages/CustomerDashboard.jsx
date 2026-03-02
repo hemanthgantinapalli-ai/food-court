@@ -5,7 +5,7 @@ import {
     MapPin, Phone, Mail, LogOut, ChevronRight,
     Clock, ShieldCheck, Wallet, ArrowRight,
     TrendingUp, Star, Search, MessageSquare,
-    Gift, Bell, ExternalLink
+    Gift, Bell, ExternalLink, Truck
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -35,8 +35,7 @@ export default function CustomerDashboard() {
     const [infoForm, setInfoForm] = useState({ name: user?.name || '', phone: user?.phone || '' });
     const [orders, setOrders] = useState([]);
     const [favorites, setFavorites] = useState([]);
-
-    // Support state
+    const [favoriteFoods, setFavoriteFoods] = useState([]);
     const [supportTickets, setSupportTickets] = useState([]);
     const [showSupportForm, setShowSupportForm] = useState(false);
     const [supportForm, setSupportForm] = useState({ subject: '', message: '', orderId: '', priority: 'medium' });
@@ -49,15 +48,14 @@ export default function CustomerDashboard() {
         }
 
         const init = async () => {
-            // Only show full-screen loader if we don't have basic user data or orders yet
             const shouldShowLoader = !user || orders.length === 0;
             if (shouldShowLoader) setLoading(true);
 
             try {
-                // Fetch basic data needed for overview
                 await Promise.all([
                     fetchData(),
-                    fetchSupportTickets()
+                    fetchSupportTickets(),
+                    getProfile()
                 ]);
             } catch (err) {
                 console.error("Dashboard init error:", err);
@@ -70,23 +68,28 @@ export default function CustomerDashboard() {
     }, [user?.id, user?._id]);
 
     useEffect(() => {
-        // Update infoForm when user object changes
         if (user) {
             setInfoForm({ name: user.name || '', phone: user.phone || '' });
         }
     }, [user]);
 
     useEffect(() => {
-        // Update activeTab based on search params
         setActiveTab(searchParams.get('tab') || 'overview');
     }, [searchParams]);
 
+    useEffect(() => {
+        if (user) {
+            setFavorites(user.favorites || []);
+            setFavoriteFoods(user.favoriteFoods || []);
+        }
+    }, [user?.favorites, user?.favoriteFoods]);
+
     const fetchData = async () => {
         try {
-            // Fetch orders history and use current user data from store
             const ordersRes = await API.get('/orders/history');
             setOrders(ordersRes.data?.data || []);
             setFavorites(user?.favorites || []);
+            setFavoriteFoods(user?.favoriteFoods || []);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
         }
@@ -449,28 +452,62 @@ export default function CustomerDashboard() {
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <h3 className="text-3xl font-black text-slate-900 tracking-tight">Your <span className="text-rose-500">Favorites</span></h3>
 
-                                {favorites.length === 0 ? (
+                                {favorites.length === 0 && favoriteFoods.length === 0 ? (
                                     <div className="bg-white rounded-[3rem] p-24 text-center border border-white shadow-sm">
                                         <Heart size={64} className="mx-auto text-slate-100 mb-6" />
                                         <h4 className="text-2xl font-black text-slate-900 mb-2">Nothing here yet</h4>
-                                        <p className="text-slate-400 font-bold mb-8">Tap the heart on any restaurant to save it here.</p>
+                                        <p className="text-slate-400 font-bold mb-8">Tap the heart on any restaurant or food to save it here.</p>
                                     </div>
                                 ) : (
-                                    <div className="grid md:grid-cols-2 gap-8">
-                                        {favorites.map(rest => (
-                                            <Link key={rest._id} to={`/restaurant/${rest._id}`} className="bg-white rounded-[2.5rem] p-6 border border-white shadow-sm hover:shadow-xl transition-all group">
-                                                <div className="relative rounded-[1.8rem] overflow-hidden aspect-[4/3] mb-6">
-                                                    <img src={rest.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                                                    <div className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center"><Heart size={18} className="text-white fill-white" /></div>
+                                    <div className="space-y-10">
+                                        {/* Restaurants Section */}
+                                        {favorites.length > 0 && (
+                                            <div>
+                                                <h4 className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-6 px-2">Favorite Restaurants</h4>
+                                                <div className="grid md:grid-cols-2 gap-8">
+                                                    {favorites.map(rest => (
+                                                        <Link key={rest._id} to={`/restaurant/${rest._id}`} className="bg-white rounded-[2.5rem] p-6 border border-white shadow-sm hover:shadow-xl transition-all group">
+                                                            <div className="relative rounded-[1.8rem] overflow-hidden aspect-[4/3] mb-6">
+                                                                <img src={rest.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                                                                <div className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center"><Heart size={18} className="text-white fill-white" /></div>
+                                                            </div>
+                                                            <h4 className="text-xl font-black text-slate-900 text-center mb-1">{rest.name}</h4>
+                                                            <div className="flex items-center justify-center gap-3 text-slate-400 font-bold text-xs">
+                                                                <span className="flex items-center gap-1 text-orange-500"><Star size={14} className="fill-orange-500" /> {rest.rating || '4.8'}</span>
+                                                                <span>•</span>
+                                                                <span>{rest.cuisines?.slice(0, 2).join(', ') || 'Global'}</span>
+                                                            </div>
+                                                        </Link>
+                                                    ))}
                                                 </div>
-                                                <h4 className="text-xl font-black text-slate-900 text-center mb-1">{rest.name}</h4>
-                                                <div className="flex items-center justify-center gap-3 text-slate-400 font-bold text-xs">
-                                                    <span className="flex items-center gap-1 text-orange-500"><Star size={14} className="fill-orange-500" /> {rest.rating || '4.8'}</span>
-                                                    <span>•</span>
-                                                    <span>{rest.cuisines?.slice(0, 2).join(', ') || 'Global'}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Foods Section */}
+                                        {favoriteFoods.length > 0 && (
+                                            <div>
+                                                <h4 className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-6 px-2 text-rose-500">Loved Foods</h4>
+                                                <div className="grid md:grid-cols-2 gap-8">
+                                                    {favoriteFoods.map(food => (
+                                                        <div key={food._id} className="bg-white rounded-[2rem] p-5 border border-white shadow-sm hover:shadow-xl transition-all flex items-center gap-5">
+                                                            <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-sm shrink-0">
+                                                                <img src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover" alt="" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="font-black text-slate-900 text-base">{food.name}</h4>
+                                                                <p className="text-orange-600 font-black text-lg">₹{food.price}</p>
+                                                                <button
+                                                                    onClick={() => handleUpdateTab('overview')} // For demo, redirect back to overview or something
+                                                                    className="text-rose-500 font-black text-[10px] uppercase tracking-widest mt-2 hover:underline"
+                                                                >
+                                                                    Go to Shop →
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            </Link>
-                                        ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

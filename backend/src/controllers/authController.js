@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import Restaurant from "../models/Restaurant.js";
+import MenuItem from "../models/MenuItem.js";
 import { generateToken } from "../utils/jwt.js";
 
 // ====== REGISTER USER ======
@@ -83,7 +84,10 @@ export const login = async (req, res) => {
 // ====== GET CURRENT USER PROFILE ======
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).populate("favorites", "name image rating cuisines location").select("-password");
+    const user = await User.findById(req.userId)
+      .populate("favorites", "name image rating cuisines location")
+      .populate("favoriteFoods", "name price description image isVeg")
+      .select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -97,10 +101,40 @@ export const getProfile = async (req, res) => {
         addresses: user.addresses || [],
         wallet: user.wallet || { balance: 0 },
         favorites: user.favorites || [],
+        favoriteFoods: user.favoriteFoods || [],
       },
     });
   } catch (error) {
     res.status(500).json({ message: "Error fetching profile", error: error.message });
+  }
+};
+
+// ====== TOGGLE FAVORITE FOOD ======
+export const toggleFavoriteFood = async (req, res) => {
+  try {
+    const { foodId } = req.body;
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const index = user.favoriteFoods.indexOf(foodId);
+    if (index === -1) {
+      user.favoriteFoods.push(foodId);
+    } else {
+      user.favoriteFoods.splice(index, 1);
+    }
+
+    await user.save();
+    const updatedUser = await User.findById(req.userId).populate("favoriteFoods", "name price description image isVeg");
+
+    res.status(200).json({
+      message: "Favorites updated",
+      favoriteFoods: updatedUser.favoriteFoods,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error toggling favorite food", error: error.message });
   }
 };
 
@@ -160,6 +194,7 @@ export const updateProfile = async (req, res) => {
         addresses: user.addresses || [],
         wallet: user.wallet || { balance: 0 },
         favorites: user.favorites || [],
+        favoriteFoods: user.favoriteFoods || [],
       },
     });
   } catch (error) {

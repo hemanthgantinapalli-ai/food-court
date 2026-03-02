@@ -37,6 +37,8 @@ const restaurantSchema = new mongoose.Schema(
       delivery: { type: Boolean, default: true },
       dineIn: { type: Boolean, default: true },
     },
+    deliveryTime: { type: Number, default: 30 },       // minutes
+    deliveryFee: { type: Number, default: 49 },        // ₹
   },
   { timestamps: true }
 );

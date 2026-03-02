@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Bike, User as UserIcon, CheckCircle2, Store } from 'lucide-react';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Bike, User as UserIcon, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 
 const ROLES = [
@@ -19,6 +19,9 @@ export default function SignIn() {
   const { signIn } = useAuthStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Where to go after login (e.g. /checkout when coming from cart)
+  const from = location.state?.from?.pathname || null;
 
   useEffect(() => {
     const roleParam = searchParams.get('role');
@@ -47,12 +50,12 @@ export default function SignIn() {
     setLoading(true);
     try {
       const loggedInUser = await signIn({ email, password });
-
-      // Verification log
       console.log(`🔐 [SignIn] Auth Success. Role: ${loggedInUser.role}`);
 
       if (loggedInUser.role === 'admin') navigate('/admin');
       else if (loggedInUser.role === 'rider') navigate('/rider');
+      // If there's a specific page to return to (e.g. /checkout), go there
+      else if (from) navigate(from, { replace: true });
       else navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid credentials. Check the demo buttons above!');
@@ -200,6 +203,12 @@ export default function SignIn() {
           </form>
 
           <div className="mt-10 text-center space-y-4">
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest leading-relaxed">
+              Don't have an account?{' '}
+              <Link to={`/signup?role=${activeRole}`} className={`${activeRole === 'admin' ? 'text-purple-600' : activeRole === 'rider' ? 'text-blue-600' : 'text-orange-500'} hover:underline ml-2`}>
+                Create Account →
+              </Link>
+            </p>
           </div>
 
           {/* Debug/Creds Hint */}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Minus, Heart } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { useAuthStore } from '../context/authStore';
 
 const FOOD_FALLBACKS = [
   'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80',
@@ -12,8 +13,22 @@ const FOOD_FALLBACKS = [
 
 export default function MenuItemCard({ item }) {
   const { items, addToCart, removeFromCart } = useCartStore();
+  const { user, toggleFavoriteFood } = useAuthStore();
+
   const cartItem = items.find(i => i._id === item._id);
   const quantity = cartItem ? cartItem.quantity : 0;
+
+  const isFavorited = user?.favoriteFoods?.some(f => (f._id || f) === item._id);
+
+  const handleToggleFavorite = async (e) => {
+    e.preventDefault();
+    if (!user) return alert("Please sign in to save favorites");
+    try {
+      await toggleFavoriteFood(item._id);
+    } catch (err) {
+      console.error("Failed to toggle food favorite:", err);
+    }
+  };
 
   const foodImg = item.image || FOOD_FALLBACKS[Math.abs(item._id?.charCodeAt(0) || 0) % FOOD_FALLBACKS.length];
 
@@ -56,9 +71,12 @@ export default function MenuItemCard({ item }) {
         {/* Actions */}
         <div className="flex items-center justify-between">
           {/* Wishlist */}
-          <button className="flex items-center gap-1.5 text-slate-300 hover:text-red-400 transition-colors text-xs font-bold uppercase tracking-wider">
-            <Heart size={14} className={quantity > 0 ? 'fill-red-400 text-red-400' : ''} />
-            {quantity > 0 ? 'Saved' : 'Save'}
+          <button
+            onClick={handleToggleFavorite}
+            className={`flex items-center gap-1.5 transition-colors text-xs font-bold uppercase tracking-wider ${isFavorited ? 'text-red-500' : 'text-slate-300 hover:text-red-400'}`}
+          >
+            <Heart size={14} className={isFavorited ? 'fill-red-500 text-red-500' : ''} />
+            {isFavorited ? 'Saved' : 'Save'}
           </button>
 
           {/* Add to Cart */}

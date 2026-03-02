@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "fresh": "cd .. && npm run fresh",
     "build": "vite build",
     "preview": "vite preview"
   },

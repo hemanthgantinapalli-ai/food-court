@@ -20,8 +20,8 @@ const menuItemSchema = new mongoose.Schema(
     discountPrice: Number,
     category: {
       type: String,
-      enum: ['appetizers', 'mains', 'desserts', 'beverages', 'groceries', 'other'],
-      default: 'other',
+      enum: ['Starters', 'Mains', 'Desserts', 'Beverages', 'Pizza', 'Pasta', 'Sushi', 'Bowls', 'Groceries', 'Other'],
+      default: 'Other',
     },
     cuisine: String,
     rating: {
@@ -41,6 +41,10 @@ const menuItemSchema = new mongoose.Schema(
     isAvailable: {
       type: Boolean,
       default: true,
+    },
+    isVeg: {
+      type: Boolean,
+      default: false,
     },
     isVegetarian: {
       type: Boolean,

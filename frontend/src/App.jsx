@@ -75,18 +75,15 @@ function AppInner() {
             {/* ── Public Routes ─────────────────────────────── */}
             <Route path="/" element={<Home />} />
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
             <Route path="/restaurant/:id" element={<RestaurantDetail />} />
             <Route path="/offers" element={<OffersPage />} />
+            {/* Cart is public — guest can browse; login is only required at checkout */}
+            <Route path="/cart" element={<CartPage />} />
+            {/* Track order is public — shareable links work without login */}
+            <Route path="/track-order" element={<TrackOrderPage />} />
 
             {/* ── Customer-Only Routes ──────────────────────── */}
-            <Route
-              path="/cart"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <CartPage />
-                </ProtectedRoute>
-              }
-            />
             <Route
               path="/checkout"
               element={
@@ -116,14 +113,6 @@ function AppInner() {
               element={
                 <ProtectedRoute allowedRoles={[]}>
                   <CustomerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/track-order"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <TrackOrderPage />
                 </ProtectedRoute>
               }
             />
@@ -193,7 +182,7 @@ function AppInner() {
 // ─── Root Export ─────────────────────────────────────────────────
 export default function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppInner />
     </Router>
   );

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Tag } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Tag, LogIn } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { useAuthStore } from '../context/authStore';
 
 export default function CartPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   // Use the local Zustand store (not the API-based one)
   const { items, addToCart, updateQuantity, removeFromCart, getTotal, applyCoupon, coupon, discount } = useCartStore();
 
@@ -167,12 +169,25 @@ export default function CartPage() {
                 </div>
 
                 <button
-                  onClick={() => navigate('/checkout')}
+                  onClick={() => {
+                    if (!user) {
+                      // Guest: send to sign in, then redirect back to checkout
+                      navigate('/signin', { state: { from: { pathname: '/checkout' } } });
+                    } else {
+                      navigate('/checkout');
+                    }
+                  }}
                   id="checkout-btn"
                   className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl active:scale-[0.98]"
                 >
-                  Proceed to Checkout →
+                  {user ? 'Proceed to Checkout →' : 'Sign In to Checkout →'}
                 </button>
+
+                {!user && (
+                  <p className="text-center text-slate-500 text-xs mt-3 font-medium flex items-center justify-center gap-1">
+                    <LogIn size={12} /> Your cart is saved — sign in to complete your order
+                  </p>
+                )}
 
                 <p className="text-center text-slate-600 text-xs mt-4 font-medium">
                   🔒 Secure & encrypted checkout

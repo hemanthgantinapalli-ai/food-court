@@ -16,7 +16,7 @@ export default function AdminMenu() {
     name: '',
     price: '',
     description: '',
-    category: 'mains',
+    category: 'Mains',
     image: '',
     recipe: ''
   });
@@ -110,7 +110,7 @@ export default function AdminMenu() {
       name: '',
       price: '',
       description: '',
-      category: 'mains',
+      category: 'Mains',
       image: '',
       recipe: ''
     });
@@ -203,11 +203,15 @@ export default function AdminMenu() {
                       value={form.category}
                       onChange={e => setForm({ ...form, category: e.target.value })}
                     >
-                      <option value="appetizers">Appetizers</option>
-                      <option value="mains">Mains</option>
-                      <option value="desserts">Desserts</option>
-                      <option value="beverages">Beverages</option>
-                      <option value="groceries">Groceries</option>
+                      <option value="Starters">Starters</option>
+                      <option value="Mains">Mains</option>
+                      <option value="Desserts">Desserts</option>
+                      <option value="Beverages">Beverages</option>
+                      <option value="Pizza">Pizza</option>
+                      <option value="Pasta">Pasta</option>
+                      <option value="Sushi">Sushi</option>
+                      <option value="Groceries">Groceries</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                 </div>
@@ -223,6 +227,13 @@ export default function AdminMenu() {
                       onChange={e => setForm({ ...form, image: e.target.value })}
                     />
                   </div>
+                  {form.image && (
+                    <div className="mt-3 animate-in fade-in zoom-in duration-300">
+                      <div className="w-full h-32 rounded-2xl overflow-hidden border-2 border-orange-100 shadow-md">
+                        <img src={form.image} alt="Dish Preview" className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

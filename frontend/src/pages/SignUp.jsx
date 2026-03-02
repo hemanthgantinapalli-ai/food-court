@@ -90,13 +90,36 @@ export default function SignUp() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Role Indicator */}
+            {/* Role Switcher */}
+            <div className="grid grid-cols-3 gap-3 mb-8">
+              {[
+                { id: 'customer', label: 'Customer', icon: UserIcon, color: 'orange' },
+                { id: 'admin', label: 'Admin', icon: ShieldCheck, color: 'purple' },
+                { id: 'rider', label: 'Rider', icon: Bike, color: 'blue' }
+              ].map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, role: r.id })}
+                  className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-300 relative ${formData.role === r.id
+                    ? `border-${r.color}-500 bg-${r.color}-50 text-${r.color}-600`
+                    : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200'
+                    }`}
+                >
+                  <r.icon size={24} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">{r.label}</span>
+                  {formData.role === r.id && <div className="absolute top-2 right-2 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-sm"><div className={`w-1.5 h-1.5 rounded-full bg-${r.color}-500`} /><CheckCircle size={10} className="hidden" /></div>}
+                </button>
+              ))}
+            </div>
+
+            {/* Role Indicator Info */}
             <div className={`mb-6 p-4 rounded-2xl border flex items-center gap-4 ${formData.role === 'admin' ? 'border-purple-100 bg-purple-50 text-purple-700' : formData.role === 'rider' ? 'border-blue-100 bg-blue-50 text-blue-700' : 'border-orange-100 bg-orange-50 text-orange-700'}`}>
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white shadow-sm`}>
                 {formData.role === 'admin' ? <ShieldCheck size={20} /> : formData.role === 'rider' ? <Bike size={20} /> : <UserIcon size={20} />}
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Registering as</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Registering account for</p>
                 <p className="font-black text-sm uppercase tracking-wider">{formData.role}</p>
               </div>
             </div>

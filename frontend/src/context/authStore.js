@@ -108,6 +108,23 @@ export const useAuthStore = create((set, get) => ({
       throw error;
     }
   },
+
+  toggleFavoriteFood: async (foodId) => {
+    try {
+      const response = await API.post('/auth/favorites/food/toggle', { foodId });
+      const { favoriteFoods } = response.data;
+
+      const currentUser = get().user;
+      const updatedUser = { ...currentUser, favoriteFoods };
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      set({ user: updatedUser });
+      return favoriteFoods;
+    } catch (error) {
+      console.error('Toggle favorite food failed:', error);
+      throw error;
+    }
+  },
   isAuthenticated: () => {
     const token = localStorage.getItem('token');
     return !!token;

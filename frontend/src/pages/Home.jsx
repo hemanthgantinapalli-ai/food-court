@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import Hero from '../components/Hero';
 import RestaurantCard from '../components/RestaurantCard';
@@ -69,14 +69,31 @@ const FALLBACK_RESTAURANTS = [
 const Home = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Read ?cuisine= from URL on mount so category links work
+  const cuisineParam = searchParams.get('cuisine') || 'All';
+  const [activeFilter, setActiveFilter] = useState(cuisineParam);
+
+  // Sync filter → URL so browser back/forward works
+  const applyFilter = (filter) => {
+    setActiveFilter(filter);
+    setSearchQuery('');
+    if (filter === 'All') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ cuisine: filter });
+    }
+  };
 
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
         const { data } = await axios.get('/api/restaurants');
-        setRestaurants(data?.length ? data : FALLBACK_RESTAURANTS);
+        // Backend now returns the array directly
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        setRestaurants(list.length ? list : FALLBACK_RESTAURANTS);
       } catch (error) {
         console.warn('Backend offline — using demo data:', error.message);
         setRestaurants(FALLBACK_RESTAURANTS);
@@ -89,18 +106,17 @@ const Home = () => {
 
   if (loading) return <Loader_Component message="Curating the best kitchens..." />;
 
-  // Handle filter from Hero cuisine tags or search
+  // Handle filter from Hero cuisine tags or search bar
   const handleHeroFilter = (query) => {
-    // Check if it matches a known category
     const matched = CATEGORY_FILTERS.find(
       (f) => f.toLowerCase() === query.toLowerCase()
     );
     if (matched) {
-      setActiveFilter(matched);
-      setSearchQuery('');
+      applyFilter(matched);
     } else {
       setSearchQuery(query);
       setActiveFilter('All');
+      setSearchParams({});
     }
   };
 
@@ -166,8 +182,7 @@ const Home = () => {
             <button
               key={label}
               onClick={() => {
-                setActiveFilter(activeFilter === label ? 'All' : label);
-                setSearchQuery('');
+                applyFilter(activeFilter === label ? 'All' : label);
                 document.getElementById('restaurant-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
               className={`group flex flex-col items-center gap-3 p-5 rounded-2xl bg-gradient-to-br ${color} border border-transparent hover:border-orange-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${activeFilter === label ? 'ring-2 ring-orange-500 shadow-lg shadow-orange-100' : ''
@@ -184,7 +199,7 @@ const Home = () => {
           {CATEGORY_FILTERS.map((filter) => (
             <button
               key={filter}
-              onClick={() => { setActiveFilter(filter); setSearchQuery(''); }}
+              onClick={() => applyFilter(filter)}
               className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeFilter === filter
                 ? 'bg-slate-900 text-white shadow-lg'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
@@ -220,7 +235,7 @@ const Home = () => {
 
           <div
             className="flex items-center gap-2 text-orange-600 font-bold text-sm cursor-pointer hover:gap-3 transition-all"
-            onClick={() => { setActiveFilter('All'); setSearchQuery(''); }}
+            onClick={() => applyFilter('All')}
           >
             View All Restaurants <ChevronRight size={16} />
           </div>
@@ -239,7 +254,7 @@ const Home = () => {
                 No restaurants found for "{searchQuery || activeFilter}"
               </p>
               <button
-                onClick={() => { setActiveFilter('All'); setSearchQuery(''); }}
+                onClick={() => applyFilter('All')}
                 className="mt-4 text-orange-500 font-bold"
               >
                 Clear filter

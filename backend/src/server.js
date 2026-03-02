@@ -13,6 +13,7 @@ import webhookRoutes from './routes/webhookRoutes.js';
 import menuRoutes from './routes/menuRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 import { createServer } from 'http';
 import { initSocket } from './utils/socket.js';
 
@@ -38,6 +39,7 @@ app.use('/api/riders', riderRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/bookings', bookingRoutes);
 // Keep webhook route at /webhook for Stripe
 
 
@@ -49,6 +51,6 @@ const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 initSocket(httpServer);
 
-httpServer.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
+httpServer.listen(PORT, '0.0.0.0', () =>
+  console.log(`🚀 Server running on http://localhost:${PORT}`)
 );
