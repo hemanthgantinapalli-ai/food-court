@@ -936,7 +936,7 @@ export default function AdminDashboard() {
                           <button
                             onClick={async () => {
                               try {
-                                await API.put(`/admin/restaurants/${r._id}/approve`);
+                                await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                 setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
                                 addNotif(`✅ ${r.name} approved!`, 'info');
                               } catch (err) {
@@ -1025,12 +1025,12 @@ export default function AdminDashboard() {
                             <button
                               onClick={async () => {
                                 try {
-                                  await API.put(`/admin/restaurants/${r._id}/approve`);
+                                  await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                   setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
                                   addNotif(`✨ ${r.name} is now a partner!`, 'info');
                                 } catch (err) {
                                   console.error('Approval failed:', err);
-                                  alert('Approval failed');
+                                  alert('Approval failed: ' + (err.response?.data?.message || err.message));
                                 }
                               }}
                               className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-200 transition-all active:scale-95"

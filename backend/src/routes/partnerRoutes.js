@@ -82,12 +82,12 @@ router.get('/menu', authenticateUser, authorizeRole('restaurant'), async (req, r
     }
 });
 
-// ── Update order status (partner can confirm/prepare/ready) ───────
+// ── Update order status (partner can confirm/prepare/ready/cancel) ───────
 router.put('/orders/:orderId/status', authenticateUser, authorizeRole('restaurant'), async (req, res) => {
     try {
         const { orderId } = req.params;
         const { status } = req.body;
-        const allowedStatuses = ['confirmed', 'preparing', 'ready'];
+        const allowedStatuses = ['confirmed', 'preparing', 'ready', 'cancelled'];
 
         if (!allowedStatuses.includes(status)) {
             return res.status(400).json({ success: false, message: `Partners can only set: ${allowedStatuses.join(', ')}` });

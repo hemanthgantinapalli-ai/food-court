@@ -25,6 +25,15 @@ export default function PartnerDashboard() {
     const [restaurants, setRestaurants] = useState([]);
     const [notifications, setNotifications] = useState([]);
 
+    const [formLoading, setFormLoading] = useState(false);
+    const [showMenuForm, setShowMenuForm] = useState(false);
+    const [editingMenuId, setEditingMenuId] = useState(null);
+    const [menuForm, setMenuForm] = useState({ name: '', price: '', category: 'Mains', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
+
+    const [editingRestaurantId, setEditingRestaurantId] = useState(null);
+    const [showRestaurantForm, setShowRestaurantForm] = useState(false);
+    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', openTime: '10:00', closeTime: '22:00', isOpen: true });
+
     const addNotif = (msg, type = 'info') => {
         const id = Date.now();
         setNotifications(prev => [{ id, msg, type }, ...prev].slice(0, 10));
@@ -65,6 +74,64 @@ export default function PartnerDashboard() {
             addNotif(`✅ Order status updated to ${status}`, 'info');
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to update');
+        }
+    };
+
+    const handleMenuSubmit = async (e) => {
+        e.preventDefault();
+        setFormLoading(true);
+        try {
+            if (editingMenuId) {
+                const response = await API.put(`/menu/${editingMenuId}`, menuForm);
+                setMenuItems(menuItems.map(i => i._id === editingMenuId ? response.data.data : i));
+                addNotif('🍲 Menu item updated');
+            } else {
+                const response = await API.post('/menu', { ...menuForm, restaurant: menuForm.restaurant || restaurants[0]?._id });
+                setMenuItems([response.data.data, ...menuItems]);
+                addNotif('🍲 Menu item added');
+            }
+            setShowMenuForm(false);
+            setEditingMenuId(null);
+            setMenuForm({ name: '', price: '', category: 'Mains', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
+        } catch (error) {
+            addNotif(error.response?.data?.message || 'Failed to save item', 'error');
+        } finally {
+            setFormLoading(false);
+        }
+    };
+
+    const toggleMenuItemStatus = async (item) => {
+        try {
+            const response = await API.put(`/menu/${item._id}`, { isAvailable: !item.isAvailable });
+            setMenuItems(menuItems.map(i => i._id === item._id ? { ...i, isAvailable: response.data.data.isAvailable } : i));
+        } catch (error) {
+            addNotif('Failed to toggle availability', 'error');
+        }
+    };
+
+    const handleRestaurantSubmit = async (e) => {
+        e.preventDefault();
+        setFormLoading(true);
+        try {
+            const payload = { ...restaurantForm };
+            if (payload.openTime && payload.closeTime) {
+                payload.openingHours = { open: payload.openTime, close: payload.closeTime };
+            }
+            if (editingRestaurantId) {
+                const response = await API.put(`/restaurants/${editingRestaurantId}`, payload);
+                setRestaurants(restaurants.map(r => r._id === editingRestaurantId ? response.data.data : r));
+                addNotif('🏪 Restaurant updated successfully');
+            } else {
+                const response = await API.post('/restaurants', payload);
+                setRestaurants([response.data.data, ...restaurants]);
+                addNotif('🏪 Restaurant submitted for approval');
+            }
+            setEditingRestaurantId(null);
+            setShowRestaurantForm(false);
+        } catch (error) {
+            addNotif(error.response?.data?.message || 'Update failed', 'error');
+        } finally {
+            setFormLoading(false);
         }
     };
 
@@ -289,12 +356,20 @@ export default function PartnerDashboard() {
                                                     </span>
 
                                                     {order.orderStatus === 'placed' && (
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(order._id, 'confirmed')}
-                                                            className="px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-700 transition-all"
-                                                        >
-                                                            Accept Order
-                                                        </button>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => handleStatusUpdate(order._id, 'confirmed')}
+                                                                className="px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-700 transition-all"
+                                                            >
+                                                                Accept Order
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleStatusUpdate(order._id, 'cancelled')}
+                                                                className="px-4 py-2 bg-rose-100 text-rose-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-rose-200 transition-all"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </div>
                                                     )}
                                                     {order.orderStatus === 'confirmed' && (
                                                         <button
@@ -356,44 +431,105 @@ export default function PartnerDashboard() {
                         {/* ─── MENU ITEMS ─── */}
                         {activeTab === 'menu' && (
                             <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                                     <div>
                                         <h3 className="font-black text-xl text-slate-900">Menu Items</h3>
                                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Manage your dishes and offerings</p>
                                     </div>
+                                    <button
+                                        onClick={() => {
+                                            setShowMenuForm(!showMenuForm);
+                                            if (showMenuForm) { setEditingMenuId(null); setMenuForm({ name: '', price: '', category: 'Mains', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true }); }
+                                        }}
+                                        className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl active:scale-95"
+                                    >
+                                        {showMenuForm ? <X size={16} /> : <Plus size={16} />}
+                                        {showMenuForm ? 'Cancel' : 'Add Item'}
+                                    </button>
                                 </div>
+
+                                {showMenuForm && (
+                                    <form onSubmit={handleMenuSubmit} className="bg-white p-8 rounded-[2.5rem] border-2 border-emerald-100 shadow-xl animate-fade-up">
+                                        <h4 className="font-black text-xl mb-6 flex items-center gap-3 text-slate-900">
+                                            {editingMenuId ? 'Edit Menu Item' : 'New Menu Item'}
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Item Name</label>
+                                                <input required className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.name} onChange={e => setMenuForm({ ...menuForm, name: e.target.value })} placeholder="Margherita Pizza" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Price (₹)</label>
+                                                <input required type="number" className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.price} onChange={e => setMenuForm({ ...menuForm, price: e.target.value })} placeholder="299" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Category</label>
+                                                <select className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.category} onChange={e => setMenuForm({ ...menuForm, category: e.target.value })}>
+                                                    <option>Starters</option><option>Mains</option><option>Desserts</option><option>Beverages</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Image URL</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.image} onChange={e => setMenuForm({ ...menuForm, image: e.target.value })} placeholder="https://..." />
+                                                {menuForm.image && (
+                                                    <div className="mt-4 rounded-xl overflow-hidden h-32 bg-slate-100 border border-slate-100 shadow-inner">
+                                                        <img src={menuForm.image} alt="Menu Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} onLoad={(e) => { e.target.style.display = 'block'; }} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Description</label>
+                                                <textarea required className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.description} onChange={e => setMenuForm({ ...menuForm, description: e.target.value })} placeholder="A brief description of the dish..." rows={3} />
+                                            </div>
+                                        </div>
+                                        <div className="mt-8 flex gap-4">
+                                            <button type="submit" disabled={formLoading} className="py-4 px-8 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-emerald-700 active:scale-95 transition-all">
+                                                {formLoading ? 'Saving...' : 'Save Item'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
 
                                 {menuItems.length === 0 ? (
                                     <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
                                         <UtensilsCrossed className="text-slate-300 mx-auto mb-4" size={40} />
                                         <p className="font-black text-slate-900 text-xl mb-2">No menu items yet</p>
-                                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Contact admin to add items to your menu</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Add your first dish above</p>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {menuItems.map(item => (
-                                            <div key={item._id} className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all group">
-                                                {item.image && (
-                                                    <div className="h-36 overflow-hidden">
-                                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                            <div key={item._id} className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all group relative">
+                                                <div className="absolute top-4 right-4 z-10 flex gap-2">
+                                                    <button onClick={() => { setEditingMenuId(item._id); setMenuForm(item); setShowMenuForm(true); }} className="w-8 h-8 bg-white/90 backdrop-blur rounded-xl text-blue-600 flex items-center justify-center shadow-lg hover:bg-blue-600 hover:text-white transition-all">
+                                                        <Edit3 size={14} />
+                                                    </button>
+                                                </div>
+                                                {item.image ? (
+                                                    <div className="h-36 overflow-hidden bg-slate-100">
+                                                        <img src={item.image} alt={item.name} className={`w-full h-full object-cover transition-transform duration-500 ${!item.isAvailable && 'grayscale'}`} />
                                                     </div>
-                                                )}
+                                                ) : <div className="h-36 bg-slate-100 flex items-center justify-center"><UtensilsCrossed className="text-slate-300" /></div>}
                                                 <div className="p-5">
                                                     <div className="flex justify-between items-start">
                                                         <div>
-                                                            <p className="font-black text-slate-900">{item.name}</p>
-                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{item.category} • {item.restaurant?.name}</p>
+                                                            <p className={`font-black ${!item.isAvailable ? 'text-slate-400' : 'text-slate-900'}`}>{item.name}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{item.category}</p>
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="font-black text-emerald-600">₹{item.price}</p>
-                                                            {item.discountPrice && <p className="text-[10px] text-slate-400 line-through">₹{item.discountPrice}</p>}
                                                         </div>
                                                     </div>
-                                                    <div className="mt-3 flex items-center gap-2">
-                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${item.isAvailable ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                            {item.isAvailable ? 'Available' : 'Unavailable'}
+                                                    <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
+                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${item.isAvailable ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                            {item.isAvailable ? 'In Stock' : 'Out of Stock'}
                                                         </span>
-                                                        {item.isVeg && <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-green-50 text-green-600">Veg</span>}
+                                                        <button
+                                                            onClick={() => toggleMenuItemStatus(item)}
+                                                            className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all ${item.isAvailable ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                                        >
+                                                            {item.isAvailable ? 'Mark Out of Stock' : 'Mark Available'}
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -406,12 +542,79 @@ export default function PartnerDashboard() {
                         {/* ─── MY RESTAURANTS ─── */}
                         {activeTab === 'restaurants' && (
                             <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                                     <div>
                                         <h3 className="font-black text-xl text-slate-900">My Restaurants</h3>
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Your registered restaurants on FoodCourt</p>
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Manage Profile & Timings</p>
                                     </div>
+                                    <button
+                                        onClick={() => {
+                                            setShowRestaurantForm(!showRestaurantForm);
+                                            if (!showRestaurantForm) {
+                                                setEditingRestaurantId(null);
+                                                setRestaurantForm({ name: '', description: '', image: '', openTime: '10:00', closeTime: '22:00', isOpen: true });
+                                            }
+                                        }}
+                                        className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl active:scale-95"
+                                    >
+                                        {showRestaurantForm || editingRestaurantId ? <X size={16} /> : <Plus size={16} />}
+                                        {showRestaurantForm || editingRestaurantId ? 'Cancel' : 'Add Restaurant'}
+                                    </button>
                                 </div>
+
+                                {(showRestaurantForm || editingRestaurantId) && (
+                                    <form onSubmit={handleRestaurantSubmit} className="bg-white p-8 rounded-[2.5rem] border-2 border-emerald-100 shadow-xl animate-fade-down">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h4 className="font-black text-xl text-slate-900">{editingRestaurantId ? 'Edit Restaurant Profile' : 'Register New Restaurant'}</h4>
+                                            <button type="button" onClick={() => { setEditingRestaurantId(null); setShowRestaurantForm(false); }} className="p-2 hover:bg-slate-100 rounded-full"><X size={16} /></button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Restaurant Name</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.name} onChange={e => setRestaurantForm({ ...restaurantForm, name: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cover Image URL</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.image} onChange={e => setRestaurantForm({ ...restaurantForm, image: e.target.value })} />
+                                                {restaurantForm.image && (
+                                                    <div className="mt-4 rounded-xl overflow-hidden h-32 bg-slate-100 border border-slate-100 shadow-inner">
+                                                        <img src={restaurantForm.image} alt="Restaurant Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} onLoad={(e) => { e.target.style.display = 'block'; }} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Opening Time</label>
+                                                <input type="time" className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.openTime || '10:00'} onChange={e => setRestaurantForm({ ...restaurantForm, openTime: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Closing Time</label>
+                                                <input type="time" className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.closeTime || '22:00'} onChange={e => setRestaurantForm({ ...restaurantForm, closeTime: e.target.value })} />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Description</label>
+                                                <textarea className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.description} onChange={e => setRestaurantForm({ ...restaurantForm, description: e.target.value })} rows={3} />
+                                            </div>
+                                            <div className="md:col-span-2 flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Operational Status</p>
+                                                    <p className="text-xs text-slate-500 font-medium">Turn off to temporarily stop accepting orders</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setRestaurantForm(prev => ({ ...prev, isOpen: !prev.isOpen }))}
+                                                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${restaurantForm.isOpen ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-300 text-slate-500'}`}
+                                                >
+                                                    {restaurantForm.isOpen ? 'Currently Open' : 'Currently Closed'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="mt-8">
+                                            <button type="submit" disabled={formLoading} className="py-4 px-8 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-emerald-700 active:scale-95 transition-all w-full md:w-auto">
+                                                {formLoading ? 'Saving...' : 'Update Profile'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
 
                                 {restaurants.length === 0 ? (
                                     <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
@@ -421,21 +624,32 @@ export default function PartnerDashboard() {
                                     </div>
                                 ) : (
                                     restaurants.map(r => (
-                                        <div key={r._id} className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                                        <div key={r._id} className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all relative">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingRestaurantId(r._id);
+                                                    setShowRestaurantForm(true);
+                                                    setRestaurantForm({
+                                                        name: r.name, description: r.description, image: r.image, isOpen: r.isOpen,
+                                                        openTime: r.openingHours?.open || '10:00', closeTime: r.openingHours?.close || '22:00'
+                                                    });
+                                                }}
+                                                className="absolute top-6 right-6 z-10 w-10 h-10 bg-white shadow-xl rounded-xl flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-all"
+                                            >
+                                                <Edit3 size={16} />
+                                            </button>
                                             <div className="flex flex-col md:flex-row">
                                                 <div className="md:w-64 h-48 md:h-auto bg-slate-100 overflow-hidden shrink-0">
-                                                    {r.image ? <img src={r.image} alt={r.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Store size={40} className="text-slate-300" /></div>}
+                                                    {r.image ? <img src={r.image} alt={r.name} className={`w-full h-full object-cover ${!r.isOpen && 'grayscale opacity-70'}`} /> : <div className="w-full h-full flex items-center justify-center"><Store size={40} className="text-slate-300" /></div>}
                                                 </div>
                                                 <div className="p-8 flex-1">
-                                                    <div className="flex justify-between items-start">
+                                                    <div className="flex justify-between items-start pr-12">
                                                         <div>
                                                             <h3 className="text-2xl font-black text-slate-900">{r.name}</h3>
                                                             <p className="text-slate-400 text-sm font-medium mt-1">{r.description}</p>
-                                                            <div className="flex flex-wrap gap-2 mt-3">
-                                                                {r.cuisines?.map((c, i) => (
-                                                                    <span key={i} className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">{c}</span>
-                                                                ))}
-                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2 flex items-center gap-1">
+                                                                <Clock size={12} /> {r.openingHours?.open || '10:00'} - {r.openingHours?.close || '22:00'}
+                                                            </p>
                                                         </div>
                                                         <div className="flex flex-col items-end gap-2">
                                                             <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${r.isOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
@@ -444,20 +658,6 @@ export default function PartnerDashboard() {
                                                             <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${r.isApproved ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
                                                                 {r.isApproved ? 'Approved' : 'Pending Approval'}
                                                             </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-6 flex gap-6">
-                                                        <div>
-                                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Rating</p>
-                                                            <p className="font-black text-slate-900 text-lg">{r.rating}★</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Delivery</p>
-                                                            <p className="font-black text-slate-900 text-lg">{r.deliveryTime} min</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Fee</p>
-                                                            <p className="font-black text-slate-900 text-lg">₹{r.deliveryFee}</p>
                                                         </div>
                                                     </div>
                                                 </div>

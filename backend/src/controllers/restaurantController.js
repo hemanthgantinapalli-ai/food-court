@@ -14,7 +14,14 @@ export const getRestaurants = async (req, res) => {
 
 export const createRestaurant = async (req, res) => {
     try {
-        const restaurant = await Restaurant.create(req.body);
+        const payload = { ...req.body };
+        // If created by a restaurant partner, enforce their user ID as the owner
+        if (req.userRole === 'restaurant') {
+            payload.owner = req.userId;
+            payload.isApproved = false; // Always strict enforce approval for new ones
+        }
+
+        const restaurant = await Restaurant.create(payload);
         return res.status(201).json({ success: true, data: restaurant });
     } catch (error) {
         console.error("🔥 [Create Restaurant API] Error creating restaurant:", error.message);
@@ -57,7 +64,17 @@ export const getRestaurantById = async (req, res) => {
 export const updateRestaurant = async (req, res) => {
     try {
         const { id } = req.params;
-        const restaurant = await Restaurant.findByIdAndUpdate(id, req.body, { new: true });
+        const updates = { ...req.body };
+
+        // Prevent restaurant owners from overriding sensitive admin configs
+        if (req.userRole === 'restaurant') {
+            delete updates.commissionPercentage;
+            delete updates.isApproved;
+            delete updates.approvalDate;
+            delete updates.owner; // prevent re-assigning owner
+        }
+
+        const restaurant = await Restaurant.findByIdAndUpdate(id, updates, { new: true });
         if (!restaurant) {
             return res.status(404).json({ success: false, message: 'Restaurant not found' });
         }
