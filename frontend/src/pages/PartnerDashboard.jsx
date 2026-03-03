@@ -86,7 +86,10 @@ export default function PartnerDashboard() {
                 setMenuItems(menuItems.map(i => i._id === editingMenuId ? response.data.data : i));
                 addNotif('🍲 Menu item updated');
             } else {
-                const response = await API.post('/menu', { ...menuForm, restaurant: menuForm.restaurant || restaurants[0]?._id });
+                const response = await API.post('/menu', {
+                    ...menuForm,
+                    restaurantId: menuForm.restaurant || restaurants[0]?._id
+                });
                 setMenuItems([response.data.data, ...menuItems]);
                 addNotif('🍲 Menu item added');
             }
