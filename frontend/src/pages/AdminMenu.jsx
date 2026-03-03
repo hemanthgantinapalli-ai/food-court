@@ -117,6 +117,15 @@ export default function AdminMenu() {
     setEditingId(null);
   };
 
+  const toggleBlockStatus = async (item) => {
+    try {
+      const response = await API.put(`/menu/${item._id}`, { isBlocked: !item.isBlocked });
+      setItems(items.map(i => i._id === item._id ? { ...i, isBlocked: response.data.data.isBlocked } : i));
+    } catch (error) {
+      alert('Failed to update status');
+    }
+  };
+
   const deleteItem = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
@@ -333,6 +342,13 @@ export default function AdminMenu() {
                           <p className="text-2xl font-black text-slate-900">₹{item.price}</p>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => toggleBlockStatus(item)}
+                            className={`p-3.5 rounded-2xl border transition-all shadow-sm ${item.isBlocked ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100'}`}
+                            title={item.isBlocked ? 'Unblock Item' : 'Block Item'}
+                          >
+                            <Info size={20} />
+                          </button>
                           <button
                             onClick={() => {
                               setForm({

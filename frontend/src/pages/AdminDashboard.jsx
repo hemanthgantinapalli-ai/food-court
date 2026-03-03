@@ -42,6 +42,11 @@ export default function AdminDashboard() {
   });
   const [isSubmittingRest, setIsSubmittingRest] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'customer' });
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+
+  const [financeData, setFinanceData] = useState({ totalGrossRevenue: 0, totalCommission: 0, weeklyReport: [], settlements: [] });
 
   const addNotif = (msg, type = 'info') => {
     const id = Date.now();
@@ -279,6 +284,8 @@ export default function AdminDashboard() {
               { id: 'overview', label: 'Overview' },
               { id: 'live', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
               { id: 'orders', label: 'All Orders' },
+              { id: 'approvals', label: `Approvals ${restaurantsList.filter(r => !r.isApproved).length > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length})` : ''}` },
+              { id: 'finance', label: 'Finance' },
               { id: 'support', label: `Support ${supportTickets.filter(t => t.status === 'open').length > 0 ? `(${supportTickets.filter(t => t.status === 'open').length})` : ''}` },
               { id: 'users', label: 'Users' },
               { id: 'restaurants', label: 'Restaurants' },
@@ -290,7 +297,9 @@ export default function AdminDashboard() {
                   ? 'bg-white text-orange-600 shadow-sm'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
               >
-                {tab.id === 'live' && activeOrders.length > 0 && <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />}
+                {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && restaurantsList.filter(r => !r.isApproved).length > 0) ? (
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                ) : null}
                 {tab.label}
               </button>
             ))}
@@ -550,63 +559,181 @@ export default function AdminDashboard() {
 
             {/* ─── USERS ─── */}
             {activeTab === 'users' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-50">
-                      <th className="pb-6 px-4">User</th>
-                      <th className="pb-6">Role</th>
-                      <th className="pb-6 text-center">Status</th>
-                      <th className="pb-6 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {usersList.map((u) => (
-                      <tr key={u._id} className="group hover:bg-slate-50/50 transition-colors">
-                        <td className="py-6 px-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 uppercase">
-                              {u.name?.[0]}
-                            </div>
-                            <div>
-                              <p className="font-black text-slate-900 text-sm">{u.name}</p>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{u.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-6">
-                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-purple-50 text-purple-600' :
-                            u.role === 'rider' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-500'
-                            }`}>
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="py-6 text-center">
-                          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${u.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                            {u.isActive !== false ? 'Active' : 'Blocked'}
-                          </span>
-                        </td>
-                        <td className="py-6 text-right">
-                          <button
-                            onClick={async () => {
-                              try {
-                                const newStatus = u.isActive === false ? true : false;
-                                await API.put(`/admin/users/${u._id}/status`, { isActive: newStatus });
-                                setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, isActive: newStatus } : usr));
-                              } catch (err) {
-                                console.error('Failed to update user status:', err);
-                              }
-                            }}
-                            className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-xl transition-all ${u.isActive !== false ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+              <div className="space-y-8">
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900">Platform Users</h3>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Manage permissions and access</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddUser(!showAddUser)}
+                    className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl active:scale-95"
+                  >
+                    {showAddUser ? <X size={16} /> : <Plus size={16} />}
+                    {showAddUser ? 'Cancel' : 'Create New User'}
+                  </button>
+                </div>
+
+                {showAddUser && (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setIsSubmittingUser(true);
+                      try {
+                        const res = await API.post('/auth/register', newUserForm);
+                        setUsersList(prev => [res.data.user, ...prev]);
+                        addNotif('👤 User created successfully!', 'info');
+                        setShowAddUser(false);
+                        setNewUserForm({ name: '', email: '', password: '', role: 'customer' });
+                      } catch (err) {
+                        alert(err.response?.data?.message || 'Failed to create user');
+                      } finally {
+                        setIsSubmittingUser(false);
+                      }
+                    }}
+                    className="bg-white p-10 rounded-[2.5rem] border-2 border-orange-100 shadow-2xl animate-fade-up"
+                  >
+                    <h4 className="font-black text-2xl mb-8 flex items-center gap-4 text-slate-900">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+                        <Users size={24} />
+                      </div>
+                      User Registration
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Full Name</label>
+                          <input
+                            required
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="John Doe"
+                            value={newUserForm.name}
+                            onChange={e => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Email Address</label>
+                          <input
+                            required
+                            type="email"
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="user@example.com"
+                            value={newUserForm.email}
+                            onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Password</label>
+                          <input
+                            required
+                            type="password"
+                            minLength={6}
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="••••••••"
+                            value={newUserForm.password}
+                            onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Account Role</label>
+                          <select
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all cursor-pointer"
+                            value={newUserForm.role}
+                            onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })}
                           >
-                            {u.isActive !== false ? 'Block' : 'Enable'}
-                          </button>
-                        </td>
+                            <option value="customer">Customer (User)</option>
+                            <option value="rider">Rider (Delivery)</option>
+                            <option value="admin">Admin (Staff)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      disabled={isSubmittingUser}
+                      className="w-full mt-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 disabled:opacity-50 transition-all"
+                    >
+                      {isSubmittingUser ? 'Creating Account...' : 'Add User to Platform'}
+                    </button>
+                  </form>
+                )}
+
+                <div className="overflow-x-auto bg-white rounded-[2rem] border border-slate-100">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-50">
+                        <th className="pb-6 px-4">User</th>
+                        <th className="pb-6">Role</th>
+                        <th className="pb-6 text-center">Status</th>
+                        <th className="pb-6 text-right">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {usersList.map((u) => (
+                        <tr key={u._id} className="group hover:bg-slate-50/50 transition-colors">
+                          <td className="py-6 px-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 uppercase">
+                                {u.name?.[0]}
+                              </div>
+                              <div>
+                                <p className="font-black text-slate-900 text-sm">{u.name}</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{u.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-6">
+                            <select
+                              value={u.role}
+                              onChange={async (e) => {
+                                const newRole = e.target.value;
+                                try {
+                                  await API.put(`/admin/users/${u._id}`, { role: newRole });
+                                  setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, role: newRole } : usr));
+                                  addNotif(`🎭 Role updated to ${newRole}`, 'info');
+                                } catch (err) {
+                                  console.error('Failed to update role:', err);
+                                  alert('Role update failed');
+                                }
+                              }}
+                              className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer ${u.role === 'admin' ? 'bg-purple-50 text-purple-600' :
+                                u.role === 'rider' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-500'
+                                }`}
+                            >
+                              <option value="customer">Customer</option>
+                              <option value="rider">Rider</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          </td>
+                          <td className="py-6 text-center">
+                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${u.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                              {u.isActive !== false ? 'Active' : 'Blocked'}
+                            </span>
+                          </td>
+                          <td className="py-6 text-right">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const newStatus = u.isActive === false ? true : false;
+                                  await API.put(`/admin/users/${u._id}`, { isActive: newStatus });
+                                  setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, isActive: newStatus } : usr));
+                                  addNotif(`👤 User ${newStatus ? 'enabled' : 'blocked'}`, 'info');
+                                } catch (err) {
+                                  console.error('Failed to update user status:', err);
+                                }
+                              }}
+                              className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-xl transition-all ${u.isActive !== false ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                            >
+                              {u.isActive !== false ? 'Block' : 'Enable'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
@@ -824,6 +951,185 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─── APPROVALS ─── */}
+            {activeTab === 'approvals' && (
+              <div className="space-y-8">
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900">Partner Applications</h3>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Review and verify new restaurant registrations</p>
+                  </div>
+                </div>
+
+                {restaurantsList.filter(r => !r.isApproved).length === 0 ? (
+                  <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                    <CheckCircle className="text-emerald-300 mx-auto mb-4" size={40} />
+                    <p className="font-black text-slate-900 text-xl mb-2">Maximum Efficiency!</p>
+                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">No pending applications at the moment</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {restaurantsList.filter(r => !r.isApproved).map((r) => (
+                      <div key={r._id} className="bg-white rounded-[2.5rem] border-2 border-amber-100 flex flex-col group hover:shadow-2xl hover:shadow-amber-100/50 transition-all overflow-hidden relative animate-fade-up">
+                        <div className="h-40 overflow-hidden relative">
+                          <img src={r.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&q=80'} className="w-full h-full object-cover" alt="" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent flex items-end p-6">
+                            <div>
+                              <h4 className="font-black text-white text-xl leading-tight">{r.name}</h4>
+                              <p className="text-[10px] text-white/70 font-black uppercase tracking-[0.15em] mt-1">{r.cuisines?.join(', ') || 'Multi-cuisine'}</p>
+                            </div>
+                          </div>
+                          <div className="absolute top-4 right-4">
+                            <span className="text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest bg-amber-500 text-white shadow-lg border border-amber-400">
+                              Pending Review
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                          <div className="flex flex-wrap gap-2">
+                            <p className="text-[9px] text-orange-600 font-black bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100">📍 {r.location?.city || 'Local'}</p>
+                            {r.owner && (
+                              <p className="text-[9px] text-blue-600 font-black bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">👤 {r.owner.name || 'Owner Assigned'}</p>
+                            )}
+                          </div>
+
+                          <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed">"{r.description || 'No description provided'}"</p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">FSSAI License</p>
+                                <p className="text-[10px] font-bold text-slate-700">{r.fssaiLicense || 'N/A'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">GSTIN</p>
+                                <p className="text-[10px] font-bold text-slate-700">{r.gstin || 'N/A'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">PAN Number</p>
+                                <p className="text-[10px] font-bold text-slate-700">{r.panNumber || 'N/A'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Address</p>
+                                <p className="text-[10px] font-bold text-slate-700 italic truncate" title={r.location?.address}>{r.location?.address}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await API.put(`/admin/restaurants/${r._id}/approve`);
+                                  setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
+                                  addNotif(`✨ ${r.name} is now a partner!`, 'info');
+                                } catch (err) {
+                                  console.error('Approval failed:', err);
+                                  alert('Approval failed');
+                                }
+                              }}
+                              className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-200 transition-all active:scale-95"
+                            >
+                              Verify & Approve
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRestaurant(r._id)}
+                              className="w-14 h-14 flex items-center justify-center bg-rose-50 text-rose-500 border border-rose-100 rounded-2xl hover:bg-rose-500 hover:text-white transition-all active:scale-95"
+                              title="Reject Application"
+                            >
+                              <X size={20} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── FINANCE ─── */}
+            {activeTab === 'finance' && (
+              <div className="space-y-8 animate-fade-up">
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900">Financial Reports</h3>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Revenue breakdown and partner settlements</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gross Revenue</p>
+                      <p className="text-xl font-black text-slate-900">₹{financeData.totalGrossRevenue?.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Admin Earnings</p>
+                      <p className="text-xl font-black text-emerald-600">₹{financeData.totalCommission?.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Earnings Chart */}
+                <div className="p-10 bg-slate-900 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 opacity-20">
+                    <TrendingUp size={120} />
+                  </div>
+                  <h4 className="font-black text-xs uppercase tracking-[0.2em] text-orange-400 mb-10">Revenue Velocity</h4>
+                  <div className="h-48 flex items-end gap-4">
+                    {financeData.weeklyReport?.map((val, i) => (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-4">
+                        <div
+                          style={{ height: `${(val / (Math.max(...financeData.weeklyReport) || 1)) * 100}%` }}
+                          className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-2xl min-h-[4px] relative group hover:scale-105 transition-all cursor-pointer"
+                        >
+                          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-3 py-1 rounded-lg text-[10px] font-black opacity-0 group-hover:opacity-100 transition-opacity shadow-xl">₹{val}</div>
+                        </div>
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Settlement Table */}
+                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="p-8 border-b border-slate-50 bg-slate-50/50">
+                    <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Partner Settlements</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left font-sans">
+                      <thead>
+                        <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-50">
+                          <th className="py-6 px-10">Restaurant</th>
+                          <th className="py-6">Gross Sales</th>
+                          <th className="py-6">Commission</th>
+                          <th className="py-6">Net Payout</th>
+                          <th className="py-6 px-10 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {financeData.settlements?.map((s, i) => (
+                          <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-6 px-10">
+                              <p className="font-black text-slate-900 text-sm">{s.name}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{s.totalOrders} Orders</p>
+                            </td>
+                            <td className="py-6 font-black text-slate-900">₹{s.gross.toLocaleString()}</td>
+                            <td className="py-6 font-black text-rose-500">-₹{s.commission.toLocaleString()}</td>
+                            <td className="py-6 font-black text-emerald-600">₹{s.net.toLocaleString()}</td>
+                            <td className="py-6 px-10 text-right">
+                              <button className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 transition-all">
+                                Process Payout
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

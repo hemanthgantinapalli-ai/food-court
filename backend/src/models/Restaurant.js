@@ -14,15 +14,30 @@ const locationSchema = new mongoose.Schema(
 
 const restaurantSchema = new mongoose.Schema(
   {
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, required: true },
     description: String,
     image: String,
     cuisines: [String],
     rating: { type: Number, default: 4 },
     reviewCount: { type: Number, default: 0 },
+
+    // Business Documents & Compliance
+    fssaiLicense: String,
+    gstin: String,
+    panNumber: String,
+
+    // Bank Details (for settlements)
+    bankDetails: {
+      accountName: String,
+      accountNumber: String,
+      ifscCode: String,
+      bankName: String,
+    },
     location: locationSchema,
     isOpen: { type: Boolean, default: true },
+    isApproved: { type: Boolean, default: false },
+    approvalDate: { type: Date },
     tables: [
       {
         tableNumber: Number,
@@ -39,6 +54,7 @@ const restaurantSchema = new mongoose.Schema(
     },
     deliveryTime: { type: Number, default: 30 },       // minutes
     deliveryFee: { type: Number, default: 49 },        // ₹
+    commissionPercentage: { type: Number, default: 10 }, // Admin set commission
   },
   { timestamps: true }
 );

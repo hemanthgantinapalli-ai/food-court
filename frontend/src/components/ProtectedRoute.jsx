@@ -20,6 +20,7 @@ const ROLE_HOME = {
     customer: "/",
     admin: "/admin",
     rider: "/rider",
+    restaurant: "/partner",
 };
 
 export default function ProtectedRoute({ allowedRoles = [], children }) {
@@ -28,7 +29,19 @@ export default function ProtectedRoute({ allowedRoles = [], children }) {
 
     // ── 1. Not authenticated at all ────────────────────────────────────────────
     if (!token || !user) {
-        return <Navigate to="/signin" state={{ from: location }} replace />;
+        // Simple logic: if this route allows ONLY admin, send to admin login
+        // If it allows ONLY rider, send to rider login
+        // Otherwise (or if customer is allowed), send to customer login
+        let loginUrl = "/signin";
+        if (allowedRoles.includes("admin") && allowedRoles.length === 1) {
+            loginUrl = "/admin/login";
+        } else if (allowedRoles.includes("rider") && allowedRoles.length === 1) {
+            loginUrl = "/rider/login";
+        } else if (allowedRoles.includes("restaurant") && allowedRoles.length === 1) {
+            loginUrl = "/restaurant/login";
+        }
+
+        return <Navigate to={loginUrl} state={{ from: location }} replace />;
     }
 
     // ── 2. Normalise role (guard against missing/undefined role) ────────────────

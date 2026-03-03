@@ -42,6 +42,10 @@ const menuItemSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
     isVeg: {
       type: Boolean,
       default: false,

@@ -14,6 +14,7 @@ import menuRoutes from './routes/menuRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import partnerRoutes from './routes/partnerRoutes.js';
 import { createServer } from 'http';
 import { initSocket } from './utils/socket.js';
 
@@ -40,6 +41,7 @@ app.use('/api/menu', menuRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/partner', partnerRoutes);
 // Keep webhook route at /webhook for Stripe
 
 

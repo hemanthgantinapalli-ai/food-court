@@ -32,7 +32,12 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 // ---------- Role Dashboards (no shared Header/Footer) ----------
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
+import AdminSignIn from "./pages/AdminSignIn";
 import RiderDashboard from "./pages/RiderDashboard";
+import RiderSignIn from "./pages/RiderSignIn";
+import RestaurantSignIn from "./pages/RestaurantSignIn";
+import RestaurantSignUp from "./pages/RestaurantSignUp";
+import PartnerDashboard from "./pages/PartnerDashboard";
 
 // ─── Scroll To Top ────────────────────────────────────────────────
 const ScrollToTop = () => {
@@ -44,7 +49,7 @@ const ScrollToTop = () => {
 };
 
 // ─── Paths that should NOT show the consumer Header/Footer ────────
-const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/rider"];
+const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/admin/login", "/rider", "/rider/login", "/partner", "/restaurant/login", "/restaurant/signup"];
 
 // ─── Inner App (inside Router context) ───────────────────────────
 function AppInner() {
@@ -76,6 +81,13 @@ function AppInner() {
             <Route path="/" element={<Home />} />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
+
+            {/* Role-Specific Login Pages */}
+            <Route path="/admin/login" element={<AdminSignIn />} />
+            <Route path="/rider/login" element={<RiderSignIn />} />
+            <Route path="/restaurant/login" element={<RestaurantSignIn />} />
+            <Route path="/restaurant/signup" element={<RestaurantSignUp />} />
+
             <Route path="/restaurant/:id" element={<RestaurantDetail />} />
             <Route path="/offers" element={<OffersPage />} />
             {/* Cart is public — guest can browse; login is only required at checkout */}
@@ -157,6 +169,15 @@ function AppInner() {
               element={
                 <ProtectedRoute allowedRoles={["rider"]}>
                   <RiderDashboard />
+                </ProtectedRoute>
+              }
+            />
+            {/* ── Restaurant Partner Dashboard (no consumer Header/Footer) ── */}
+            <Route
+              path="/partner"
+              element={
+                <ProtectedRoute allowedRoles={["restaurant"]}>
+                  <PartnerDashboard />
                 </ProtectedRoute>
               }
             />

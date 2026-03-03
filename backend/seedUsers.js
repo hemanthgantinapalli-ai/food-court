@@ -48,6 +48,16 @@ const seedUsers = async () => {
         await customer.save();
         console.log('✅ Customer user created');
 
+        // Create Restaurant Partner
+        const partner = new User({
+            name: 'Restaurant Partner',
+            email: 'partner@foodcourt.com',
+            password: 'partner123',
+            role: 'restaurant'
+        });
+        await partner.save();
+        console.log('✅ Restaurant Partner user created');
+
         process.exit(0);
     } catch (err) {
         console.error('❌ Seeding failed:', err);

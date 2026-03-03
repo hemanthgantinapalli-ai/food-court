@@ -107,10 +107,10 @@ export default function Footer() {
             <div>
               <h4 className="text-white font-black text-sm uppercase tracking-widest mb-6">Company</h4>
               <ul className="space-y-3">
-                {['About Us', 'Careers', 'Blog', 'Join as Rider', 'Admin Portal'].map((link, idx) => (
+                {['About Us', 'Careers', 'Blog', 'Join as Rider', 'Partner Portal', 'Admin Portal'].map((link, idx) => (
                   <li key={idx}>
                     <Link
-                      to={link === 'Join as Rider' ? '/rider' : link === 'Admin Portal' ? '/admin' : '#'}
+                      to={link === 'Join as Rider' ? '/rider/login' : link === 'Admin Portal' ? '/admin/login' : link === 'Partner Portal' ? '/restaurant/login' : '#'}
                       className="text-slate-400 hover:text-orange-400 transition-colors font-medium text-sm"
                     >
                       {link}

@@ -8,21 +8,26 @@ export default function QuickRoleSwitcher() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Don't show on login/signup pages to avoid clutter
-    if (location.pathname === '/signin' || location.pathname === '/signup') return null;
+    const EXCLUDED_PATHS = ['/signin', '/signup', '/admin/login', '/rider/login', '/restaurant/login'];
+    if (EXCLUDED_PATHS.includes(location.pathname)) return null;
 
     const roles = [
-        { id: 'customer', label: 'U', icon: UserIcon, color: 'slate' },
-        { id: 'admin', label: 'A', icon: ShieldCheck, color: 'purple' },
-        { id: 'rider', label: 'R', icon: Bike, color: 'blue' }
+        { id: 'customer', label: 'U', icon: UserIcon, color: 'slate', login: '/signin' },
+        { id: 'admin', label: 'A', icon: ShieldCheck, color: 'purple', login: '/admin/login' },
+        { id: 'rider', label: 'R', icon: Bike, color: 'blue', login: '/rider/login' },
+        { id: 'restaurant', label: 'P', icon: Store, color: 'emerald', login: '/restaurant/login' }
     ];
 
     const currentRole = user?.role || 'guest';
     const otherRoles = roles.filter(r => r.id !== currentRole);
 
-    const handleSwitch = async (role) => {
-        logout();
-        navigate(`/signin?role=${role.id}`);
+    const handleSwitch = (role) => {
+        // Navigate FIRST — if we logout() first, the ProtectedRoute on
+        // the current page re-renders instantly and redirects us to
+        // /admin/login before navigate() can fire.
+        navigate(role.login, { replace: true });
+        // Clear auth state after navigation is queued
+        setTimeout(() => logout(), 100);
     };
 
     return (

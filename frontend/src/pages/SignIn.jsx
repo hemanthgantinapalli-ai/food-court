@@ -1,48 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Bike, User as UserIcon, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-
-const ROLES = [
-  { id: 'customer', label: 'Customer', icon: UserIcon, color: 'orange', desc: 'Order delicious food', email: 'user@foodcourt.com', pass: 'user123' },
-  { id: 'admin', label: 'Admin', icon: ShieldCheck, color: 'purple', desc: 'Platform management', email: 'admin@foodcourt.com', pass: 'admin123' },
-  { id: 'rider', label: 'Rider', icon: Bike, color: 'blue', desc: 'Deliver & Earn', email: 'rider@foodcourt.com', pass: 'rider123' }
-];
+import AuthLayout from '../components/AuthLayout';
 
 export default function SignIn() {
-  const [activeRole, setActiveRole] = useState('customer');
-  const [email, setEmail] = useState(ROLES[0].email);
-  const [password, setPassword] = useState(ROLES[0].pass);
+  const [email, setEmail] = useState('user@foodcourt.com');
+  const [password, setPassword] = useState('user123');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const { signIn } = useAuthStore();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+
   // Where to go after login (e.g. /checkout when coming from cart)
   const from = location.state?.from?.pathname || null;
-
-  useEffect(() => {
-    const roleParam = searchParams.get('role');
-    if (roleParam) {
-      const roleObj = ROLES.find(r => r.id === roleParam);
-      if (roleObj) {
-        handleRoleSwitch(roleObj);
-      }
-    }
-  }, [searchParams]);
-
-  const handleRoleSwitch = (role) => {
-    setActiveRole(role.id);
-    if (role.email) {
-      setEmail(role.email);
-      setPassword(role.pass);
-    } else {
-      setEmail('');
-      setPassword('');
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,182 +28,140 @@ export default function SignIn() {
 
       if (loggedInUser.role === 'admin') navigate('/admin');
       else if (loggedInUser.role === 'rider') navigate('/rider');
-      // If there's a specific page to return to (e.g. /checkout), go there
+      else if (loggedInUser.role === 'restaurant') navigate('/partner');
       else if (from) navigate(from, { replace: true });
       else navigate('/');
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid credentials. Check the demo buttons above!');
+      setError(err.response?.data?.message || 'Invalid credentials. Check the demo credentials below!');
     } finally {
       setLoading(false);
     }
   };
 
-  const currentRoleConfig = ROLES.find(r => r.id === activeRole);
+  const handleGoogleSignIn = () => {
+    // Mock Google Sign In for now
+    alert('Google Sign In functionality coming soon!');
+  };
 
   return (
-    <div className="min-h-screen flex bg-[#F8F9FB] font-sans">
-      {/* Left: Dynamic Illustration Panel */}
-      <div className={`hidden lg:flex w-1/2 items-center justify-center p-16 relative overflow-hidden transition-colors duration-700 ${activeRole === 'admin' ? 'bg-purple-950' : activeRole === 'rider' ? 'bg-blue-950' : 'bg-slate-900'
-        }`}>
-        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl opacity-20 transition-colors duration-700 ${activeRole === 'admin' ? 'bg-purple-500' : activeRole === 'rider' ? 'bg-blue-500' : 'bg-orange-500'
-          }`} />
-
-        <div className="relative z-10 text-center max-w-lg">
-          <div className="mb-12 inline-flex p-4 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
-            <currentRoleConfig.icon size={80} className={`transition-colors duration-700 ${activeRole === 'admin' ? 'text-purple-400' : activeRole === 'rider' ? 'text-blue-400' : 'text-orange-400'
-              }`} />
+    <AuthLayout
+      title="Welcome Back"
+      subtitle="Hey, welcome back up to your special place"
+      footerText="Don't have an account?"
+      footerAction="Sign Up"
+      footerLink="/signup"
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3 animate-shake">
+            <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" /> {error}
           </div>
-          <h2 className="text-white text-5xl font-black tracking-tight mb-6 leading-tight">
-            The <span className={activeRole === 'admin' ? 'text-purple-400' : activeRole === 'rider' ? 'text-blue-400' : 'text-orange-400'}>
-              {currentRoleConfig.label}
-            </span> Portal
-          </h2>
-          <p className="text-slate-400 text-xl font-medium leading-relaxed">
-            {activeRole === 'admin'
-              ? 'Complete control over the FoodCourt ecosystem, analytics, and partner approvals.'
-              : activeRole === 'rider'
-                ? 'Efficiently manage deliveries, track earnings, and navigate with ease.'
-                : 'Discover the best cuisines and get them delivered to your doorstep in minutes.'}
-          </p>
+        )}
 
-          <div className="mt-12 flex items-center justify-center gap-8">
-            <div className="text-center">
-              <p className="text-white text-2xl font-black">500k+</p>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Active Users</p>
-            </div>
-            <div className="w-px h-10 bg-white/10" />
-            <div className="text-center">
-              <p className="text-white text-2xl font-black">10k+</p>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Global Partners</p>
-            </div>
+        {/* Email Field */}
+        <div className="space-y-2">
+          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+            Username or email
+          </label>
+          <div className="relative group">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
+            <input
+              type="email"
+              className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
+              placeholder="name@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
         </div>
-      </div>
 
-      {/* Right: Focused Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 relative">
-        <div className="w-full max-w-md">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 mb-12">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-colors duration-700 ${activeRole === 'admin' ? 'bg-purple-600' : activeRole === 'rider' ? 'bg-blue-600' : 'bg-orange-600'
-              }`}>
-              <span className="text-white font-black text-sm">FC</span>
-            </div>
-            <span className="text-2xl font-black text-slate-900 tracking-tight">Food<span className="text-orange-500">Court</span></span>
-          </Link>
-
-          <div className="mb-10">
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-3">Sign <span className={
-              activeRole === 'admin' ? 'text-purple-600' : activeRole === 'rider' ? 'text-blue-600' : 'text-orange-600'
-            }>In</span></h1>
-            <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Choose your access level to continue</p>
-          </div>
-
-          {/* New Role Switcher Design */}
-          <div className="grid grid-cols-3 gap-3 mb-10">
-            {ROLES.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => handleRoleSwitch(r)}
-                className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-300 ${activeRole === r.id
-                  ? `border-${r.color}-500 bg-${r.color}-50 text-${r.color}-600`
-                  : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200'
-                  }`}
-              >
-                <r.icon size={24} />
-                <span className="text-[10px] font-black uppercase tracking-widest">{r.label}</span>
-                {activeRole === r.id && <CheckCircle2 size={14} className="absolute top-2 right-2 mt-1 mr-1" />}
-              </button>
-            ))}
-          </div>
-
-          {error && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl mb-8 font-bold text-xs uppercase tracking-wide flex items-center gap-3 animate-shake">
-              <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" /> {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Login Email</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
-                <input
-                  type="email"
-                  className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Password</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  className="w-full pl-12 pr-12 py-4 rounded-2xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600"
-                >
-                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
+        {/* Password Field */}
+        <div className="space-y-2">
+          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+            Password
+          </label>
+          <div className="relative group">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
+            <input
+              type={showPass ? 'text' : 'password'}
+              className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
             <button
-              type="submit"
-              disabled={loading}
-              className={`w-full flex items-center justify-center gap-3 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl active:scale-[0.98] disabled:opacity-50 ${activeRole === 'admin' ? 'bg-purple-600 shadow-purple-200 hover:bg-purple-700' :
-                activeRole === 'rider' ? 'bg-blue-600 shadow-blue-200 hover:bg-blue-700' :
-                  'bg-slate-900 shadow-slate-200 hover:bg-orange-600'
-                }`}
+              type="button"
+              onClick={() => setShowPass(!showPass)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors"
             >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>Enter Digital Court <ArrowRight size={18} /></>
-              )}
+              {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
-          </form>
-
-          <div className="mt-10 text-center space-y-4">
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest leading-relaxed">
-              Don't have an account?{' '}
-              <Link to={`/signup?role=${activeRole}`} className={`${activeRole === 'admin' ? 'text-purple-600' : activeRole === 'rider' ? 'text-blue-600' : 'text-orange-500'} hover:underline ml-2`}>
-                Create Account →
-              </Link>
-            </p>
           </div>
+        </div>
 
-          {/* Debug/Creds Hint */}
-          {activeRole && (
-            <div className={`mt-10 p-4 rounded-2xl border border-dashed flex items-center gap-4 ${activeRole === 'admin' ? 'border-purple-200 bg-purple-50' :
-              activeRole === 'rider' ? 'border-blue-200 bg-blue-50' :
-                'border-orange-200 bg-orange-50'
-              }`}>
-              <ShieldCheck size={20} className={
-                activeRole === 'admin' ? 'text-purple-500' :
-                  activeRole === 'rider' ? 'text-blue-500' :
-                    'text-orange-500'
-              } />
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pre-filled Demo Credentials</p>
-                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">{email} / {password}</p>
-              </div>
+        {/* Remember Me & Forgot Password */}
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-orange-500 border-orange-500' : 'bg-white border-slate-200 group-hover:border-orange-300'}`}>
+              <input
+                type="checkbox"
+                className="hidden"
+                checked={rememberMe}
+                onChange={() => setRememberMe(!rememberMe)}
+              />
+              {rememberMe && <CheckCircle2 className="text-white" size={12} strokeWidth={4} />}
             </div>
+            <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900">Remember me</span>
+          </label>
+          <Link to="/forgot-password" title="Forgot Password Page" className="text-sm font-bold text-orange-500 hover:text-orange-600 transition-colors underline decoration-dotted underline-offset-4">
+            Forgot Password?
+          </Link>
+        </div>
+
+        {/* Sign In Button */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-3 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl shadow-orange-500/20 active:scale-[0.98] disabled:opacity-50 bg-orange-500 hover:bg-orange-600"
+        >
+          {loading ? (
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            'Sign In'
           )}
+        </button>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 py-2">
+          <div className="flex-1 h-px bg-slate-100" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">or</span>
+          <div className="flex-1 h-px bg-slate-100" />
+        </div>
+
+        {/* Google Sign In */}
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          className="w-full flex items-center justify-center gap-4 py-4 rounded-3xl bg-white border border-slate-100 font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
+        >
+          <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
+          <span className="text-sm">Sign in with Google</span>
+        </button>
+      </form>
+
+      {/* Demo Creds Hint */}
+      <div className="mt-8 p-4 rounded-3xl border border-dashed flex items-center gap-4 border-orange-200 bg-orange-50/50">
+        <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
+          <Mail size={20} />
+        </div>
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pre-filled Demo Credentials</p>
+          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">{email} / {password}</p>
         </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
+

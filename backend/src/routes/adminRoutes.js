@@ -56,20 +56,25 @@ router.get('/users', authenticateUser, authorizeRole('admin'), async (req, res) 
   }
 });
 
-router.put('/users/:userId/status', authenticateUser, authorizeRole('admin'), async (req, res) => {
+// Update user (status/role)
+router.put('/users/:userId', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const { isActive } = req.body;
-    const user = await User.findByIdAndUpdate(req.params.userId, { isActive }, { new: true });
+    const { isActive, role } = req.body;
+    const updateData = {};
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (role) updateData.role = role;
+
+    const user = await User.findByIdAndUpdate(req.params.userId, updateData, { new: true }).select('-password');
 
     res.status(200).json({
       success: true,
-      message: 'User status updated',
+      message: 'User updated successfully',
       data: user,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Failed to update user status',
+      message: 'Failed to update user',
       error: error.message,
     });
   }
@@ -190,6 +195,75 @@ router.post('/orders/:orderId/assign', authenticateUser, authorizeRole('admin'),
       message: 'Rider assigned successfully',
       data: updatedOrder
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Finance & Reports
+router.get('/finance', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const orders = await Order.find({ paymentStatus: 'completed' }).populate('restaurant', 'name commissionPercentage');
+
+    let totalGrossRevenue = 0;
+    let totalCommission = 0;
+    const weeklyReport = Array(7).fill(0);
+    const restaurantSettlements = {};
+
+    orders.forEach(order => {
+      const total = order.total || 0;
+      const commission = (total * (order.restaurant?.commissionPercentage || 10)) / 100;
+
+      totalGrossRevenue += total;
+      totalCommission += commission;
+
+      // Weekly breakdown (mock days for demo)
+      const day = new Date(order.createdAt).getDay();
+      weeklyReport[day] += total;
+
+      // Per restaurant settlement
+      const rId = order.restaurant?._id;
+      if (rId) {
+        if (!restaurantSettlements[rId]) {
+          restaurantSettlements[rId] = {
+            name: order.restaurant.name,
+            totalOrders: 0,
+            gross: 0,
+            commission: 0,
+            net: 0
+          };
+        }
+        restaurantSettlements[rId].totalOrders += 1;
+        restaurantSettlements[rId].gross += total;
+        restaurantSettlements[rId].commission += commission;
+        restaurantSettlements[rId].net += (total - commission);
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalGrossRevenue,
+        totalCommission,
+        weeklyReport,
+        settlements: Object.values(restaurantSettlements)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update Restaurant Settings (Commission, etc)
+router.put('/restaurants/:id/settings', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { commissionPercentage, isOpen } = req.body;
+    const restaurant = await Restaurant.findByIdAndUpdate(
+      req.params.id,
+      { commissionPercentage, isOpen },
+      { new: true }
+    );
+    res.status(200).json({ success: true, data: restaurant });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

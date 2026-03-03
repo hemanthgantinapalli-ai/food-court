@@ -139,6 +139,10 @@ export default function Header() {
                     <Link to="/rider" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
                       <Bike size={16} /> Delivery Dashboard
                     </Link>
+                  ) : user.role === 'restaurant' ? (
+                    <Link to="/partner" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
+                      <LayoutDashboard size={16} /> Partner Dashboard
+                    </Link>
                   ) : (
                     <Link to="/dashboard?tab=overview" className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
                       <LayoutDashboard size={16} /> My Dashboard
@@ -220,6 +224,9 @@ export default function Header() {
               )}
               {user.role === 'rider' && (
                 <Link to="/rider" className="block font-bold text-slate-700 hover:text-orange-600 py-2">Rider Dashboard</Link>
+              )}
+              {user.role === 'restaurant' && (
+                <Link to="/partner" className="block font-bold text-emerald-700 hover:text-emerald-600 py-2">Partner Dashboard</Link>
               )}
               <button onClick={() => { logout(); navigate('/'); }} className="w-full text-left font-bold text-rose-500 py-2">Sign Out</button>
             </>
