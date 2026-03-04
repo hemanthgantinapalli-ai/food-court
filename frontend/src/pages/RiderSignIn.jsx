@@ -103,7 +103,7 @@ export default function RiderSignIn() {
                 subtitle="Complete mandatory details to apply as a rider"
                 footerText="Already have an account?"
                 footerAction="Sign In"
-                onFooterClick={() => { setMode('login'); setError(''); }}
+                onFooterClick={() => { setMode('login'); setError(''); setEmail('rider@foodcourt.com'); setPassword('rider123'); }}
             >
                 <form onSubmit={handleSignup} className="space-y-4 animate-fade-up">
                     {error && (
@@ -166,7 +166,7 @@ export default function RiderSignIn() {
             subtitle="Hey, welcome back up to your special place"
             footerText="Don't have a rider account?"
             footerAction="Apply Now"
-            onFooterClick={() => { setMode('signup'); setError(''); }}
+            onFooterClick={() => { setMode('signup'); setError(''); setEmail(''); setPassword(''); }}
         >
             <form onSubmit={handleLogin} className="space-y-6">
                 {error && (
