@@ -3,6 +3,7 @@ import { authenticateUser, authorizeRole } from '../middleware/auth.js';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
+import Rider from '../models/Rider.js';
 
 const router = express.Router();
 
@@ -117,6 +118,44 @@ router.put('/restaurants/:restaurantId/approve', authenticateUser, authorizeRole
     res.status(500).json({
       success: false,
       message: 'Failed to approve restaurant',
+      error: error.message,
+    });
+  }
+});
+
+// Manage rider applications
+router.get('/riders', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const riders = await Rider.find().populate('user', 'name email phone isActive');
+    res.status(200).json({
+      success: true,
+      data: riders,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch riders',
+      error: error.message,
+    });
+  }
+});
+
+router.put('/riders/:riderId/approve', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const rider = await Rider.findByIdAndUpdate(
+      req.params.riderId,
+      { status: 'APPROVED' },
+      { new: true }
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Rider approved',
+      data: rider,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve rider',
       error: error.message,
     });
   }

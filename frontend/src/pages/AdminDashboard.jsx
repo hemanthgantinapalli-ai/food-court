@@ -29,6 +29,7 @@ export default function AdminDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [supportTickets, setSupportTickets] = useState([]);
   const [ridersList, setRidersList] = useState([]);
+  const [riderProfilesList, setRiderProfilesList] = useState([]); // for Rider applications map
   const [assigningRider, setAssigningRider] = useState(null);
   const [showAddRestaurant, setShowAddRestaurant] = useState(false);
   const [newRestaurantForm, setNewRestaurantForm] = useState({
@@ -125,12 +126,13 @@ export default function AdminDashboard() {
     if (isInitialLoad) setLoading(true);
 
     try {
-      const [statsRes, usersRes, restRes, ordersRes, supportRes] = await Promise.all([
+      const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes] = await Promise.all([
         API.get('/admin/stats'),
         API.get('/admin/users'),
         API.get('/admin/restaurants'),
         API.get('/admin/orders'),
         API.get('/support/my-requests'),
+        API.get('/admin/riders'), // new route we just made
       ]);
       setStats(statsRes.data.data);
       setUsersList(usersRes.data.data);
@@ -138,6 +140,7 @@ export default function AdminDashboard() {
       setOrdersList(ordersRes.data.data);
       setSupportTickets(supportRes.data.data);
       setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
+      setRiderProfilesList(ridersRes.data.data);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
@@ -284,7 +287,7 @@ export default function AdminDashboard() {
               { id: 'overview', label: 'Overview' },
               { id: 'live', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
               { id: 'orders', label: 'All Orders' },
-              { id: 'approvals', label: `Approvals ${restaurantsList.filter(r => !r.isApproved).length > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length})` : ''}` },
+              { id: 'approvals', label: `Approvals ${(restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length})` : ''}` },
               { id: 'finance', label: 'Finance' },
               { id: 'support', label: `Support ${supportTickets.filter(t => t.status === 'open').length > 0 ? `(${supportTickets.filter(t => t.status === 'open').length})` : ''}` },
               { id: 'users', label: 'Users' },
@@ -297,7 +300,7 @@ export default function AdminDashboard() {
                   ? 'bg-white text-orange-600 shadow-sm'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
               >
-                {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && restaurantsList.filter(r => !r.isApproved).length > 0) ? (
+                {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && (restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0) ? (
                   <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                 ) : null}
                 {tab.label}
@@ -1048,6 +1051,79 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Rider Columns */}
+                {riderProfilesList.filter(r => r.status === 'PENDING').length > 0 && (
+                  <div className="space-y-6 mt-12">
+                    <h4 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-200 pb-2">Delivery Rider Applications</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {riderProfilesList.filter(r => r.status === 'PENDING').map((r) => (
+                        <div key={r._id} className="bg-white rounded-[2.5rem] border border-indigo-100 flex flex-col group hover:shadow-2xl hover:shadow-indigo-100/50 transition-all overflow-hidden relative animate-fade-up p-8">
+                          <div className="flex items-start justify-between mb-6">
+                            <div className="flex items-center gap-4">
+                              <div className="w-14 h-14 bg-indigo-50 text-indigo-500 flex items-center justify-center rounded-2xl font-black text-xl">
+                                <Truck size={24} />
+                              </div>
+                              <div>
+                                <h4 className="font-black text-slate-900 text-xl leading-tight">{r.fullName || r.user?.name}</h4>
+                                <span className="text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest bg-indigo-100 text-indigo-600 shadow-sm border border-indigo-200 mt-1 inline-block">
+                                  Rider App Review
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Vehicle Match</p>
+                              <p className="font-black text-slate-700 capitalize">🚲 {r.vehicleType}</p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Vehicle No.</p>
+                              <p className="font-black text-slate-700 uppercase">{r.vehicleNumber || 'N/A'}</p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">License No.</p>
+                              <p className="font-black text-slate-700 uppercase">{r.licenseNumber || 'N/A'}</p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Aadhaar (UIDAI)</p>
+                              <p className="font-black text-slate-700 tracking-wider">{(r.aadhaarDetails?.aadhaarNumber || r.aadhaarDetails || 'N/A')}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-4 pt-4 border-t border-slate-50 mt-auto">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await API.put(`/admin/riders/${r._id}/approve`, {});
+                                  setRiderProfilesList(prev => prev.map(rider => rider._id === r._id ? { ...rider, status: 'APPROVED' } : rider));
+                                  addNotif(`✅ Rider ${r.fullName} Approved!`, 'info');
+                                } catch (err) {
+                                  console.error('Approval failed:', err);
+                                  addNotif('❌ Approval failed.', 'error');
+                                }
+                              }}
+                              className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
+                            >
+                              Approve Rider
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Are you sure you want to reject rider ${r.fullName}?`)) {
+                                  alert("Rider rejection API pending, but approval works!");
+                                }
+                              }}
+                              className="w-14 h-14 flex items-center justify-center bg-white border border-rose-200 text-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-50 hover:border-rose-300 transition-all active:scale-95"
+                            >
+                              <X size={20} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
