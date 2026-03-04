@@ -4,14 +4,16 @@ import Rider from '../models/Rider.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import { getIO } from '../utils/socket.js';
-import { sendOtp, verifyLogin, verifySignup } from '../controllers/riderAuthController.js';
+import { sendOtp, emailLogin, emailSignup } from '../controllers/riderAuthController.js';
 
 const router = express.Router();
 
-// ─── AUTHENTICATION (OTP Based) ────────────────────────────────────────────────
+// ─── AUTHENTICATION (OTP Based - Legacy / Disabled) ──────────────────────────
 router.post('/auth/send-otp', sendOtp);
-router.post('/auth/login', verifyLogin);
-router.post('/auth/signup', verifySignup);
+
+// ─── AUTHENTICATION (Email/Password Based) ───────────────────────────────────
+router.post('/auth/login', emailLogin);
+router.post('/auth/signup', emailSignup);
 
 // ─── POST /api/riders/register ────────────────────────────────────────────────
 // Register or update rider profile (rider or admin)

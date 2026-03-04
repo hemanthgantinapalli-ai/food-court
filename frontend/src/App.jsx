@@ -79,7 +79,6 @@ function AppInner() {
             {/* ── Public Routes ─────────────────────────────── */}
             <Route path="/" element={<Home />} />
             <Route path="/signin" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
 
             {/* Role-Specific Login Pages */}
             <Route path="/admin/login" element={<AdminSignIn />} />

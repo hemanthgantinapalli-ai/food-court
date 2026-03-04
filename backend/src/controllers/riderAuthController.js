@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Rider from '../models/Rider.js';
 import { generateToken } from '../utils/jwt.js';
+import bcrypt from 'bcryptjs';
 
 // Mock sending OTP
 export const sendOtp = async (req, res) => {
@@ -56,33 +57,73 @@ export const verifyLogin = async (req, res) => {
     }
 };
 
-// Verify OTP and create profile for Signup
-export const verifySignup = async (req, res) => {
+// EMAIL/PASSWORD LOGIN (Replaces OTP for Riders)
+export const emailLogin = async (req, res) => {
     try {
-        const { phone, otp, fullName, profilePhoto, vehicleType, vehicleNumber, licenseNumber, aadhaarNumber, bankAccount } = req.body;
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        if (!phone || !otp || !fullName || !vehicleNumber || !licenseNumber || !aadhaarNumber) {
-            return res.status(400).json({ message: 'Please provide all mandatory profile details.' });
+        // Find rider user
+        const user = await User.findOne({ email, role: 'rider' }).select('+password');
+        if (!user) {
+            return res.status(404).json({ message: 'No rider account found with this email. Please apply.' });
         }
 
-        if (otp !== '123456') return res.status(401).json({ message: 'Invalid OTP' });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid credentials.' });
+        }
 
-        // Check if phone already registered
-        let user = await User.findOne({ phone, role: 'rider' });
+        // Check Rider profile status
+        const rider = await Rider.findOne({ user: user._id });
+        if (!rider) {
+            return res.status(400).json({ message: 'Rider profile incomplete.' });
+        }
+
+        if (rider.status === 'PENDING') {
+            return res.status(403).json({ message: 'Your account is under verification. Please wait for admin approval.' });
+        }
+        if (rider.status === 'BLOCKED' || rider.status === 'REJECTED') {
+            return res.status(403).json({ message: `Your account has been ${rider.status.toLowerCase()}. Contact support.` });
+        }
+
+        // All good, APPROVED
+        const token = generateToken(user);
+        res.status(200).json({
+            success: true,
+            token,
+            user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone },
+            rider,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// EMAIL/PASSWORD SIGNUP (Replaces OTP for Riders)
+export const emailSignup = async (req, res) => {
+    try {
+        const { email, password, phone, fullName, profilePhoto, vehicleType, vehicleNumber, licenseNumber, aadhaarNumber } = req.body;
+
+        if (!email || !password || !phone || !fullName || !vehicleNumber || !licenseNumber || !aadhaarNumber) {
+            return res.status(400).json({ message: 'Please provide all mandatory profile details including email and password.' });
+        }
+
+        // Check if email or phone already registered
+        let user = await User.findOne({ $or: [{ email }, { phone }], role: 'rider' });
         if (user) {
-            return res.status(400).json({ message: 'Phone number already registered. Please login.' });
+            return res.status(400).json({ message: 'Email or phone number already registered. Please sign in.' });
         }
 
-        // Create User account with pseudo email
-        const pseudoEmail = `${phone}@rider.foodcourt.com`;
-        // Create random password
-        const pseudoPassword = Math.random().toString(36).slice(-8);
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
         user = await User.create({
             name: fullName,
             phone,
-            email: pseudoEmail,
-            password: pseudoPassword,
+            email,
+            password: hashedPassword,
             role: 'rider'
         });
 
@@ -99,21 +140,15 @@ export const verifySignup = async (req, res) => {
                 frontImage: '',
                 backImage: ''
             },
-            bankAccount: bankAccount || {
-                accountHolder: fullName,
-                accountNumber: '',
-                bankName: '',
-                ifscCode: ''
-            },
             status: 'PENDING'
         });
 
-        console.log(`✅ [Rider Auth] New rider signup: ${phone} - Status: PENDING`);
+        console.log(`✅ [Rider Auth] New rider signup: ${email} - Status: PENDING`);
 
         // We don't log them in fully. We just tell them it's pending.
         res.status(201).json({
             success: true,
-            message: 'Profile created successfully. Your account is under verification.',
+            message: 'Application Submitted successfully. Your account is under verification.',
             data: rider
         });
     } catch (error) {

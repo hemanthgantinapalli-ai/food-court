@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, User, Github, Chrome } from 'lucide-react';
 
-const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerAction, role }) => {
+const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerAction, role, onFooterClick }) => {
     return (
         <div className="min-h-screen w-full flex bg-[#F8FAFC] font-sans">
             {/* Left: Branding & Decoration */}
@@ -74,9 +74,15 @@ const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerA
                     <div className="mt-10 text-center">
                         <p className="text-slate-500 font-bold text-sm">
                             {footerText || "Don't have an account?"}{' '}
-                            <Link to={footerLink || '/signup'} className="text-orange-500 hover:text-orange-600 transition-colors ml-1 underline decoration-2 underline-offset-4">
-                                {footerAction || 'Sign Up'}
-                            </Link>
+                            {onFooterClick ? (
+                                <button type="button" onClick={onFooterClick} className="text-orange-500 hover:text-orange-600 transition-colors ml-1 underline decoration-2 underline-offset-4">
+                                    {footerAction || 'Sign Up'}
+                                </button>
+                            ) : (
+                                <Link to={footerLink || '/signup'} className="text-orange-500 hover:text-orange-600 transition-colors ml-1 underline decoration-2 underline-offset-4">
+                                    {footerAction || 'Sign Up'}
+                                </Link>
+                            )}
                         </p>
                     </div>
                 </div>
