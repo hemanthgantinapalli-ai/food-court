@@ -17,7 +17,6 @@ import { useAuthStore } from "./context/authStore";
 // ---------- Customer Pages ----------
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
-import SignUp from "./pages/SignUp";
 import RestaurantDetail from "./pages/RestaurantDetail";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";

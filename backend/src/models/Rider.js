@@ -16,6 +16,18 @@ const riderSchema = new mongoose.Schema(
     vehicleNumber: String,
     insuranceExpiry: Date,
     documentExpiry: Date,
+    fullName: String,
+    profilePhoto: String,
+    aadhaarDetails: {
+      aadhaarNumber: String,
+      frontImage: String,
+      backImage: String,
+    },
+    status: {
+      type: String,
+      enum: ['PENDING', 'APPROVED', 'BLOCKED', 'REJECTED'],
+      default: 'PENDING'
+    },
     isVerified: {
       type: Boolean,
       default: false,
