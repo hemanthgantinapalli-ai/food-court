@@ -61,6 +61,7 @@ export default function RestaurantDetail() {
       } catch (error) {
         console.warn('Using demo data:', error.message);
         setRestaurant({
+          _id: id || '69a5bdb2d6f8c7e3b91a1067',
           name: 'The Smoke House',
           image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&q=80',
           rating: 4.8,
@@ -70,7 +71,7 @@ export default function RestaurantDetail() {
           location: { address: '42 Gourmet Street', city: 'Mumbai' },
           description: 'Award-winning burgers and BBQ crafted with locally sourced premium ingredients.',
         });
-        setMenu(DEMO_MENU);
+        setMenu(DEMO_MENU.map(m => ({ ...m, restaurant: id || '69a5bdb2d6f8c7e3b91a1067' })));
       } finally {
         setLoading(false);
       }

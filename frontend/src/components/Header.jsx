@@ -92,7 +92,7 @@ export default function Header() {
                         setUserLocation(city);
                         setShowLocationPicker(false);
                         if (!isHomePage) navigate('/');
-                        window.location.reload(); // Quick way to refresh data filtering
+                        window.dispatchEvent(new Event('locationChanged'));
                       }}
                       className={`text-left px-4 py-3 rounded-xl text-xs font-bold transition-all ${userLocation === city ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
@@ -110,7 +110,7 @@ export default function Header() {
                         setUserLocation(e.target.value);
                         setShowLocationPicker(false);
                         if (!isHomePage) navigate('/');
-                        window.location.reload();
+                        window.dispatchEvent(new Event('locationChanged'));
                       }
                     }}
                   />
@@ -266,6 +266,16 @@ export default function Header() {
               placeholder="Search restaurants, cuisines, dishes..."
               autoFocus
               className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-orange-200 bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-400/30 font-medium text-slate-900"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = e.target.value;
+                  setSearchOpen(false);
+                  navigate(`/?q=${encodeURIComponent(val)}`);
+                  if (location.pathname === '/') {
+                    window.location.reload();
+                  }
+                }
+              }}
             />
           </div>
         </div>

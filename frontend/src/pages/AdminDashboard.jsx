@@ -124,10 +124,22 @@ export default function AdminDashboard() {
         }
       });
 
+      socket.on('order_needs_rider', (data) => {
+        addNotif(`🛵 Order #${(data.orderId || data._id)?.toString().slice(-6)} needs a rider!`, 'info');
+        fetchData();
+      });
+
+      socket.on('order_assigned', (data) => {
+        addNotif(`✅ Rider assigned to #${data.orderId?.toString().slice(-6)}`, 'success');
+        fetchData();
+      });
+
       return () => {
         socket.off('new_order');
         socket.off('order_claimed');
         socket.off('order_status_update');
+        socket.off('order_needs_rider');
+        socket.off('order_assigned');
       };
     }
   }, [user]);
@@ -546,9 +558,12 @@ export default function AdminDashboard() {
                             onChange={async (e) => {
                               const newStatus = e.target.value;
                               try {
-                                await useOrderStore.getState().updateStatus(order._id, newStatus);
+                                await API.put(`/orders/${order._id}/status`, { status: newStatus });
                                 setOrdersList(prev => prev.map(item => item._id === order._id ? { ...item, orderStatus: newStatus } : item));
+                                addNotif(`✅ Order #${(order.orderId || order._id)?.slice(-6)} → ${newStatus}`, 'info');
                               } catch (err) {
+                                const msg = err.response?.data?.message || 'Failed to update status';
+                                alert(`Error: ${msg}`);
                                 console.error('Update failed:', err);
                               }
                             }}
@@ -558,6 +573,24 @@ export default function AdminDashboard() {
                               <option key={s} value={s}>{s.replace('_', ' ')}</option>
                             ))}
                           </select>
+                          {/* Quick Cancel button */}
+                          {!['delivered', 'cancelled'].includes(order.orderStatus) && (
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Cancel Order #${(order.orderId || order._id)?.slice(-6)}?`)) return;
+                                try {
+                                  await API.put(`/orders/${order._id}/status`, { status: 'cancelled' });
+                                  setOrdersList(prev => prev.map(item => item._id === order._id ? { ...item, orderStatus: 'cancelled' } : item));
+                                  addNotif(`🚫 Order #${(order.orderId || order._id)?.slice(-6)} cancelled`, 'info');
+                                } catch (err) {
+                                  alert(err.response?.data?.message || 'Failed to cancel order');
+                                }
+                              }}
+                              className="px-4 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                            >
+                              Cancel
+                            </button>
+                          )}
                           <Link to={`/order/${order._id}`} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-orange-600 transition-all">
                             View
                           </Link>

@@ -15,7 +15,7 @@ const orderSchema = new mongoose.Schema(
     restaurant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Restaurant',
-      required: false,
+      required: [true, 'Restaurant ID is required for partner notifications'],
     },
     rider: {
       type: mongoose.Schema.Types.ObjectId,

@@ -82,6 +82,21 @@ export const createOrder = async (req, res) => {
       };
     }
 
+    // Ensure restaurant is set. If missing at top level, try inferring from items.
+    if (!orderPayload.restaurant && orderPayload.items?.length > 0) {
+      console.log(`🔎 [Create Order API] Restaurant missing from payload. Inferring from first item...`);
+      const ItemModel = mongoose.model('MenuItem');
+      const firstItem = await ItemModel.findById(orderPayload.items[0].menuItem);
+      if (firstItem && firstItem.restaurant) {
+        orderPayload.restaurant = firstItem.restaurant;
+      }
+    }
+
+    if (!orderPayload.restaurant) {
+      console.log(`❌ [Create Order API] Order creation aborted: No restaurant linked.`);
+      return res.status(400).json({ success: false, message: 'Restaurant ID is required' });
+    }
+
     console.log(`✨ [Create Order API] Creating order in database...`);
     const order = await Order.create(orderPayload);
 
@@ -293,8 +308,15 @@ export const updateOrderStatus = async (req, res) => {
 
     // Authorization checks
     if (req.userRole === 'restaurant') {
-      const restaurant = await Restaurant.findOne({ owner: req.userId });
-      if (!restaurant || restaurant._id.toString() !== order.restaurant.toString()) {
+      // Safely extract the restaurant ID — it may be a raw ObjectId OR a populated object
+      const orderRestaurantId = (order.restaurant?._id || order.restaurant)?.toString();
+      // A partner can own multiple restaurants — find ALL of them
+      const partnerRestaurants = await Restaurant.find({ owner: req.userId }).select('_id');
+      const partnerRestaurantIds = partnerRestaurants.map(r => r._id.toString());
+      console.log(`🔑 [Update Order Status] Partner ${req.userId} owns: [${partnerRestaurantIds.join(', ')}]`);
+      console.log(`🔑 [Update Order Status] Order restaurant: ${orderRestaurantId}`);
+      if (!orderRestaurantId || !partnerRestaurantIds.includes(orderRestaurantId)) {
+        console.log(`⛔ [Update Order Status] Access denied — order restaurant not owned by this partner`);
         return res.status(403).json({ success: false, message: 'Forbidden: You can only update orders for your restaurant' });
       }
     }
@@ -319,7 +341,8 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     console.log(`💾 [Update Order Status API] Saving updates...`);
-    await order.save();
+    // validateBeforeSave:false allows updating orphaned orders (e.g. missing restaurant field)
+    await order.save({ validateBeforeSave: false });
 
     console.log(`✅ [Update Order Status API] Order status updated successfully.`);
 
@@ -327,28 +350,28 @@ export const updateOrderStatus = async (req, res) => {
     const io = getIO();
 
     if (status === 'confirmed') {
-      const fullOrderForRider = await Order.findById(order._id)
+      const fullOrderForAdmin = await Order.findById(order._id)
         .populate('customer', 'name phone')
         .populate('restaurant', 'name location');
 
-      const orderPayloadForRider = {
-        _id: fullOrderForRider._id,
-        orderId: fullOrderForRider.orderId,
-        customerName: fullOrderForRider.customer?.name,
-        restaurantName: fullOrderForRider.restaurant?.name,
-        restaurantAddress: fullOrderForRider.restaurant?.location?.address,
-        deliveryAddress: fullOrderForRider.deliveryAddress,
-        total: fullOrderForRider.total,
-        deliveryFee: fullOrderForRider.deliveryFee,
-        orderStatus: fullOrderForRider.orderStatus,
-        items: fullOrderForRider.items,
+      const orderPayloadForAdmin = {
+        _id: fullOrderForAdmin._id,
+        orderId: fullOrderForAdmin.orderId,
+        customerName: fullOrderForAdmin.customer?.name,
+        restaurantName: fullOrderForAdmin.restaurant?.name,
+        restaurantAddress: fullOrderForAdmin.restaurant?.location?.address,
+        deliveryAddress: fullOrderForAdmin.deliveryAddress,
+        total: fullOrderForAdmin.total,
+        deliveryFee: fullOrderForAdmin.deliveryFee,
+        orderStatus: fullOrderForAdmin.orderStatus,
+        items: fullOrderForAdmin.items,
       };
 
-      // Broadcast to ALL riders now that the restaurant has accepted
-      io.to('riders').emit('new_order_available', orderPayloadForRider);
+      // Notify admin that restaurant has confirmed and they should assign a rider
+      io.to('admins').emit('order_needs_rider', orderPayloadForAdmin);
     }
 
-    const customerId = order.customer.toString();
+    const customerId = order.customer?.toString();
 
     const statusMessages = {
       confirmed: 'Your order has been confirmed!',
@@ -367,7 +390,7 @@ export const updateOrderStatus = async (req, res) => {
       message: notificationMessage,
     };
 
-    if (notificationMessage) {
+    if (notificationMessage && customerId) {
       io.to(customerId).emit('order_status_update', statusPayload);
     }
     // Always keep admin in sync
@@ -385,7 +408,7 @@ export const updateOrderStatus = async (req, res) => {
       data: order,
     });
   } catch (error) {
-    console.error(`🔥 [Update Order Status API] Error updating status: ${error.message}`);
+    console.error(`🔥 [Update Order Status API] Error: ${error.message}`, error.stack?.split('\n')[1]);
     res.status(500).json({
       success: false,
       message: 'Failed to update order status',
@@ -410,11 +433,35 @@ export const assignRiderToOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    console.log(`✅ [Assign Rider API] Rider successfully assigned.`);
+    // Populate details for notification
+    const fullOrder = await Order.findById(order._id)
+      .populate('customer', 'name phone')
+      .populate('restaurant', 'name location')
+      .populate('rider', 'name phone');
+
+    const io = getIO();
+    // Notify the specific rider
+    io.to(riderId).emit('order_assigned', fullOrder);
+
+    // Notify customer
+    io.to(fullOrder.customer?._id.toString()).emit('order_status_update', {
+      orderId: fullOrder._id,
+      status: fullOrder.orderStatus,
+      message: `🛵 Rider ${fullOrder.rider?.name || 'has been'} assigned to your order!`,
+      rider: { name: fullOrder.rider?.name, phone: fullOrder.rider?.phone },
+    });
+
+    // Notify admins
+    io.to('admins').emit('order_assigned', {
+      orderId: fullOrder._id,
+      riderName: fullOrder.rider?.name,
+    });
+
+    console.log(`✅ [Assign Rider API] Rider and Customer notified of assignment.`);
     res.status(200).json({
       success: true,
       message: 'Rider assigned to order',
-      data: order,
+      data: fullOrder,
     });
   } catch (error) {
     console.error(`🔥 [Assign Rider API] Error assigning rider: ${error.message}`);

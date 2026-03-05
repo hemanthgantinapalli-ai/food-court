@@ -21,7 +21,8 @@ router.get('/search/global', async (req, res) => {
             Restaurant.find({
                 $or: [
                     { name: { $regex: q, $options: 'i' } },
-                    { cuisines: { $in: [new RegExp(q, 'i')] } }
+                    { cuisines: { $in: [new RegExp(q, 'i')] } },
+                    { 'location.city': { $regex: q, $options: 'i' } }
                 ],
                 isApproved: true
             }).limit(5),

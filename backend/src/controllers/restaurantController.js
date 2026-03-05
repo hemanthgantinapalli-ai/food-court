@@ -5,12 +5,25 @@ export const getRestaurants = async (req, res) => {
     try {
         const { city } = req.query;
         let query = { isApproved: true };
-        if (city && city !== 'Select Location') {
-            query['location.city'] = { $regex: city, $options: 'i' };
+        const isCityFilter = city && city.trim() !== 'Select Location';
+
+        if (isCityFilter) {
+            query['location.city'] = { $regex: city.trim(), $options: 'i' };
         }
 
-        const restaurants = await Restaurant.find(query)
+        console.log(`🍽️ [Get Restaurants] Fetching restaurants. City filter: "${city || 'none'}"`);
+        let restaurants = await Restaurant.find(query)
             .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+
+        // SMART FALLBACK: If city filter returns 0, show all restaurants
+        // This prevents a blank screen when user has selected a city we don't serve yet
+        if (restaurants.length === 0 && isCityFilter) {
+            console.warn(`⚠️ [Get Restaurants] No restaurants in "${city}". Returning all restaurants as fallback.`);
+            restaurants = await Restaurant.find({ isApproved: true })
+                .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+        }
+
+        console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants.`);
         return res.status(200).json(restaurants);
     } catch (error) {
         console.error("🔥 [Get Restaurants API] Error:", error.message);
@@ -20,17 +33,24 @@ export const getRestaurants = async (req, res) => {
 
 export const createRestaurant = async (req, res) => {
     try {
-        const payload = { ...req.body };
-        // If created by a restaurant partner, enforce their user ID as the owner
-        if (req.userRole === 'restaurant') {
+        console.log("📝 [Create Restaurant API] Payload received:", req.body);
+        const payload = {
+            ...req.body,
+            isApproved: true, // Auto-approve for convenience during testing
+            isOpen: true,      // Set open by default
+            reviewCount: 0,
+            rating: 4.0        // Default rating for appearance
+        };
+
+        if (req.userRole === 'restaurant' && !payload.owner) {
             payload.owner = req.userId;
-            payload.isApproved = false; // Always strict enforce approval for new ones
         }
 
         const restaurant = await Restaurant.create(payload);
+        console.log("✅ [Create Restaurant API] Created successfully:", restaurant.name);
         return res.status(201).json({ success: true, data: restaurant });
     } catch (error) {
-        console.error("🔥 [Create Restaurant API] Error creating restaurant:", error.message);
+        console.error("🔥 [Create Restaurant API] Error:", error.message);
         return res.status(400).json({ success: false, message: error.message });
     }
 };

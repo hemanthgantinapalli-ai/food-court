@@ -607,6 +607,20 @@ export default function PartnerDashboard() {
                                                 </datalist>
                                             </div>
                                             <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Restaurant</label>
+                                                <select
+                                                    required
+                                                    className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none cursor-pointer"
+                                                    value={menuForm.restaurant}
+                                                    onChange={e => setMenuForm({ ...menuForm, restaurant: e.target.value })}
+                                                >
+                                                    <option value="">Select Restaurant</option>
+                                                    {restaurants.map(r => (
+                                                        <option key={r._id} value={r._id}>{r.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Image URL</label>
                                                 <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.image} onChange={e => setMenuForm({ ...menuForm, image: e.target.value })} placeholder="https://..." />
                                                 {menuForm.image && (
@@ -639,7 +653,14 @@ export default function PartnerDashboard() {
                                         {menuItems.map(item => (
                                             <div key={item._id} className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all group relative">
                                                 <div className="absolute top-4 right-4 z-10 flex gap-2">
-                                                    <button onClick={() => { setEditingMenuId(item._id); setMenuForm(item); setShowMenuForm(true); }} className="w-8 h-8 bg-white/90 backdrop-blur rounded-xl text-blue-600 flex items-center justify-center shadow-lg hover:bg-blue-600 hover:text-white transition-all">
+                                                    <button onClick={() => {
+                                                        setEditingMenuId(item._id);
+                                                        setMenuForm({
+                                                            ...item,
+                                                            restaurant: item.restaurant?._id || item.restaurant || ''
+                                                        });
+                                                        setShowMenuForm(true);
+                                                    }} className="w-8 h-8 bg-white/90 backdrop-blur rounded-xl text-blue-600 flex items-center justify-center shadow-lg hover:bg-blue-600 hover:text-white transition-all">
                                                         <Edit3 size={14} />
                                                     </button>
                                                 </div>
@@ -652,7 +673,12 @@ export default function PartnerDashboard() {
                                                     <div className="flex justify-between items-start">
                                                         <div>
                                                             <p className={`font-black ${!item.isAvailable ? 'text-slate-400' : 'text-slate-900'}`}>{item.name}</p>
-                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{item.category}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.category}</span>
+                                                                <span className="text-[8px] text-emerald-500 font-black uppercase tracking-tighter bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                                    {item.restaurant?.name || 'My Kitchen'}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="font-black text-emerald-600">₹{item.price}</p>

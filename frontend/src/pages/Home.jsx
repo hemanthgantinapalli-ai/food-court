@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api/axios';
 import Hero from '../components/Hero';
 import RestaurantCard from '../components/RestaurantCard';
 import Loader_Component from '../components/Loader';
@@ -11,8 +11,8 @@ const CATEGORY_FILTERS = ['All', 'Pizza', 'Burgers', 'Sushi', 'Indian', 'Chinese
 // Curated fallback restaurants for when backend is offline
 const FALLBACK_RESTAURANTS = [
   {
-    _id: '1',
-    name: 'The Smoke House',
+    _id: '69a5bdb2d6f8c7e3b91a1061',
+    name: '[DEMO] Smoke House',
     image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80',
     rating: 4.8,
     cuisines: ['American', 'Burgers', 'BBQ'],
@@ -20,8 +20,8 @@ const FALLBACK_RESTAURANTS = [
     deliveryFee: 0,
   },
   {
-    _id: '2',
-    name: 'Sakura Japanese',
+    _id: '69a5bdb2d6f8c7e3b91a1062',
+    name: '[DEMO] Sakura Japanese',
     image: 'https://images.unsplash.com/photo-1617196034183-421b4040ed20?w=600&q=80',
     rating: 4.9,
     cuisines: ['Japanese', 'Sushi', 'Ramen'],
@@ -29,8 +29,8 @@ const FALLBACK_RESTAURANTS = [
     deliveryFee: 49,
   },
   {
-    _id: '3',
-    name: 'Bella Italia',
+    _id: '69a5bdb2d6f8c7e3b91a1063',
+    name: '[DEMO] Bella Italia',
     image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80',
     rating: 4.7,
     cuisines: ['Italian', 'Pizza', 'Pasta'],
@@ -38,8 +38,8 @@ const FALLBACK_RESTAURANTS = [
     deliveryFee: 0,
   },
   {
-    _id: '4',
-    name: 'Spice Garden',
+    _id: '69a5bdb2d6f8c7e3b91a1064',
+    name: '[DEMO] Spice Garden',
     image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80',
     rating: 4.6,
     cuisines: ['Indian', 'Curry', 'Biryani'],
@@ -47,8 +47,8 @@ const FALLBACK_RESTAURANTS = [
     deliveryFee: 29,
   },
   {
-    _id: '5',
-    name: 'Green Bowl',
+    _id: '69a5bdb2d6f8c7e3b91a1065',
+    name: '[DEMO] Green Bowl',
     image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80',
     rating: 4.5,
     cuisines: ['Healthy', 'Salads', 'Vegan'],
@@ -56,8 +56,8 @@ const FALLBACK_RESTAURANTS = [
     deliveryFee: 0,
   },
   {
-    _id: '6',
-    name: 'Dragon Palace',
+    _id: '69a5bdb2d6f8c7e3b91a1066',
+    name: '[DEMO] Dragon Palace',
     image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&q=80',
     rating: 4.7,
     cuisines: ['Chinese', 'Dim Sum', 'Noodles'],
@@ -76,6 +76,12 @@ const Home = () => {
   const cuisineParam = searchParams.get('cuisine') || 'All';
   const [activeFilter, setActiveFilter] = useState(cuisineParam);
 
+  // Track the selected city for display in the UI
+  const [selectedCity, setSelectedCity] = React.useState(() => {
+    const c = localStorage.getItem('userLocation');
+    return (c && c !== 'Select Location') ? c : null;
+  });
+
   // Sync filter → URL so browser back/forward works
   const applyFilter = (filter) => {
     setActiveFilter(filter);
@@ -90,20 +96,58 @@ const Home = () => {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        const city = localStorage.getItem('userLocation');
-        const { data } = await axios.get(`/api/restaurants`, { params: { city } });
-        // Backend now returns the array directly
+        let city = localStorage.getItem('userLocation');
+        if (city && city === 'Select Location') city = undefined;
+
+        console.log(`[Home] Fetching restaurants for city: "${city}"`);
+
+        const { data } = await API.get(`/restaurants`, {
+          params: { city: city ? city.trim() : undefined }
+        });
+
+        console.log('[Home] Backend response:', data);
         const list = Array.isArray(data) ? data : (data?.data || []);
-        setRestaurants(list.length ? list : FALLBACK_RESTAURANTS);
+
+        setRestaurants(list);
+
+        if (list.length === 0) {
+          console.warn(`[Home] No restaurants found in ${city}.`);
+          // Note: We no longer clobber setRestaurants(list) with FALLBACK_RESTAURANTS 
+          // because if the user has selected a city, we want them to see 0 results, 
+          // not fake results from Mumbai.
+        }
       } catch (error) {
-        console.warn('Backend offline — using demo data:', error.message);
+        console.error('[Home] API Error:', error);
+        // On hard error, fallback to demo data so the app doesn't look dead
         setRestaurants(FALLBACK_RESTAURANTS);
       } finally {
         setLoading(false);
       }
     };
+
     fetchRestaurants();
+
+    // Listen for custom locationChanged events from Header
+    const handleLocChange = () => {
+      const newCity = localStorage.getItem('userLocation');
+      setSelectedCity((newCity && newCity !== 'Select Location') ? newCity : null);
+      setActiveFilter('All');
+      setSearchQuery('');
+      fetchRestaurants();
+    };
+
+    window.addEventListener('locationChanged', handleLocChange);
+    return () => window.removeEventListener('locationChanged', handleLocChange);
   }, []);
+
+  // Sync searchQuery with URL q= parameter
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setSearchQuery(q);
+      setActiveFilter('All');
+    }
+  }, [searchParams]);
 
   // Handle filter from Hero cuisine tags or search bar
   const handleHeroFilter = (query) => {
@@ -207,7 +251,7 @@ const Home = () => {
           </div>
 
           <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-none snap-x transition-all">
-            {restaurants.filter(r => r.rating >= 4.7).slice(0, 6).map((res, i) => (
+            {restaurants.filter(r => r.rating >= 4.0).slice(0, 10).map((res, i) => (
               <div key={res._id} className="min-w-[300px] md:min-w-[350px] snap-start">
                 <RestaurantCard restaurant={res} index={i} />
               </div>
@@ -289,9 +333,21 @@ const Home = () => {
               </span>
             </div>
             <h2 className="text-4xl font-black tracking-tighter text-slate-900">
-              {searchQuery ? 'Search' : activeFilter === 'All' ? 'Popular' : activeFilter}{' '}
+              {searchQuery ? 'Search' : activeFilter === 'All' ? 'Discover' : activeFilter}{' '}
               <span className="text-slate-400">Near You</span>
+              <span className="ml-3 text-sm font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-full uppercase tracking-widest align-middle">
+                {filtered.length} stores
+              </span>
             </h2>
+            {selectedCity && (
+              <p className="text-sm text-slate-400 font-medium mt-1">
+                Showing results in <span className="font-bold text-slate-700">{selectedCity}</span>
+                {' · '}
+                <button onClick={() => { localStorage.setItem('userLocation', 'Select Location'); window.dispatchEvent(new Event('locationChanged')); }} className="text-orange-500 font-bold hover:underline">
+                  View all cities
+                </button>
+              </p>
+            )}
           </div>
 
           <div
@@ -305,20 +361,34 @@ const Home = () => {
         {/* Restaurant Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filtered.length > 0 ? (
-            filtered.map((res) => (
-              <RestaurantCard key={res._id} restaurant={res} />
+            filtered.map((res, i) => (
+              <RestaurantCard key={res._id} restaurant={res} index={i} />
             ))
-          ) : (
+          ) : restaurants.length > 0 ? (
+            // Restaurants exist but don't match the filter
             <div className="col-span-3 py-20 text-center text-slate-400">
               <span className="text-5xl block mb-4">🔍</span>
-              <p className="font-black text-xl">
-                No restaurants found for "{searchQuery || activeFilter}"
+              <p className="font-black text-xl mb-2">
+                No restaurants match &quot;{searchQuery || activeFilter}&quot;
               </p>
               <button
                 onClick={() => applyFilter('All')}
-                className="mt-4 text-orange-500 font-bold"
+                className="mt-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-orange-600 transition-all"
               >
-                Clear filter
+                Show All Restaurants
+              </button>
+            </div>
+          ) : (
+            // No restaurants at all — shouldn't happen thanks to backend fallback
+            <div className="col-span-3 py-20 text-center text-slate-400">
+              <span className="text-5xl block mb-4">🏗️</span>
+              <p className="font-black text-xl mb-2">No restaurants available yet</p>
+              <p className="text-sm font-medium mb-4">New stores are being added to your area soon!</p>
+              <button
+                onClick={() => { localStorage.setItem('userLocation', 'Select Location'); window.dispatchEvent(new Event('locationChanged')); }}
+                className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-all"
+              >
+                Browse All Cities
               </button>
             </div>
           )}
