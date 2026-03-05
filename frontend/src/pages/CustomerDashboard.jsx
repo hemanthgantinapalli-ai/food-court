@@ -5,8 +5,9 @@ import {
     MapPin, Phone, Mail, LogOut, ChevronRight,
     Clock, ShieldCheck, Wallet, ArrowRight,
     TrendingUp, Star, Search, MessageSquare,
-    Gift, Bell, ExternalLink, Truck
+    Gift, Bell, ExternalLink, Truck, ArrowUpRight
 } from 'lucide-react';
+import { socket, connectSocket, disconnectSocket, joinRoleRoom } from '../api/socket.js';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
@@ -16,6 +17,7 @@ const TABS = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
     { id: 'orders', label: 'Orders', icon: Package },
     { id: 'favorites', label: 'Favorites', icon: Heart },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'help', label: 'Help Desk', icon: HelpCircle },
 ];
@@ -40,6 +42,51 @@ export default function CustomerDashboard() {
     const [showSupportForm, setShowSupportForm] = useState(false);
     const [supportForm, setSupportForm] = useState({ subject: '', message: '', orderId: '', priority: 'medium' });
     const [submittingSupport, setSubmittingSupport] = useState(false);
+    const [backendStats, setBackendStats] = useState(null);
+    const [notifications, setNotifications] = useState([]);
+    const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
+    const [reviewForm, setReviewForm] = useState({ score: 5, review: '' });
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            connectSocket(user._id);
+            joinRoleRoom(`user_${user._id}`);
+
+            const handleStatusUpdate = (data) => {
+                const newNotif = {
+                    id: Date.now(),
+                    title: 'Order Update',
+                    message: data.message,
+                    time: new Date().toLocaleTimeString(),
+                    orderId: data.orderId,
+                    type: data.status === 'delivered' ? 'success' : 'info'
+                };
+                setNotifications(prev => [newNotif, ...prev]);
+                fetchData();
+            };
+
+            const handleSupportUpdate = (data) => {
+                const newNotif = {
+                    id: Date.now(),
+                    title: 'Support Update',
+                    message: data.message,
+                    time: new Date().toLocaleTimeString(),
+                    type: 'info'
+                };
+                setNotifications(prev => [newNotif, ...prev]);
+                fetchSupportTickets();
+            };
+
+            socket.on('order_status_update', handleStatusUpdate);
+            socket.on('support_update', handleSupportUpdate);
+
+            return () => {
+                socket.off('order_status_update', handleStatusUpdate);
+                socket.off('support_update', handleSupportUpdate);
+            };
+        }
+    }, [user?._id]);
 
     useEffect(() => {
         if (!user) {
@@ -84,33 +131,37 @@ export default function CustomerDashboard() {
         }
     }, [user?.favorites, user?.favoriteFoods]);
 
-    const fetchData = async () => {
+    async function fetchData() {
         try {
-            const ordersRes = await API.get('/orders/history');
+            const [ordersRes, statsRes] = await Promise.all([
+                API.get('/orders/history'),
+                API.get('/auth/stats')
+            ]);
             setOrders(ordersRes.data?.data || []);
+            setBackendStats(statsRes.data?.data || null);
             setFavorites(user?.favorites || []);
             setFavoriteFoods(user?.favoriteFoods || []);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
         }
-    };
+    }
 
     // Derived stats for efficiency
     const stats = React.useMemo(() => {
-        const totalSpent = orders.reduce((sum, o) => sum + (o.orderStatus === 'delivered' ? o.total : 0), 0);
-        const activeOrders = orders.filter(o => ['placed', 'confirmed', 'preparing', 'ready', 'on_the_way'].includes(o.orderStatus));
+        const totalSpent = orders.reduce((sum, o) => sum + (o.orderStatus === 'delivered' ? (Number(o.total) || 0) : 0), 0);
+        const activeOrders = orders.filter(o => ['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way'].includes(o.orderStatus));
         const latestActiveOrder = activeOrders.length > 0 ? activeOrders[0] : null;
         return { totalSpent, activeOrders: activeOrders.length, latestActiveOrder };
     }, [orders]);
 
-    const fetchSupportTickets = async () => {
+    async function fetchSupportTickets() {
         try {
             const res = await API.get('/support/my-requests');
-            setSupportTickets(res.data.data);
+            setSupportTickets(res.data?.data || []);
         } catch (error) {
             console.error('Error fetching support tickets:', error);
         }
-    };
+    }
 
     const handleSupportSubmit = async (e) => {
         e.preventDefault();
@@ -131,6 +182,26 @@ export default function CustomerDashboard() {
 
     const handleUpdateTab = (tabId) => {
         setSearchParams({ tab: tabId });
+    };
+
+    const handleReviewSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmittingReview(true);
+        try {
+            await API.post(`/orders/${selectedOrderForReview._id}/rate`, {
+                score: reviewForm.score,
+                review: reviewForm.review
+            });
+            alert('Thank you for your feedback!');
+            setSelectedOrderForReview(null);
+            setReviewForm({ score: 5, review: '' });
+            fetchData();
+        } catch (error) {
+            console.error('Review failed:', error);
+            alert('Failed to submit review');
+        } finally {
+            setIsSubmittingReview(false);
+        }
     };
 
     const handleSaveInfo = async () => {
@@ -234,166 +305,187 @@ export default function CustomerDashboard() {
 
                         {/* ─── OVERVIEW TAB ─── */}
                         {activeTab === 'overview' && (
-                            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    {/* Stats Cards */}
-                                    <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group">
-                                        <div className="relative z-10">
-                                            <div className="flex justify-between items-start mb-10">
-                                                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center group-hover:bg-orange-500 transition-colors">
-                                                    <Wallet size={28} className="text-white" />
+                            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="grid lg:grid-cols-12 gap-10">
+                                    {/* Visual Spending Chart / Wallet */}
+                                    <div className="lg:col-span-8 space-y-10">
+                                        <div className="bg-slate-900 rounded-[3.5rem] p-12 text-white shadow-2xl relative overflow-hidden group">
+                                            <div className="relative z-10">
+                                                <div className="flex justify-between items-start mb-14">
+                                                    <div>
+                                                        <h4 className="font-black text-xs uppercase tracking-[0.2em] text-orange-500 mb-2">Spending Trends</h4>
+                                                        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Monthly expenditure overview</p>
+                                                    </div>
+                                                    <div className="flex bg-white/5 p-1 rounded-xl">
+                                                        {['Weekly', 'Monthly'].map(t => (
+                                                            <button key={t} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${t === 'Monthly' ? 'bg-orange-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}>{t}</button>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest bg-white/10 px-3 py-1 rounded-full">Primary Wallet</span>
-                                            </div>
-                                            <p className="text-white/60 font-black text-xs uppercase tracking-widest mb-1">Total Balance</p>
-                                            <h2 className="text-6xl font-black tracking-tight mb-10 group-hover:text-orange-500 transition-colors">₹{user?.wallet?.balance || '0.00'}</h2>
-                                            <div className="flex gap-4">
-                                                <button className="grow bg-white text-slate-900 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all active:scale-95">Add Funds</button>
-                                                <button className="p-4 bg-white/10 rounded-2xl hover:bg-white/20 transition-all"><ExternalLink size={20} /></button>
-                                            </div>
-                                        </div>
-                                        <CreditCard size={200} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
-                                    </div>
 
-                                    <div className="grid grid-cols-2 gap-8">
-                                        <div className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm flex items-center justify-between hover:shadow-xl hover:shadow-slate-100 transition-all group">
-                                            <div>
-                                                <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Active Now</p>
-                                                <h3 className="text-4xl font-black text-slate-900">{stats.activeOrders}</h3>
-                                            </div>
-                                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                                <Clock size={28} />
-                                            </div>
-                                        </div>
-                                        <div className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm flex items-center justify-between hover:shadow-xl hover:shadow-slate-100 transition-all group">
-                                            <div>
-                                                <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Total Spent</p>
-                                                <h3 className="text-4xl font-black text-slate-900">₹{stats.totalSpent}</h3>
-                                            </div>
-                                            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                                                <TrendingUp size={28} />
-                                            </div>
-                                        </div>
-                                        <div className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm flex items-center justify-between hover:shadow-xl hover:shadow-slate-100 transition-all group">
-                                            <div>
-                                                <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Past Orders</p>
-                                                <h3 className="text-4xl font-black text-slate-900">{orders.length}</h3>
-                                            </div>
-                                            <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all">
-                                                <Package size={28} />
-                                            </div>
-                                        </div>
-                                        <div className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm flex items-center justify-between hover:shadow-xl hover:shadow-slate-100 transition-all group">
-                                            <div>
-                                                <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Saved Favorites</p>
-                                                <h3 className="text-4xl font-black text-slate-900">{favorites.length}</h3>
-                                            </div>
-                                            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-all">
-                                                <Heart size={28} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                                <div className="h-64 flex items-end gap-4 mb-10">
+                                                    {[25, 45, 30, 65, 85, 40, 55, 75, 50, 95, 60, 40].map((h, i) => (
+                                                        <div
+                                                            key={i}
+                                                            style={{ height: `${h}%` }}
+                                                            className="flex-1 bg-gradient-to-t from-orange-400 to-orange-600 rounded-2xl opacity-60 hover:opacity-100 hover:scale-110 transition-all cursor-pointer relative group/bar"
+                                                        >
+                                                            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-3 py-1.5 rounded-xl text-[10px] font-black opacity-0 group-hover/bar:opacity-100 transition-opacity shadow-2xl whitespace-nowrap">
+                                                                ₹{Math.floor(h * 15.5)}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
 
-                                {/* Profile Details */}
-                                <div className="bg-white rounded-[3rem] p-10 border border-white shadow-sm overflow-hidden relative">
-                                    <div className="flex justify-between items-center mb-10">
-                                        <h3 className="text-2xl font-black text-slate-900">Personal Information</h3>
-                                        <button
-                                            onClick={() => isEditingInfo ? handleSaveInfo() : setIsEditingInfo(true)}
-                                            className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${isEditingInfo ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-white border-slate-50 text-slate-400 hover:text-slate-900 hover:border-slate-200'
-                                                }`}
-                                        >
-                                            {isEditingInfo ? 'Save Changes' : 'Edit Profile'}
-                                        </button>
-                                    </div>
-
-                                    <div className="grid md:grid-cols-3 gap-10">
-                                        <div className="group">
-                                            <div className="flex items-center gap-4 text-slate-400 mb-4 font-black text-[10px] uppercase tracking-widest">
-                                                <User size={14} className="text-orange-500" /> Full Name
-                                            </div>
-                                            {isEditingInfo ? (
-                                                <input className="w-full bg-slate-50 border border-slate-100 py-3 px-4 rounded-xl font-bold" value={infoForm.name} onChange={e => setInfoForm({ ...infoForm, name: e.target.value })} />
-                                            ) : (
-                                                <p className="text-xl font-black text-slate-900">{user?.name}</p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-4 text-slate-400 mb-4 font-black text-[10px] uppercase tracking-widest">
-                                                <Mail size={14} className="text-orange-500" /> Email Address
-                                            </div>
-                                            <p className="text-xl font-black text-slate-900">{user?.email}</p>
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-4 text-slate-400 mb-4 font-black text-[10px] uppercase tracking-widest">
-                                                <Phone size={14} className="text-orange-500" /> Mobile Number
-                                            </div>
-                                            {isEditingInfo ? (
-                                                <input className="w-full bg-slate-50 border border-slate-100 py-3 px-4 rounded-xl font-bold" value={infoForm.phone} onChange={e => setInfoForm({ ...infoForm, phone: e.target.value })} />
-                                            ) : (
-                                                <p className="text-xl font-black text-slate-900">{user?.phone || 'Not provided'}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Live Order Tracking (Efficiency Add-on) */}
-                                {stats.latestActiveOrder && (
-                                    <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-[3rem] p-8 text-white shadow-xl shadow-orange-100 flex flex-col md:flex-row items-center justify-between gap-6 group">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center animate-pulse">
-                                                <Truck size={32} />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Live Order Status</p>
-                                                <h4 className="text-2xl font-black tracking-tight">{stats.latestActiveOrder.orderStatus.replace('_', ' ')}</h4>
-                                                <p className="text-white/70 font-bold text-xs">Arriving from {stats.latestActiveOrder.restaurant?.name || 'Restaurant'}</p>
-                                            </div>
-                                        </div>
-                                        <Link
-                                            to={`/track-order?orderId=${stats.latestActiveOrder.orderId || stats.latestActiveOrder._id}`}
-                                            className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg"
-                                        >
-                                            Track Order Live
-                                        </Link>
-                                    </div>
-                                )}
-
-                                <div className="pt-4 flex justify-between items-end">
-                                    <div>
-                                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Recent Activity</h3>
-                                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Your latest orders and updates</p>
-                                    </div>
-                                    <button onClick={() => handleUpdateTab('orders')} className="text-orange-600 font-black text-xs uppercase tracking-widest hover:underline">View All History →</button>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {orders.length === 0 ? (
-                                        <div className="bg-white rounded-[2rem] p-10 text-center border border-white shadow-sm">
-                                            <p className="text-slate-400 font-bold">No orders yet.</p>
-                                        </div>
-                                    ) : (
-                                        orders.slice(0, 3).map(order => (
-                                            <div key={order._id} className="bg-white rounded-[2rem] p-6 border border-white shadow-sm hover:shadow-xl transition-all group">
-                                                <div className="flex justify-between items-center">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
-                                                            <Package size={20} className="text-slate-300" />
+                                                <div className="flex justify-between items-center pt-8 border-t border-white/5">
+                                                    <div className="flex items-center gap-10">
+                                                        <div>
+                                                            <p className="text-white/30 text-[9px] font-black uppercase mb-1">Average Order</p>
+                                                            <p className="text-xl font-black">₹482.50</p>
                                                         </div>
                                                         <div>
-                                                            <h4 className="font-black text-slate-900 text-sm">{order.restaurant?.name || 'Order'}</h4>
-                                                            <p className="text-[10px] text-slate-400 font-bold uppercase">₹{order.total} • {order.orderStatus}</p>
+                                                            <p className="text-white/30 text-[9px] font-black uppercase mb-1">Savings this month</p>
+                                                            <p className="text-emerald-400 font-black text-xl flex items-center gap-1">₹1,240 <ArrowUpRight size={18} /></p>
                                                         </div>
                                                     </div>
-                                                    <Link to={`/order/${order._id}`} className="bg-slate-50 hover:bg-slate-900 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                                                        Details
-                                                    </Link>
+                                                    <div className="text-right">
+                                                        <p className="text-white/30 text-[9px] font-black uppercase mb-1">Wallet Balance</p>
+                                                        <p className="text-3xl font-black text-orange-500">₹{user?.wallet?.balance || '0.00'}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        ))
-                                    )}
+                                            <TrendingUp size={280} className="absolute -bottom-20 -right-20 text-white/5 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+                                        </div>
+                                    </div>
+
+                                    {/* Rewards & Tier Card */}
+                                    <div className="lg:col-span-4 space-y-10">
+                                        <div className="bg-white rounded-[3.5rem] p-10 border border-slate-100 shadow-sm flex flex-col items-center text-center group relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-8">
+                                                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600">
+                                                    <Gift size={24} />
+                                                </div>
+                                            </div>
+
+                                            <div className="w-24 h-24 bg-gradient-to-br from-orange-100 to-orange-50 rounded-[2.5rem] flex items-center justify-center text-orange-600 text-3xl font-black mb-8 shadow-inner group-hover:rotate-12 transition-transform">
+                                                <Star className="fill-orange-500" />
+                                            </div>
+
+                                            <h4 className="text-3xl font-black text-slate-900 mb-2">Gold Tier</h4>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-8">Loyalty Member since 2026</p>
+
+                                            <div className="w-full space-y-6">
+                                                <div className="text-left">
+                                                    <div className="flex justify-between items-end mb-3">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Next Level: Platinum</p>
+                                                        <p className="text-[10px] font-black text-slate-900">1,240 / 2,000 XP</p>
+                                                    </div>
+                                                    <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-orange-500 rounded-full transition-all duration-1000 group-hover:w-[62%]" style={{ width: '62%' }} />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex justify-between items-center p-6 bg-slate-50 rounded-[2rem]">
+                                                    <p className="text-[10px] font-black uppercase text-slate-400">Available Points</p>
+                                                    <p className="text-2xl font-black text-slate-900">4,850</p>
+                                                </div>
+
+                                                <button className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-slate-200">
+                                                    Redeem Rewards
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <div className="grid md:grid-cols-4 gap-8">
+                                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-50 shadow-sm flex items-center justify-between hover:shadow-xl transition-all group">
+                                        <div>
+                                            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Active Now</p>
+                                            <h3 className="text-4xl font-black text-slate-900">{backendStats?.activeOrders ?? stats.activeOrders}</h3>
+                                        </div>
+                                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all"><Clock size={28} /></div>
+                                    </div>
+                                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-50 shadow-sm flex items-center justify-between hover:shadow-xl transition-all group">
+                                        <div>
+                                            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Total Spent</p>
+                                            <h3 className="text-4xl font-black text-slate-900">₹{backendStats?.totalSpent ?? stats.totalSpent}</h3>
+                                        </div>
+                                        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all"><TrendingUp size={28} /></div>
+                                    </div>
+                                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-50 shadow-sm flex items-center justify-between hover:shadow-xl transition-all group">
+                                        <div>
+                                            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Past Orders</p>
+                                            <h3 className="text-4xl font-black text-slate-900">{backendStats?.totalOrders ?? orders.length}</h3>
+                                        </div>
+                                        <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all"><Package size={28} /></div>
+                                    </div>
+                                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-50 shadow-sm flex items-center justify-between hover:shadow-xl transition-all group">
+                                        <div>
+                                            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Saved Items</p>
+                                            <h3 className="text-4xl font-black text-slate-900">{backendStats?.favoritesCount ?? favorites.length}</h3>
+                                        </div>
+                                        <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-all"><Heart size={28} /></div>
+                                    </div>
+                                </div>
+
+                                {/* Quick Reorder / Favorites */}
+                                <div>
+                                    <div className="flex justify-between items-end mb-8">
+                                        <div>
+                                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">Quick Reorder</h3>
+                                            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Your most loved meals, one tap away</p>
+                                        </div>
+                                        <button onClick={() => handleUpdateTab('favorites')} className="text-orange-600 font-black text-xs uppercase tracking-widest hover:underline">Manage Favorites →</button>
+                                    </div>
+
+                                    <div className="grid md:grid-cols-3 gap-8">
+                                        {favoriteFoods.length === 0 ? (
+                                            <div className="md:col-span-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-16 text-center">
+                                                <Heart className="mx-auto text-slate-300 mb-4" size={40} />
+                                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No favorites saved yet to show here</p>
+                                            </div>
+                                        ) : (
+                                            favoriteFoods.slice(0, 3).map(food => (
+                                                <div key={food._id} className="bg-white rounded-[3rem] p-6 border border-slate-100 shadow-sm hover:shadow-xl transition-all group flex flex-col items-center text-center">
+                                                    <div className="w-full aspect-square rounded-[2rem] overflow-hidden mb-6">
+                                                        <img src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
+                                                    </div>
+                                                    <h4 className="font-black text-slate-900 mb-1">{food.name}</h4>
+                                                    <p className="text-orange-600 font-black text-xl mb-6">₹{food.price}</p>
+                                                    <Link to={`/restaurant/${food.restaurantId}`} className="w-full bg-slate-50 text-slate-900 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">Add to Bag</Link>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Active Order Tracker */}
+                                {stats.latestActiveOrder && (
+                                    <div className="bg-gradient-to-r from-indigo-500 to-indigo-700 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group">
+                                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+                                            <div className="flex items-center gap-8">
+                                                <div className="w-20 h-20 bg-white/20 rounded-[2rem] flex items-center justify-center animate-bounce shadow-xl">
+                                                    <Truck size={40} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Real-time Order Status</p>
+                                                    <h4 className="text-3xl font-black tracking-tight">{stats.latestActiveOrder.orderStatus.replace('_', ' ')}</h4>
+                                                    <p className="text-white/80 font-bold mt-1 text-sm flex items-center gap-2">
+                                                        <MapPin size={16} className="text-orange-400" /> Arriving from {stats.latestActiveOrder.restaurant?.name || 'Restaurant'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Link
+                                                to={`/track-order?orderId=${stats.latestActiveOrder.orderId || stats.latestActiveOrder._id}`}
+                                                className="w-full md:w-auto bg-white text-indigo-600 px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-2xl"
+                                            >
+                                                Live Track
+                                            </Link>
+                                        </div>
+                                        <MessageSquare size={300} className="absolute -bottom-20 -right-20 text-white/5 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -432,13 +524,23 @@ export default function CustomerDashboard() {
                                                 <div className="flex items-center gap-4 w-full md:w-auto">
                                                     <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${order.orderStatus === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                                         order.orderStatus === 'cancelled' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                            'bg-blue-50 text-blue-600 border-blue-100 animate-pulse'
+                                                            order.orderStatus === 'picked_up' ? 'bg-sky-50 text-sky-600 border-sky-100 animate-pulse' :
+                                                                order.orderStatus === 'on_the_way' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 animate-pulse' :
+                                                                    'bg-orange-50 text-orange-600 border-orange-100 animate-pulse'
                                                         }`}>
                                                         {order.orderStatus?.replace('_', ' ')}
                                                     </span>
                                                     <Link to={`/order/${order._id}`} className="grow md:grow-0 text-center bg-slate-100 hover:bg-slate-900 hover:text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                                                         View Details
                                                     </Link>
+                                                    {order.orderStatus === 'delivered' && !order.rating?.score && (
+                                                        <button
+                                                            onClick={() => setSelectedOrderForReview(order)}
+                                                            className="bg-orange-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg shadow-orange-100"
+                                                        >
+                                                            Rate Order
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -565,7 +667,102 @@ export default function CustomerDashboard() {
                             </div>
                         )}
 
-                        {/* ─── HELP TAB ─── */}
+                        {/* ─── NOTIFICATIONS TAB ─── */}
+                        {activeTab === 'notifications' && (
+                            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                                <div className="flex justify-between items-end mb-8">
+                                    <div>
+                                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Recent <span className="text-orange-500">Notifications</span></h3>
+                                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Stay updated with your order progress</p>
+                                    </div>
+                                    <button onClick={() => setNotifications([])} className="text-slate-400 font-black text-xs uppercase tracking-widest hover:text-rose-500 transition-colors">Clear All</button>
+                                </div>
+
+                                {notifications.length === 0 ? (
+                                    <div className="bg-white rounded-[3rem] p-24 text-center border border-white shadow-sm">
+                                        <Bell size={64} className="mx-auto text-slate-100 mb-6" />
+                                        <h3 className="text-2xl font-black text-slate-900 mb-2">All caught up!</h3>
+                                        <p className="text-slate-400 font-bold">New updates about your orders will appear here.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-4">
+                                        {notifications.map(notif => (
+                                            <div key={notif.id} className={`p-6 rounded-[2rem] border transition-all flex items-start gap-6 ${notif.type === 'success' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-blue-50/50 border-blue-100'}`}>
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notif.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    {notif.type === 'success' ? <ShieldCheck size={24} /> : <Bell size={24} />}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <h4 className="font-black text-slate-900">{notif.title}</h4>
+                                                        <span className="text-[10px] font-black text-slate-400">{notif.time}</span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 font-medium leading-relaxed">{notif.message}</p>
+                                                    {notif.orderId && (
+                                                        <Link to={`/order/${notif.orderId}`} className="inline-block mt-3 text-[10px] font-black uppercase tracking-widest text-orange-600 hover:underline">Track Order →</Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Order Review Modal */}
+                        {selectedOrderForReview && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
+                                <div className="bg-white rounded-[3rem] p-10 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-300">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">Rate your Meal</h3>
+                                        <button onClick={() => setSelectedOrderForReview(null)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:bg-slate-100 transition-all hover:rotate-90">✕</button>
+                                    </div>
+
+                                    <div className="flex flex-col items-center mb-10 text-center">
+                                        <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-3xl flex items-center justify-center mb-4">
+                                            <Star size={36} className="fill-orange-500" />
+                                        </div>
+                                        <h4 className="text-xl font-black text-slate-900">{selectedOrderForReview.restaurant?.name || 'Order'}</h4>
+                                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Order #{(selectedOrderForReview.orderId || selectedOrderForReview._id).slice(-6)}</p>
+                                    </div>
+
+                                    <form onSubmit={handleReviewSubmit} className="space-y-8">
+                                        <div className="text-center">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">How was the food & experience?</p>
+                                            <div className="flex justify-center gap-4">
+                                                {[1, 2, 3, 4, 5].map(star => (
+                                                    <button
+                                                        key={star}
+                                                        type="button"
+                                                        onClick={() => setReviewForm({ ...reviewForm, score: star })}
+                                                        className={`w-14 h-14 rounded-2xl transition-all flex items-center justify-center shadow-lg ${reviewForm.score >= star ? 'bg-orange-500 text-white scale-110 shadow-orange-200' : 'bg-slate-50 text-slate-300 hover:bg-slate-100'}`}
+                                                    >
+                                                        <Star size={24} className={reviewForm.score >= star ? 'fill-white' : ''} />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Leave a Review (Optional)</label>
+                                            <textarea
+                                                className="w-full bg-slate-50 border border-slate-100 py-5 px-6 rounded-3xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all resize-none"
+                                                rows={4}
+                                                placeholder="What did you love? Let the restaurant know!"
+                                                value={reviewForm.review}
+                                                onChange={e => setReviewForm({ ...reviewForm, review: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <button
+                                            disabled={isSubmittingReview}
+                                            className="w-full bg-slate-900 text-white py-6 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-slate-200 disabled:opacity-50"
+                                        >
+                                            {isSubmittingReview ? 'Submitting...' : 'Submit Feedback'}
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
                         {activeTab === 'help' && (
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div className="bg-gradient-to-br from-indigo-600 to-violet-800 rounded-[3rem] p-14 text-white shadow-2xl relative overflow-hidden">
@@ -692,10 +889,9 @@ export default function CustomerDashboard() {
                                 )}
                             </div>
                         )}
-
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 }

@@ -72,6 +72,7 @@ const orderSchema = new mongoose.Schema(
         'confirmed',
         'preparing',
         'ready',
+        'picked_up',
         'on_the_way',
         'delivered',
         'cancelled',
@@ -112,6 +113,15 @@ const orderSchema = new mongoose.Schema(
     refundReason: {
       type: String,
       default: '',
+    },
+    // Revenue sharing
+    partnerEarnings: {
+      type: Number,
+      default: 0,
+    },
+    platformFee: {
+      type: Number,
+      default: 0,
     },
   },
   {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon, CheckCircle, Truck } from 'lucide-react';
+import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon, CheckCircle, Truck, ArrowUpRight } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -12,8 +12,9 @@ export default function RiderDashboard() {
   const [assignedOrders, setAssignedOrders] = React.useState([]);
   const [availableOrders, setAvailableOrders] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState('available');
+  const [activeTab, setActiveTab] = React.useState('overview');
   const [isOnline, setIsOnline] = React.useState(false);
+  const [stats, setStats] = React.useState(null);
   const [toastMsg, setToastMsg] = React.useState('');
 
   // Support state
@@ -145,13 +146,19 @@ export default function RiderDashboard() {
 
   const fetchData = async () => {
     // Only show loader if we don't have assigned orders yet to prevent flickering on updates
-    const isInitialLoad = assignedOrders.length === 0;
+    const isInitialLoad = assignedOrders.length === 0 && !stats;
     if (isInitialLoad) setLoading(true);
     try {
-      const assignedRes = await API.get('/orders/history?type=delivery');
-      setAssignedOrders(assignedRes.data.data || []);
+      const [assignedRes, statsRes] = await Promise.all([
+        API.get('/orders/history?type=delivery'),
+        API.get('/riders/stats')
+      ]);
 
-      if (isOnline) {
+      setAssignedOrders(assignedRes.data.data || []);
+      setStats(statsRes.data.data);
+      setIsOnline(statsRes.data.data.isOnline);
+
+      if (isOnline || statsRes.data.data.isOnline) {
         const availableRes = await API.get('/orders/history?type=available');
         setAvailableOrders(availableRes.data.data || []);
       }
@@ -206,8 +213,7 @@ export default function RiderDashboard() {
   if (loading && assignedOrders.length === 0) return <Loader />;
 
   const completedDeliveries = assignedOrders.filter((o) => ['delivered', 'cancelled'].includes(o.orderStatus));
-  const activeDeliveries = assignedOrders.filter((o) => ['confirmed', 'preparing', 'ready', 'on_the_way'].includes(o.orderStatus));
-  const totalEarnings = completedDeliveries.reduce((sum, order) => sum + (order.orderStatus === 'delivered' ? (order.deliveryFee || 0) : 0), 0);
+  const activeDeliveries = assignedOrders.filter((o) => ['confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way'].includes(o.orderStatus));
 
   const statusBadge = (status) => {
     const map = {
@@ -215,6 +221,7 @@ export default function RiderDashboard() {
       confirmed: 'bg-blue-100 text-blue-700',
       preparing: 'bg-orange-100 text-orange-700',
       ready: 'bg-emerald-100 text-emerald-700',
+      picked_up: 'bg-sky-100 text-sky-700',
       on_the_way: 'bg-indigo-100 text-indigo-700',
       delivered: 'bg-green-100 text-green-700',
       cancelled: 'bg-red-100 text-red-700',
@@ -266,19 +273,21 @@ export default function RiderDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {[
-            { label: 'Today Orders', value: assignedOrders.length, icon: ShoppingCart, color: 'orange' },
-            { label: 'Earnings', value: `₹${totalEarnings}`, icon: TrendingUp, color: 'emerald' },
-            { label: 'Active Tasks', value: activeDeliveries.length, icon: MapPin, color: 'blue' }
+            { label: 'Today Orders', value: stats?.todayDeliveries || 0, icon: ShoppingCart, color: 'orange' },
+            { label: 'Total Earnings', value: `₹${stats?.totalEarnings?.toLocaleString() || 0}`, icon: TrendingUp, color: 'emerald', note: 'All-time revenue' },
+            { label: 'Active Tasks', value: stats?.activeDeliveries || 0, icon: MapPin, color: 'blue', note: 'Deliveries in progress' },
+            { label: 'Success Rate', value: `${stats?.totalDeliveries ? 100 : 0}%`, icon: CheckCircle, color: 'purple', note: 'Based on completion' }
           ].map((stat, i) => (
             <div key={i} className="bg-white rounded-[2rem] p-8 border border-white shadow-sm hover:shadow-md transition-all group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-2">{stat.label}</p>
-                  <p className={`text-4xl font-black text-slate-900 tracking-tighter group-hover:text-${stat.color}-600 transition-colors`}>{stat.value}</p>
+                  <p className={`text-3xl font-black text-slate-900 tracking-tighter transition-colors group-hover:text-orange-600`}>{stat.value}</p>
+                  {stat.note && <p className="text-[10px] text-slate-400 font-bold mt-1">{stat.note}</p>}
                 </div>
-                <div className={`w-14 h-14 bg-${stat.color}-50 text-${stat.color}-500 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
+                <div className={`w-14 h-14 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
                   <stat.icon size={28} />
                 </div>
               </div>
@@ -290,9 +299,10 @@ export default function RiderDashboard() {
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50">
             {[
+              { id: 'overview', label: 'Overview', count: 0 },
               { id: 'available', label: 'New Orders', count: availableOrders.length },
               { id: 'active', label: 'Active Deliveries', count: activeDeliveries.length },
-              { id: 'completed', label: 'Completed', count: completedDeliveries.length },
+              { id: 'completed', label: 'History', count: 0 },
               { id: 'help', label: 'Help Desk', count: 0 }
             ].map((tab) => (
               <button
@@ -314,7 +324,121 @@ export default function RiderDashboard() {
           </div>
 
           <div className="p-8 md:p-12">
-            <div className="space-y-4">
+            <div className="space-y-8">
+              {/* ────── OVERVIEW ────── */}
+              {activeTab === 'overview' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="grid lg:grid-cols-3 gap-8">
+                    {/* Visual Earnings Chart */}
+                    <div className="lg:col-span-2 p-10 bg-slate-900 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
+                      <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-10">
+                          <div>
+                            <h4 className="font-black text-xs uppercase tracking-[0.2em] text-orange-500 mb-2">Earnings Trends</h4>
+                            <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Revenue performance over time</p>
+                          </div>
+                          <div className="flex gap-2">
+                            {['7D', '1M', '1Y'].map(t => (
+                              <button key={t} className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${t === '7D' ? 'bg-orange-600' : 'bg-white/10 hover:bg-white/20'}`}>{t}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="h-56 flex items-end gap-3 mb-8">
+                          {[35, 60, 45, 80, 55, 95, 70, 40, 65, 50, 85, 60].map((h, i) => (
+                            <div
+                              key={i}
+                              style={{ height: `${h}%` }}
+                              className="flex-1 bg-gradient-to-t from-orange-600/80 to-orange-400 rounded-xl opacity-90 transition-all hover:opacity-100 hover:scale-105 group/bar cursor-pointer relative"
+                            >
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap shadow-xl">
+                                ₹{Math.floor(h * 12.5)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-6 border-t border-white/10 mt-auto">
+                          <div className="flex items-center gap-6">
+                            <div>
+                              <p className="text-white/40 text-[9px] font-black uppercase mb-1">Weekly Growth</p>
+                              <p className="text-emerald-400 font-black flex items-center gap-1">+12.4% <ArrowUpRight size={12} /></p>
+                            </div>
+                            <div>
+                              <p className="text-white/40 text-[9px] font-black uppercase mb-1">Top Region</p>
+                              <p className="font-black text-xs">Downtown Core</p>
+                            </div>
+                          </div>
+                          <button className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Details</button>
+                        </div>
+                      </div>
+                      <TrendingUp size={240} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+                    </div>
+
+                    {/* Quick Profile/Status Card */}
+                    <div className="p-8 bg-white rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center group">
+                      <div className="relative mb-6">
+                        <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-200 rounded-[2.5rem] flex items-center justify-center text-slate-400 text-3xl font-black shadow-inner">
+                          {user?.name?.[0] || 'R'}
+                        </div>
+                        <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-2xl border-4 border-white flex items-center justify-center shadow-lg ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}>
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                        </div>
+                      </div>
+                      <h4 className="text-xl font-black text-slate-900 mb-1">{user?.name}</h4>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-6">Platinum Rider • 4.9⭐</p>
+
+                      <div className="w-full space-y-3">
+                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                          <p className="text-[10px] font-black uppercase text-slate-400">Level</p>
+                          <p className="text-xs font-black text-slate-900">Expert (Lvl 12)</p>
+                        </div>
+                        <div className="flex justify-between items-center p-4 bg-orange-50 rounded-2xl">
+                          <p className="text-[10px] font-black uppercase text-orange-600">Points</p>
+                          <p className="text-xs font-black text-orange-700">2,450 XP</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-end mb-6">
+                      <div>
+                        <h4 className="text-2xl font-black text-slate-900 tracking-tight">Recent Activity</h4>
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Your latest completed drop-offs</p>
+                      </div>
+                      <button onClick={() => setActiveTab('completed')} className="text-orange-600 font-black text-[10px] uppercase tracking-widest hover:underline">View All →</button>
+                    </div>
+
+                    <div className="grid gap-4">
+                      {completedDeliveries.length === 0 ? (
+                        <div className="bg-slate-50 rounded-[2.5rem] p-12 text-center border border-dashed border-slate-200">
+                          <Package size={40} className="text-slate-300 mx-auto mb-4" />
+                          <p className="text-slate-400 font-bold">No history available yet</p>
+                        </div>
+                      ) : (
+                        completedDeliveries.slice(0, 3).map(order => (
+                          <div key={order._id} className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+                            <div className="flex items-center gap-5">
+                              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                                <CheckCircle size={24} />
+                              </div>
+                              <div>
+                                <h5 className="font-black text-slate-900 text-sm">{order.restaurant?.name || 'Restaurant Order'}</h5>
+                                <p className="text-[10px] text-slate-400 font-black uppercase">Delivered to {order.customer?.name || 'Customer'} • ₹{order.deliveryFee || 0} earned</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-slate-900">₹{order.total}</p>
+                              <p className="text-[9px] text-slate-400 font-bold mt-0.5">{new Date(order.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ────── AVAILABLE ORDERS ────── */}
               {activeTab === 'available' && (
@@ -333,56 +457,41 @@ export default function RiderDashboard() {
                     </div>
                     <p className="text-slate-900 font-black text-xl mb-2">No orders available right now...</p>
                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-8">New orders will appear here automatically</p>
-                    <button
-                      onClick={fetchData}
-                      className="px-8 py-4 bg-white border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-orange-200 hover:text-orange-600 transition-all shadow-sm"
-                    >
+                    <button onClick={fetchData} className="px-8 py-4 bg-white border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-orange-200 hover:text-orange-600 transition-all shadow-sm">
                       Refresh
                     </button>
                   </div>
                 ) : (
-                  availableOrders.map((order) => (
-                    <div key={order._id} className="group p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all flex flex-col md:flex-row justify-between items-center gap-6">
-                      <div className="flex items-center gap-6 w-full md:w-auto">
-                        <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0">
-                          🍔
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-1">
-                            <p className="font-black text-slate-900 text-lg">Order #{(order.orderId || order._id)?.slice(-6)}</p>
-                            <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusBadge(order.orderStatus)}`}>
-                              {order.orderStatus?.replace('_', ' ')}
-                            </span>
-                          </div>
-                          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
-                            {order.restaurant?.name || order.restaurantName} • <span className="text-emerald-600">₹{order.deliveryFee} fee</span>
-                          </p>
-                          <div className="mt-3 space-y-2">
-                            <div className="flex items-start gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                              <Package size={12} className="text-orange-400 shrink-0 mt-0.5" />
-                              <span>Pickup: {order.restaurant?.location?.address || order.restaurantAddress || 'Restaurant'}</span>
+                  <div className="grid gap-6">
+                    {availableOrders.map((order) => (
+                      <div key={order._id} className="group p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex items-center gap-6 w-full md:w-auto">
+                          <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0">🍔</div>
+                          <div>
+                            <div className="flex items-center gap-3 mb-1">
+                              <p className="font-black text-slate-900 text-lg">Order #{(order.orderId || order._id)?.slice(-6)}</p>
+                              <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusBadge(order.orderStatus)}`}>{order.orderStatus?.replace('_', ' ')}</span>
                             </div>
-                            <div className="flex items-start gap-2 text-[10px] font-bold text-slate-600 uppercase tracking-tight">
-                              <MapPin size={12} className="text-blue-500 shrink-0 mt-0.5" />
-                              <span>Drop: {order.deliveryAddress?.street || order.deliveryAddress?.area || 'Customer Address'}</span>
+                            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">{order.restaurant?.name || order.restaurantName} • <span className="text-emerald-600">₹{order.deliveryFee} fee</span></p>
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-start gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                <Package size={12} className="text-orange-400 shrink-0 mt-0.5" />
+                                <span>Pickup: {order.restaurant?.location?.address || order.restaurantAddress || 'Restaurant'}</span>
+                              </div>
+                              <div className="flex items-start gap-2 text-[10px] font-bold text-slate-600 uppercase tracking-tight">
+                                <MapPin size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                                <span>Drop: {order.deliveryAddress?.street || order.deliveryAddress?.area || 'Customer Address'}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
+                        <div className="flex gap-3 w-full md:w-auto">
+                          <button onClick={() => handleAcceptOrder(order._id)} className="flex-1 md:flex-none px-8 py-4 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 active:scale-95">✅ Accept Order</button>
+                          <Link to={`/order/${order._id}`} className="flex-1 md:flex-none px-6 py-4 bg-white border border-slate-200 rounded-xl text-slate-900 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all text-center">View</Link>
+                        </div>
                       </div>
-                      <div className="flex gap-3 w-full md:w-auto">
-                        <button
-                          id={`accept-order-${order._id}`}
-                          onClick={() => handleAcceptOrder(order._id)}
-                          className="flex-1 md:flex-none px-8 py-4 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 active:scale-95"
-                        >
-                          ✅ Accept Order
-                        </button>
-                        <Link to={`/order/${order._id}`} className="flex-1 md:flex-none px-6 py-4 bg-white border border-slate-200 rounded-xl text-slate-900 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all text-center">
-                          View
-                        </Link>
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )
               )}
 
@@ -391,58 +500,45 @@ export default function RiderDashboard() {
                 activeDeliveries.length === 0 ? (
                   <div className="text-center py-16 text-slate-400 font-bold">No active deliveries right now.</div>
                 ) : (
-                  activeDeliveries.map((order) => (
-                    <div key={order._id} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div className="flex items-center gap-5">
-                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg ${order.orderStatus === 'on_the_way' ? 'bg-indigo-500 animate-pulse' : 'bg-orange-500'}`}>
-                            {order.orderStatus === 'on_the_way' ? <Truck size={24} /> : <Package size={24} />}
+                  <div className="grid gap-6">
+                    {activeDeliveries.map((order) => (
+                      <div key={order._id} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                          <div className="flex items-center gap-5">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg ${order.orderStatus === 'on_the_way' ? 'bg-indigo-500 animate-pulse' : 'bg-orange-500'}`}>
+                              {order.orderStatus === 'on_the_way' ? <Truck size={24} /> : <Package size={24} />}
+                            </div>
+                            <div>
+                              <p className="font-black text-slate-900 leading-tight">Order #{(order.orderId || order._id)?.slice(-6)}</p>
+                              <p className="text-slate-400 font-black text-[9px] uppercase tracking-widest mt-1 flex items-center gap-1"><UserIcon size={10} className="text-slate-300" /> {order.customer?.name || 'Customer'}</p>
+                              <span className={`mt-2 inline-block px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusBadge(order.orderStatus)}`}>{order.orderStatus?.replace('_', ' ')}</span>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-black text-slate-900 leading-tight">Order #{(order.orderId || order._id)?.slice(-6)}</p>
-                            <p className="text-slate-400 font-black text-[9px] uppercase tracking-widest mt-1 flex items-center gap-1">
-                              <UserIcon size={10} className="text-slate-300" /> {order.customer?.name || 'Customer'}
-                            </p>
-                            <span className={`mt-2 inline-block px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusBadge(order.orderStatus)}`}>
-                              {order.orderStatus?.replace('_', ' ')}
-                            </span>
+                          <div className="flex-1 px-4 space-y-1.5 hidden lg:block">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Package size={12} /> From: {order.restaurant?.location?.address || 'Pickup'}</p>
+                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-2"><MapPin size={12} className="text-blue-500" /> To: {order.deliveryAddress?.street || 'Destination'}</p>
                           </div>
-                        </div>
-
-                        <div className="flex-1 px-4 space-y-1.5 hidden lg:block">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Package size={12} /> From: {order.restaurant?.location?.address || 'Pickup'}
-                          </p>
-                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-2">
-                            <MapPin size={12} className="text-blue-500" /> To: {order.deliveryAddress?.street || 'Destination'}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3 flex-wrap justify-end">
-                          {/* Status progression buttons */}
-                          {(order.orderStatus === 'confirmed' || order.orderStatus === 'ready' || order.orderStatus === 'preparing') && (
-                            <button
-                              onClick={() => handleStatusUpdate(order._id, 'on_the_way')}
-                              className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-                            >
-                              🛵 {order.orderStatus === 'ready' ? 'Start Delivery' : 'Picked Up'}
-                            </button>
-                          )}
-                          {order.orderStatus === 'on_the_way' && (
-                            <button
-                              onClick={() => handleStatusUpdate(order._id, 'delivered')}
-                              className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 animate-pulse"
-                            >
-                              ✅ Mark Delivered
-                            </button>
-                          )}
-                          <Link to={`/order/${order._id}`} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all">
-                            Details
-                          </Link>
+                          <div className="flex items-center gap-3 flex-wrap justify-end">
+                            {(order.orderStatus === 'confirmed' || order.orderStatus === 'preparing') && (
+                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                                Waiting for Kitchen
+                              </div>
+                            )}
+                            {order.orderStatus === 'ready' && (
+                              <button onClick={() => handleStatusUpdate(order._id, 'picked_up')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">🛵 Confirm Pickup</button>
+                            )}
+                            {order.orderStatus === 'picked_up' && (
+                              <button onClick={() => handleStatusUpdate(order._id, 'on_the_way')} className="px-6 py-3 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-100">🚚 Start Journey</button>
+                            )}
+                            {(order.orderStatus === 'picked_up' || order.orderStatus === 'on_the_way') && (
+                              <button onClick={() => handleStatusUpdate(order._id, 'delivered')} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100">✅ Mark Delivered</button>
+                            )}
+                            <Link to={`/order/${order._id}`} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all">Details</Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )
               )}
 
@@ -450,37 +546,31 @@ export default function RiderDashboard() {
               {activeTab === 'completed' && (
                 completedDeliveries.length === 0 ? (
                   <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
-                    <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
-                      <Clock className="text-slate-300" size={32} />
-                    </div>
+                    <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm"><Clock className="text-slate-300" size={32} /></div>
                     <p className="text-slate-900 font-black text-xl mb-2">No completed tasks yet</p>
                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Your successfully delivered orders will appear here</p>
                   </div>
                 ) : (
-                  completedDeliveries.map((order) => (
-                    <div key={order._id} className="group p-6 bg-slate-50/50 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all flex flex-col md:flex-row justify-between items-center gap-6">
-                      <div className="flex items-center gap-6 w-full md:w-auto">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0 ${order.orderStatus === 'delivered' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500'}`}>
-                          {order.orderStatus === 'delivered' ? <CheckCircle size={28} /> : '×'}
+                  <div className="grid gap-4">
+                    {completedDeliveries.map((order) => (
+                      <div key={order._id} className="group p-6 bg-slate-50/50 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex items-center gap-6 w-full md:w-auto">
+                          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0 ${order.orderStatus === 'delivered' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500'}`}>{order.orderStatus === 'delivered' ? <CheckCircle size={28} /> : '×'}</div>
+                          <div>
+                            <p className="font-black text-slate-900 text-lg">Order #{(order.orderId || order._id)?.slice(-6)}</p>
+                            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mt-1">{order.restaurant?.name} • <span className="text-slate-400">{new Date(order.updatedAt).toLocaleDateString()} at {new Date(order.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-black text-slate-900 text-lg">Order #{(order.orderId || order._id)?.slice(-6)}</p>
-                          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mt-1">
-                            {order.restaurant?.name} • <span className="text-slate-400">{new Date(order.updatedAt).toLocaleDateString()} at {new Date(order.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </p>
+                        <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
+                          <div className="text-right">
+                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-1">Fee Earned</p>
+                            <p className={`text-xl font-black ${order.orderStatus === 'delivered' ? 'text-emerald-600' : 'text-slate-400 line-through'}`}>₹{order.deliveryFee}</p>
+                          </div>
+                          <Link to={`/order/${order._id}`} className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">View Details</Link>
                         </div>
                       </div>
-                      <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
-                        <div className="text-right">
-                          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-1">Fee Earned</p>
-                          <p className={`text-xl font-black ${order.orderStatus === 'delivered' ? 'text-emerald-600' : 'text-slate-400 line-through'}`}>₹{order.deliveryFee}</p>
-                        </div>
-                        <Link to={`/order/${order._id}`} className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">
-                          View Details
-                        </Link>
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )
               )}
 
@@ -491,39 +581,22 @@ export default function RiderDashboard() {
                     <div className="relative z-10 max-w-lg">
                       <h3 className="text-3xl font-black tracking-tight mb-4">Rider <span className="text-orange-500">Support</span></h3>
                       <p className="text-slate-400 font-bold mb-8 leading-relaxed">Report delivery issues, payment discrepancies, or app bugs. Our team is here to help you 24/7.</p>
-                      <button
-                        onClick={() => setShowSupportForm(!showSupportForm)}
-                        className="bg-white text-slate-900 px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition-all"
-                      >
-                        {showSupportForm ? 'View Tickets' : 'Raise New Issue'}
-                      </button>
+                      <button onClick={() => setShowSupportForm(!showSupportForm)} className="bg-white text-slate-900 px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition-all">{showSupportForm ? 'View Tickets' : 'Raise New Issue'}</button>
                     </div>
                   </div>
 
                   {showSupportForm ? (
                     <div className="bg-slate-50 rounded-[2.5rem] p-10 border border-slate-100 max-w-2xl mx-auto w-full">
-                      <h4 className="font-black text-xl mb-8 flex items-center gap-4 text-slate-900">
-                        <AlertCircle className="text-orange-500" /> New Support Ticket
-                      </h4>
+                      <h4 className="font-black text-xl mb-8 flex items-center gap-4 text-slate-900"><AlertCircle className="text-orange-500" /> New Support Ticket</h4>
                       <form onSubmit={handleSupportSubmit} className="space-y-6">
                         <div>
                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Issue Subject</label>
-                          <input
-                            required
-                            className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
-                            placeholder="e.g. Delivery delay, App crashing"
-                            value={supportForm.subject}
-                            onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })}
-                          />
+                          <input required className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all" placeholder="e.g. Delivery delay, App crashing" value={supportForm.subject} onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })} />
                         </div>
                         <div className="grid grid-cols-2 gap-6">
                           <div>
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Priority</label>
-                            <select
-                              className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none"
-                              value={supportForm.priority}
-                              onChange={e => setSupportForm({ ...supportForm, priority: e.target.value })}
-                            >
+                            <select className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none" value={supportForm.priority} onChange={e => setSupportForm({ ...supportForm, priority: e.target.value })}>
                               <option value="low">Low</option>
                               <option value="medium">Medium</option>
                               <option value="high">High</option>
@@ -532,11 +605,7 @@ export default function RiderDashboard() {
                           </div>
                           <div>
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Related OrderID (if any)</label>
-                            <select
-                              className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none"
-                              value={supportForm.orderId}
-                              onChange={e => setSupportForm({ ...supportForm, orderId: e.target.value })}
-                            >
+                            <select className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none" value={supportForm.orderId} onChange={e => setSupportForm({ ...supportForm, orderId: e.target.value })}>
                               <option value="">None</option>
                               {activeDeliveries.concat(completedDeliveries.slice(0, 5)).map(o => (
                                 <option key={o._id} value={o._id}>#{o.orderId?.slice(-6) || o._id.slice(-6)} - ₹{o.total}</option>
@@ -546,32 +615,16 @@ export default function RiderDashboard() {
                         </div>
                         <div>
                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Detailed Message</label>
-                          <textarea
-                            required
-                            rows={4}
-                            className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all resize-none"
-                            placeholder="Explain the problem as clearly as possible..."
-                            value={supportForm.message}
-                            onChange={e => setSupportForm({ ...supportForm, message: e.target.value })}
-                          />
+                          <textarea required rows={4} className="w-full bg-white border border-slate-200 py-4 px-6 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all resize-none" placeholder="Explain the problem as clearly as possible..." value={supportForm.message} onChange={e => setSupportForm({ ...supportForm, message: e.target.value })} />
                         </div>
-                        <button
-                          disabled={submittingSupport}
-                          className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl disabled:opacity-50"
-                        >
-                          {submittingSupport ? 'Submitting...' : 'Send to Admin'}
-                        </button>
+                        <button disabled={submittingSupport} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl disabled:opacity-50">{submittingSupport ? 'Submitting...' : 'Send to Admin'}</button>
                       </form>
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <h4 className="font-black text-xl text-slate-900 flex items-center gap-4">
-                        Your Recent Support Requests <span className="text-slate-300 text-sm">({supportTickets.length})</span>
-                      </h4>
+                      <h4 className="font-black text-xl text-slate-900 flex items-center gap-4">Your Recent Support Requests <span>({supportTickets.length})</span></h4>
                       {supportTickets.length === 0 ? (
-                        <div className="bg-slate-50 rounded-[2.5rem] p-16 text-center border border-dashed border-slate-200 text-slate-400 font-bold">
-                          No issues reported yet.
-                        </div>
+                        <div className="bg-slate-50 rounded-[2.5rem] p-16 text-center border border-dashed border-slate-200 text-slate-400 font-bold">No issues reported yet.</div>
                       ) : (
                         <div className="space-y-4">
                           {supportTickets.map(ticket => (
@@ -579,8 +632,7 @@ export default function RiderDashboard() {
                               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                                 <div className="flex items-center gap-6">
                                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black uppercase text-[10px] ${ticket.status === 'open' ? 'bg-amber-100 text-amber-600' :
-                                    ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
-                                    }`}>
+                                    ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                                     {ticket.status}
                                   </div>
                                   <div>

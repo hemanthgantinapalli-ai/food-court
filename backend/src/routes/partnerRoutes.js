@@ -19,34 +19,51 @@ router.get('/my-restaurants', authenticateUser, authorizeRole('restaurant'), asy
 // ── Get partner dashboard stats ────────────────────────────────────
 router.get('/stats', authenticateUser, authorizeRole('restaurant'), async (req, res) => {
     try {
+        const PARTNER_SHARE = 0.80;   // 80% goes to partner
+        const PLATFORM_SHARE = 0.20;  // 20% platform commission
+
         const restaurants = await Restaurant.find({ owner: req.userId });
         const restaurantIds = restaurants.map(r => r._id);
 
-        const totalOrders = await Order.countDocuments({ restaurant: { $in: restaurantIds } });
-        const totalRevenue = await Order.aggregate([
-            { $match: { restaurant: { $in: restaurantIds }, paymentStatus: 'completed' } },
-            { $group: { _id: null, total: { $sum: '$total' } } },
+        const [totalOrders, completedOrders, cancelledOrders, revenueAgg, totalMenuItems, activeOrders] = await Promise.all([
+            Order.countDocuments({ restaurant: { $in: restaurantIds } }),
+            Order.countDocuments({ restaurant: { $in: restaurantIds }, orderStatus: 'delivered' }),
+            Order.countDocuments({ restaurant: { $in: restaurantIds }, orderStatus: 'cancelled' }),
+            Order.aggregate([
+                { $match: { restaurant: { $in: restaurantIds }, orderStatus: 'delivered' } },
+                { $group: { _id: null, total: { $sum: '$total' } } },
+            ]),
+            MenuItem.countDocuments({ restaurant: { $in: restaurantIds } }),
+            Order.countDocuments({
+                restaurant: { $in: restaurantIds },
+                orderStatus: { $nin: ['delivered', 'cancelled'] },
+            }),
         ]);
-        const totalMenuItems = await MenuItem.countDocuments({ restaurant: { $in: restaurantIds } });
-        const activeOrders = await Order.countDocuments({
-            restaurant: { $in: restaurantIds },
-            orderStatus: { $nin: ['delivered', 'cancelled'] },
-        });
+
+        const grossRevenue = revenueAgg[0]?.total || 0;
+        const partnerEarnings = Math.round(grossRevenue * PARTNER_SHARE);
+        const platformCommission = Math.round(grossRevenue * PLATFORM_SHARE);
 
         res.status(200).json({
             success: true,
             data: {
                 totalRestaurants: restaurants.length,
                 totalOrders,
-                totalRevenue: totalRevenue[0]?.total || 0,
-                totalMenuItems,
+                completedOrders,
+                cancelledOrders,
                 activeOrders,
+                grossRevenue,
+                partnerEarnings,
+                platformCommission,
+                totalMenuItems,
+                partnerSharePercent: PARTNER_SHARE * 100,
             },
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+
 
 // ── Get orders for partner's restaurants ───────────────────────────
 router.get('/orders', authenticateUser, authorizeRole('restaurant'), async (req, res) => {

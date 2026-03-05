@@ -20,7 +20,6 @@ const menuItemSchema = new mongoose.Schema(
     discountPrice: Number,
     category: {
       type: String,
-      enum: ['Starters', 'Mains', 'Desserts', 'Beverages', 'Pizza', 'Pasta', 'Sushi', 'Bowls', 'Groceries', 'Other'],
       default: 'Other',
     },
     cuisine: String,

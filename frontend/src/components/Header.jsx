@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown, LayoutDashboard, Bike, FileText } from 'lucide-react';
+import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown, LayoutDashboard, Bike, FileText, MapPin } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
 
@@ -18,6 +18,17 @@ export default function Header() {
 
   const { user, logout } = useAuthStore();
 
+  const [userLocation, setUserLocation] = useState(localStorage.getItem('userLocation') || 'Select Location');
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  const POPULAR_CITIES = ['Hyderabad', 'New Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Pune'];
+
+  useEffect(() => {
+    localStorage.setItem('userLocation', userLocation);
+    // Dispatch a custom event to notify other components (like Home.jsx) that location changed
+    window.dispatchEvent(new Event('locationChanged'));
+  }, [userLocation]);
+
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
@@ -27,6 +38,7 @@ export default function Header() {
   useEffect(() => {
     setMobileOpen(false);
     setUserMenuOpen(false);
+    setShowLocationPicker(false);
   }, [location]);
 
   const isHomePage = location.pathname === '/';
@@ -41,14 +53,72 @@ export default function Header() {
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
-            <span className="text-white font-black text-sm">FC</span>
+        <div className="flex items-center gap-6">
+          <Link to="/" className="flex items-center gap-2 shrink-0">
+            <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+              <span className="text-white font-black text-sm">FC</span>
+            </div>
+            <span className={`text-xl font-black tracking-tight ${isScrolled || !isHomePage ? 'text-slate-900' : 'text-white'}`}>
+              Food<span className="text-orange-500">Court</span>
+            </span>
+          </Link>
+
+          {/* Location Picker */}
+          <div className="relative">
+            <div
+              onClick={() => setShowLocationPicker(!showLocationPicker)}
+              className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer hover:bg-slate-100 transition-all group ${isScrolled || !isHomePage ? 'text-slate-600' : 'text-white/80'}`}
+            >
+              <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500 transition-all">
+                <MapPin size={16} className={`${isScrolled || !isHomePage ? 'text-orange-600' : 'text-orange-400'} group-hover:text-white`} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Deliver to</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-black truncate max-w-[120px]">{userLocation}</span>
+                  <ChevronDown size={12} className={`text-orange-500 transition-transform ${showLocationPicker ? 'rotate-180' : ''}`} />
+                </div>
+              </div>
+            </div>
+
+            {showLocationPicker && (
+              <div className="absolute top-full left-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 z-[60] animate-fade-down">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Popular Cities</h4>
+                <div className="grid grid-cols-1 gap-1">
+                  {POPULAR_CITIES.map(city => (
+                    <button
+                      key={city}
+                      onClick={() => {
+                        setUserLocation(city);
+                        setShowLocationPicker(false);
+                        if (!isHomePage) navigate('/');
+                        window.location.reload(); // Quick way to refresh data filtering
+                      }}
+                      className={`text-left px-4 py-3 rounded-xl text-xs font-bold transition-all ${userLocation === city ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      {city}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-4 pt-4 border-t border-slate-50">
+                  <input
+                    type="text"
+                    placeholder="Search other city..."
+                    className="w-full bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg text-xs font-bold outline-none focus:border-orange-200"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setUserLocation(e.target.value);
+                        setShowLocationPicker(false);
+                        if (!isHomePage) navigate('/');
+                        window.location.reload();
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-          <span className={`text-xl font-black tracking-tight ${isScrolled || !isHomePage ? 'text-slate-900' : 'text-white'}`}>
-            Food<span className="text-orange-500">Court</span>
-          </span>
-        </Link>
+        </div>
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">

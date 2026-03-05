@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Search, MapPin, Star, Clock, Truck, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const CUISINE_TAGS = [
   { label: '🍕 Pizza', filter: 'Pizza' },
@@ -14,7 +15,35 @@ const CUISINE_TAGS = [
 const Hero = ({ onFilterChange }) => {
   const [activeTag, setActiveTag] = useState('🍕 Pizza');
   const [searchVal, setSearchVal] = useState('');
+  const [searchResults, setSearchResults] = useState({ restaurants: [], items: [] });
+  const [showResults, setShowResults] = useState(false);
   const navigate = useNavigate();
+  const searchTimeout = useRef(null);
+
+  const fetchResults = async (q) => {
+    if (!q.trim()) {
+      setSearchResults({ restaurants: [], items: [] });
+      return;
+    }
+    try {
+      const { data } = await axios.get(`/api/restaurants/search/global?q=${q}`);
+      setSearchResults({
+        restaurants: data.restaurants || [],
+        items: data.items || []
+      });
+    } catch (err) {
+      console.error("Search failed");
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setSearchVal(val);
+    setShowResults(true);
+
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => fetchResults(val), 300);
+  };
 
   const handleTagClick = (tag) => {
     setActiveTag(tag.label);
@@ -81,10 +110,78 @@ const Hero = ({ onFilterChange }) => {
               type="text"
               placeholder="Search cuisines, restaurants..."
               value={searchVal}
-              onChange={(e) => setSearchVal(e.target.value)}
+              onChange={handleInputChange}
+              onFocus={() => setShowResults(true)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-14 pr-44 py-5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-slate-500 font-medium outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all text-base"
             />
+
+            {/* Live Search Results Overlay */}
+            {showResults && (searchVal.trim() !== '') && (
+              <div className="absolute top-full left-0 right-0 mt-4 bg-white rounded-[2rem] shadow-2xl border border-slate-100 p-8 z-[100] animate-fade-up max-h-[60vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Search Results for "{searchVal}"</h4>
+                  <button onClick={() => setShowResults(false)} className="text-slate-400 hover:text-slate-900 font-black text-[10px] uppercase tracking-widest">Close ✕</button>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-10">
+                  {/* Restaurants Column */}
+                  <div>
+                    <h5 className="font-black text-sm text-slate-900 mb-4 flex items-center gap-2">
+                      <Truck size={16} className="text-orange-500" /> Kitchens
+                    </h5>
+                    <div className="space-y-4">
+                      {searchResults.restaurants.length > 0 ? (
+                        searchResults.restaurants.map(r => (
+                          <div
+                            key={r._id}
+                            onClick={() => navigate(`/restaurant/${r._id}`)}
+                            className="group flex items-center gap-4 p-3 hover:bg-orange-50 rounded-2xl transition-all cursor-pointer"
+                          >
+                            <img src={r.image} className="w-14 h-14 rounded-xl object-cover" alt="" />
+                            <div>
+                              <p className="font-black text-slate-900 group-hover:text-orange-600 transition-colors">{r.name}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{r.cuisines?.join(', ')}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : <p className="text-xs text-slate-400 italic">No kitchens found</p>}
+                    </div>
+                  </div>
+
+                  {/* Dishes Column */}
+                  <div>
+                    <h5 className="font-black text-sm text-slate-900 mb-4 flex items-center gap-2">
+                      <MapPin size={16} className="text-red-500" /> Top Dishes
+                    </h5>
+                    <div className="space-y-4">
+                      {searchResults.items.length > 0 ? (
+                        searchResults.items.map(item => (
+                          <div
+                            key={item._id}
+                            onClick={() => navigate(`/restaurant/${item.restaurant?._id || item.restaurant}`)}
+                            className="group flex items-center gap-4 p-3 hover:bg-red-50 rounded-2xl transition-all cursor-pointer"
+                          >
+                            <img src={item.image} className="w-14 h-14 rounded-xl object-cover" alt="" />
+                            <div>
+                              <p className="font-black text-slate-900 group-hover:text-red-600 transition-colors">{item.name}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">at {item.restaurant?.name || 'Kitchen'}</p>
+                              <p className="text-[10px] text-emerald-600 font-black">₹{item.price}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : <p className="text-xs text-slate-400 italic">No dishes found</p>}
+                    </div>
+                  </div>
+                </div>
+
+                {searchResults.restaurants.length === 0 && searchResults.items.length === 0 && (
+                  <div className="text-center py-10">
+                    <p className="text-slate-400 font-bold">No results found for "{searchVal}"</p>
+                  </div>
+                )}
+              </div>
+            )}
             <button
               onClick={handleSearch}
               className="absolute right-2 top-2 bottom-2 px-8 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-sm uppercase tracking-widest hover:opacity-90 transition-all shadow-lg active:scale-95"
@@ -100,8 +197,8 @@ const Hero = ({ onFilterChange }) => {
                 key={tag.label}
                 onClick={() => handleTagClick(tag)}
                 className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTag === tag.label
-                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30'
-                    : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-white border border-white/10'
+                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30'
+                  : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-white border border-white/10'
                   }`}
               >
                 {tag.label}

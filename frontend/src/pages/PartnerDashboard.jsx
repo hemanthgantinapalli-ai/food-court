@@ -4,6 +4,7 @@ import { Store, ShoppingCart, TrendingUp, UtensilsCrossed, ArrowUpRight, Bell, P
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
+import { socket, connectSocket } from '../api/socket';
 
 const STATUS_COLORS = {
     placed: 'bg-yellow-100 text-yellow-700',
@@ -24,6 +25,8 @@ export default function PartnerDashboard() {
     const [menuItems, setMenuItems] = useState([]);
     const [restaurants, setRestaurants] = useState([]);
     const [notifications, setNotifications] = useState([]);
+    const [supportRequests, setSupportRequests] = useState([]);
+    const [supportForm, setSupportForm] = useState({ subject: '', message: '', priority: 'medium' });
 
     const [formLoading, setFormLoading] = useState(false);
     const [showMenuForm, setShowMenuForm] = useState(false);
@@ -32,7 +35,7 @@ export default function PartnerDashboard() {
 
     const [editingRestaurantId, setEditingRestaurantId] = useState(null);
     const [showRestaurantForm, setShowRestaurantForm] = useState(false);
-    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', openTime: '10:00', closeTime: '22:00', isOpen: true });
+    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', openTime: '10:00', closeTime: '22:00', isOpen: true, cuisines: [], city: '' });
 
     const addNotif = (msg, type = 'info') => {
         const id = Date.now();
@@ -43,6 +46,25 @@ export default function PartnerDashboard() {
     useEffect(() => {
         if (user?.role === 'restaurant') {
             fetchData();
+
+            connectSocket(user._id);
+            const handleNewOrder = (newOrder) => {
+                setOrdersList((prev) => {
+                    if (prev.some(o => o._id === newOrder._id)) return prev;
+                    return [newOrder, ...prev];
+                });
+                addNotif(`🔔 New Order Received! #${(newOrder.orderId || newOrder._id)?.slice(-8)}`, 'info');
+                try {
+                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                    audio.play().catch(e => console.log("Audio play blocked", e));
+                } catch (e) { }
+            };
+
+            socket.on('new_restaurant_order', handleNewOrder);
+
+            return () => {
+                socket.off('new_restaurant_order', handleNewOrder);
+            };
         }
     }, [user]);
 
@@ -50,16 +72,19 @@ export default function PartnerDashboard() {
         const isInitialLoad = !stats;
         if (isInitialLoad) setLoading(true);
         try {
-            const [statsRes, ordersRes, menuRes, restRes] = await Promise.all([
+            const [statsRes, ordersRes, menuRes, restRes, supportRes] = await Promise.all([
                 API.get('/partner/stats'),
                 API.get('/partner/orders'),
                 API.get('/partner/menu'),
                 API.get('/partner/my-restaurants'),
+                API.get('/support/my-requests'),
             ]);
             setStats(statsRes.data.data);
             setOrdersList(ordersRes.data.data);
             setMenuItems(menuRes.data.data);
             setRestaurants(restRes.data.data);
+            setSupportRequests(supportRes.data.data || []);
+
         } catch (error) {
             console.error('Error fetching partner data:', error);
         } finally {
@@ -69,7 +94,7 @@ export default function PartnerDashboard() {
 
     const handleStatusUpdate = async (orderId, status) => {
         try {
-            await API.put(`/partner/orders/${orderId}/status`, { status });
+            await API.put(`/orders/${orderId}/status`, { status });
             setOrdersList(prev => prev.map(o => o._id === orderId ? { ...o, orderStatus: status } : o));
             addNotif(`✅ Order status updated to ${status}`, 'info');
         } catch (err) {
@@ -120,6 +145,9 @@ export default function PartnerDashboard() {
             if (payload.openTime && payload.closeTime) {
                 payload.openingHours = { open: payload.openTime, close: payload.closeTime };
             }
+            if (payload.city) {
+                payload.location = { ...payload.location, city: payload.city };
+            }
             if (editingRestaurantId) {
                 const response = await API.put(`/restaurants/${editingRestaurantId}`, payload);
                 setRestaurants(restaurants.map(r => r._id === editingRestaurantId ? response.data.data : r));
@@ -157,10 +185,10 @@ export default function PartnerDashboard() {
     const activeOrders = ordersList.filter(o => !['delivered', 'cancelled'].includes(o.orderStatus));
 
     const statCards = [
-        { label: 'Total Revenue', value: `₹${stats?.totalRevenue?.toLocaleString() || 0}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-        { label: 'Total Orders', value: stats?.totalOrders || 0, icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Live Orders', value: activeOrders.length, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
-        { label: 'Menu Items', value: stats?.totalMenuItems || 0, icon: UtensilsCrossed, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { label: 'Your Earnings (80%)', value: `₹${stats?.partnerEarnings?.toLocaleString() || 0}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', note: 'After 20% platform fee' },
+        { label: 'Total Orders', value: stats?.totalOrders || 0, icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50', note: `${stats?.completedOrders || 0} completed` },
+        { label: 'Live Orders', value: activeOrders.length, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50', note: 'Needs your attention' },
+        { label: 'Menu Items', value: stats?.totalMenuItems || 0, icon: UtensilsCrossed, color: 'text-purple-600', bg: 'bg-purple-50', note: 'Active dishes' },
     ];
 
     return (
@@ -207,6 +235,7 @@ export default function PartnerDashboard() {
                                 <div>
                                     <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-2">{stat.label}</p>
                                     <p className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-emerald-600 transition-colors">{stat.value}</p>
+                                    {stat.note && <p className="text-[10px] text-slate-400 font-bold mt-1">{stat.note}</p>}
                                 </div>
                                 <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
                                     <stat.icon size={28} />
@@ -224,6 +253,7 @@ export default function PartnerDashboard() {
                             { id: 'orders', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
                             { id: 'menu', label: 'Menu Items' },
                             { id: 'restaurants', label: 'My Restaurants' },
+                            { id: 'help', label: 'Help Desk' },
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -275,6 +305,98 @@ export default function PartnerDashboard() {
                                                 <ArrowUpRight size={14} className="text-emerald-500 group-hover:text-white" />
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Business Insights Section */}
+                                <div className="grid lg:grid-cols-2 gap-8">
+                                    {/* Revenue Split Card */}
+                                    <div className="p-10 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm group">
+                                        <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-8">Revenue Breakdown</h4>
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 flex justify-between items-center group/card">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Your Share (80%)</p>
+                                                    <p className="text-3xl font-black text-emerald-700">₹{stats?.partnerEarnings?.toLocaleString() || 0}</p>
+                                                    <p className="text-xs text-emerald-500 font-bold mt-1">Direct payout to your wallet</p>
+                                                </div>
+                                                <div className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center group-hover/card:rotate-12 transition-transform shadow-lg shadow-emerald-100">
+                                                    <TrendingUp size={20} />
+                                                </div>
+                                            </div>
+                                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center group/card">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Platform Fee (20%)</p>
+                                                    <p className="text-3xl font-black text-slate-700">₹{stats?.platformCommission?.toLocaleString() || 0}</p>
+                                                    <p className="text-xs text-slate-400 font-bold mt-1">Platform maintainance fee</p>
+                                                </div>
+                                                <div className="w-12 h-12 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center group-hover/card:-rotate-12 transition-transform">
+                                                    <Package size={20} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-8 pt-8 border-t border-slate-50">
+                                            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                                                <span>Net Revenue Growth</span>
+                                                <span className="text-emerald-600">+12.5%</span>
+                                            </div>
+                                            <div className="h-3 bg-slate-50 rounded-full overflow-hidden">
+                                                <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000 group-hover:w-[80%]" style={{ width: '80%' }} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Popular Items Card */}
+                                    <div className="p-10 bg-white rounded-[2.5rem] border border-white shadow-sm overflow-hidden relative group">
+                                        <div className="relative z-10">
+                                            <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-8">Top Selling Dishes</h4>
+                                            <div className="space-y-6">
+                                                {menuItems.length > 0 ? (
+                                                    menuItems.slice(0, 3).map((item, i) => (
+                                                        <div key={item._id} className="flex justify-between items-center group/item">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm">
+                                                                    <img src={item.image || `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80`} className="w-full h-full object-cover group-hover/item:scale-110 transition-transform" alt="" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-black text-slate-900 text-sm">{item.name}</p>
+                                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.category}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="font-black text-slate-900 text-sm">₹{item.price}</p>
+                                                                <div className="w-20 bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">
+                                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${90 - i * 20}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="py-10 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">No menu items found</div>
+                                                )}
+                                            </div>
+
+                                            <button onClick={() => setActiveTab('menu')} className="w-full mt-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200">
+                                                Go to Menu Manager
+                                            </button>
+                                        </div>
+                                        <UtensilsCrossed size={180} className="absolute -bottom-10 -right-10 text-slate-50 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+                                    </div>
+                                </div>
+
+                                {/* Order Stats */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="p-5 bg-blue-50 border border-blue-100 rounded-2xl text-center">
+                                        <p className="text-2xl font-black text-blue-700">{stats?.totalOrders || 0}</p>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-500 mt-1">Total Orders</p>
+                                    </div>
+                                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl text-center">
+                                        <p className="text-2xl font-black text-emerald-700">{stats?.completedOrders || 0}</p>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mt-1">Completed</p>
+                                    </div>
+                                    <div className="p-5 bg-rose-50 border border-rose-100 rounded-2xl text-center">
+                                        <p className="text-2xl font-black text-rose-700">{stats?.cancelledOrders || 0}</p>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-rose-500 mt-1">Cancelled</p>
                                     </div>
                                 </div>
 
@@ -467,9 +589,22 @@ export default function PartnerDashboard() {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Category</label>
-                                                <select className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.category} onChange={e => setMenuForm({ ...menuForm, category: e.target.value })}>
-                                                    <option>Starters</option><option>Mains</option><option>Desserts</option><option>Beverages</option>
-                                                </select>
+                                                <input
+                                                    list="menu-categories"
+                                                    className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none"
+                                                    value={menuForm.category}
+                                                    onChange={e => setMenuForm({ ...menuForm, category: e.target.value })}
+                                                    placeholder="Type or select category..."
+                                                />
+                                                <datalist id="menu-categories">
+                                                    {Array.from(new Set(menuItems.map(i => i.category))).map(cat => (
+                                                        <option key={cat} value={cat} />
+                                                    ))}
+                                                    <option value="Starters" />
+                                                    <option value="Mains" />
+                                                    <option value="Desserts" />
+                                                    <option value="Beverages" />
+                                                </datalist>
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Image URL</label>
@@ -542,6 +677,96 @@ export default function PartnerDashboard() {
                             </div>
                         )}
 
+                        {/* ─── HELP DESK ─── */}
+                        {activeTab === 'help' && (
+                            <div className="space-y-8">
+                                <div className="grid lg:grid-cols-3 gap-8">
+                                    {/* Create Request Form */}
+                                    <div className="lg:col-span-1 p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl">
+                                        <h3 className="text-xl font-black mb-1">New Support Request</h3>
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-8">Send a message to admin</p>
+
+                                        <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            setFormLoading(true);
+                                            try {
+                                                const res = await API.post('/support/create', { ...supportForm, role: 'restaurant' });
+                                                setSupportRequests([res.data.data, ...supportRequests]);
+                                                setSupportForm({ subject: '', message: '', priority: 'medium' });
+                                                addNotif('📨 Support request sent to admin');
+                                            } catch (err) {
+                                                addNotif('Failed to send request', 'error');
+                                            } finally {
+                                                setFormLoading(false);
+                                            }
+                                        }} className="space-y-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Subject</label>
+                                                <input required className="w-full bg-slate-800/50 border border-white/10 px-6 py-3.5 rounded-xl font-bold text-white outline-none focus:border-indigo-500 transition-all text-sm" value={supportForm.subject} onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })} placeholder="Issue with an order..." />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Priority</label>
+                                                <select className="w-full bg-slate-800/50 border border-white/10 px-6 py-3.5 rounded-xl font-bold text-white outline-none focus:border-indigo-500 transition-all text-sm cursor-pointer" value={supportForm.priority} onChange={e => setSupportForm({ ...supportForm, priority: e.target.value })}>
+                                                    <option value="low">Low</option>
+                                                    <option value="medium">Medium</option>
+                                                    <option value="high">High</option>
+                                                    <option value="urgent">Urgent</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Message</label>
+                                                <textarea required className="w-full bg-slate-800/50 border border-white/10 px-6 py-3.5 rounded-xl font-bold text-white outline-none focus:border-indigo-500 transition-all text-sm resize-none" rows={4} value={supportForm.message} onChange={e => setSupportForm({ ...supportForm, message: e.target.value })} placeholder="Describe the issue in detail..." />
+                                            </div>
+                                            <button type="submit" disabled={formLoading} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 disabled:opacity-50">
+                                                {formLoading ? 'Sending...' : 'Send Request'}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    {/* Previous Requests List */}
+                                    <div className="lg:col-span-2 space-y-4">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="font-black text-xl text-slate-900">Your Support Requests</h3>
+                                            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{supportRequests.length} Total</span>
+                                        </div>
+
+                                        {supportRequests.length === 0 ? (
+                                            <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                                                <Bell className="text-slate-300 mx-auto mb-4" size={40} />
+                                                <p className="font-black text-slate-900 text-xl mb-2">No support requests</p>
+                                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">When you have an issue, report it here.</p>
+                                            </div>
+                                        ) : (
+                                            supportRequests.map(req => (
+                                                <div key={req._id} className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className={`w-2 h-2 rounded-full ${req.status === 'open' ? 'bg-indigo-500' : req.status === 'resolved' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                                                <h4 className="font-black text-slate-900">{req.subject}</h4>
+                                                            </div>
+                                                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Submitted {new Date(req.createdAt).toLocaleDateString()}</p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${req.priority === 'urgent' ? 'bg-rose-100 text-rose-600' : req.priority === 'high' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                                {req.priority}
+                                                            </span>
+                                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${req.status === 'resolved' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>
+                                                                {req.status}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-slate-600 text-sm font-medium leading-relaxed bg-slate-50 p-4 rounded-2xl">
+                                                        {req.message}
+                                                    </p>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* ─── MY RESTAURANTS ─── */}
                         {activeTab === 'restaurants' && (
                             <div className="space-y-6">
@@ -574,7 +799,15 @@ export default function PartnerDashboard() {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Restaurant Name</label>
-                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.name} onChange={e => setRestaurantForm({ ...restaurantForm, name: e.target.value })} />
+                                                <input required className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.name} onChange={e => setRestaurantForm({ ...restaurantForm, name: e.target.value })} placeholder="e.g. Spice Garden" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">City / Location</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.city} onChange={e => setRestaurantForm({ ...restaurantForm, city: e.target.value })} placeholder="e.g. New Delhi" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cuisines (Comma-separated)</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={Array.isArray(restaurantForm.cuisines) ? restaurantForm.cuisines.join(', ') : restaurantForm.cuisines || ''} onChange={e => setRestaurantForm({ ...restaurantForm, cuisines: e.target.value.split(',').map(c => c.trim()) })} placeholder="e.g. Pizza, Italian, Pasta" />
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cover Image URL</label>

@@ -204,7 +204,13 @@ export default function RestaurantDetail() {
 
             <div className="space-y-5">
               {filteredMenu.map(item => (
-                <MenuItemCard key={item._id} item={item} />
+                <MenuItemCard
+                  key={item._id}
+                  item={{
+                    ...item,
+                    restaurant: restaurant._id || id // Ensure restaurant ID is present for the cart
+                  }}
+                />
               ))}
             </div>
           </div>

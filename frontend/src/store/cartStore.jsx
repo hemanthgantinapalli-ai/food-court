@@ -5,20 +5,23 @@ export const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
+      restaurantId: null,
       coupon: null,
       discount: 0,
       addToCart: (product) => {
         const currentItems = get().items;
         const existingItem = currentItems.find((item) => item._id === product._id);
-
+        // Track restaurantId from the first item added
+        const restaurantId = product.restaurant?._id || product.restaurant || get().restaurantId;
         if (existingItem) {
           set({
             items: currentItems.map((item) =>
               item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
             ),
+            restaurantId,
           });
         } else {
-          set({ items: [...currentItems, { ...product, quantity: 1 }] });
+          set({ items: [...currentItems, { ...product, quantity: 1 }], restaurantId });
         }
       },
       updateQuantity: (id, quantity) => {
@@ -36,10 +39,11 @@ export const useCartStore = create(
       removeFromCart: (id) => {
         const newItems = get().items.filter((i) => i._id !== id);
         set({ items: newItems });
-        if (newItems.length === 0) set({ coupon: null, discount: 0 });
+        if (newItems.length === 0) set({ coupon: null, discount: 0, restaurantId: null });
       },
-      clearCart: () => set({ items: [], coupon: null, discount: 0 }),
+      clearCart: () => set({ items: [], coupon: null, discount: 0, restaurantId: null }),
       getTotal: () => get().items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+      getRestaurantId: () => get().restaurantId,
       applyCoupon: (code) => {
         const subtotal = get().getTotal();
         if (code === 'FIRST50') {

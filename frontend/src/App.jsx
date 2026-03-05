@@ -17,6 +17,7 @@ import { useAuthStore } from "./context/authStore";
 // ---------- Customer Pages ----------
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
 import RestaurantDetail from "./pages/RestaurantDetail";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -27,11 +28,13 @@ import TrackOrderPage from "./pages/TrackOrderPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import CustomerDashboard from "./pages/CustomerDashboard";
+import ForgotPassword from "./pages/ForgotPassword";
 
 // ---------- Role Dashboards (no shared Header/Footer) ----------
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import AdminSignIn from "./pages/AdminSignIn";
+import AdminSignUp from "./pages/AdminSignUp";
 import RiderDashboard from "./pages/RiderDashboard";
 import RiderSignIn from "./pages/RiderSignIn";
 import RestaurantSignIn from "./pages/RestaurantSignIn";
@@ -48,7 +51,7 @@ const ScrollToTop = () => {
 };
 
 // ─── Paths that should NOT show the consumer Header/Footer ────────
-const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/admin/login", "/rider", "/rider/login", "/partner", "/restaurant/login", "/restaurant/signup"];
+const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/admin/login", "/admin/signup", "/rider", "/rider/login", "/partner", "/restaurant/login", "/restaurant/signup"];
 
 // ─── Inner App (inside Router context) ───────────────────────────
 function AppInner() {
@@ -79,9 +82,12 @@ function AppInner() {
             {/* ── Public Routes ─────────────────────────────── */}
             <Route path="/" element={<Home />} />
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Role-Specific Login Pages */}
             <Route path="/admin/login" element={<AdminSignIn />} />
+            <Route path="/admin/signup" element={<AdminSignUp />} />
             <Route path="/rider/login" element={<RiderSignIn />} />
             <Route path="/restaurant/login" element={<RestaurantSignIn />} />
             <Route path="/restaurant/signup" element={<RestaurantSignUp />} />

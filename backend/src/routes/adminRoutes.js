@@ -13,7 +13,7 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
     const totalUsers = await User.countDocuments();
     const totalOrders = await Order.countDocuments();
     const totalRevenue = await Order.aggregate([
-      { $match: { paymentStatus: 'completed' } },
+      { $match: { paymentStatus: { $in: ['completed', 'pending'] } } },
       { $group: { _id: null, total: { $sum: '$total' } } },
     ]);
     const totalRestaurants = await Restaurant.countDocuments();
@@ -242,12 +242,18 @@ router.post('/orders/:orderId/assign', authenticateUser, authorizeRole('admin'),
 // Finance & Reports
 router.get('/finance', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const orders = await Order.find({ paymentStatus: 'completed' }).populate('restaurant', 'name commissionPercentage');
+    const orders = await Order.find({
+      paymentStatus: { $in: ['completed', 'pending'] },
+      orderStatus: { $ne: 'cancelled' }
+    }).populate('restaurant', 'name commissionPercentage');
 
     let totalGrossRevenue = 0;
     let totalCommission = 0;
-    const weeklyReport = Array(7).fill(0);
+    let pendingRevenue = 0;
+    const dailyReport = Array(7).fill(0);
     const restaurantSettlements = {};
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
     orders.forEach(order => {
       const total = order.total || 0;
@@ -256,9 +262,18 @@ router.get('/finance', authenticateUser, authorizeRole('admin'), async (req, res
       totalGrossRevenue += total;
       totalCommission += commission;
 
-      // Weekly breakdown (mock days for demo)
-      const day = new Date(order.createdAt).getDay();
-      weeklyReport[day] += total;
+      if (order.paymentStatus === 'pending') {
+        pendingRevenue += total;
+      }
+
+      // Last 7 days breakdown
+      const orderDate = new Date(order.createdAt);
+      const diffTime = Math.abs(today - orderDate);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 7) {
+        dailyReport[6 - diffDays] += total;
+      }
 
       // Per restaurant settlement
       const rId = order.restaurant?._id;
@@ -269,13 +284,17 @@ router.get('/finance', authenticateUser, authorizeRole('admin'), async (req, res
             totalOrders: 0,
             gross: 0,
             commission: 0,
-            net: 0
+            net: 0,
+            pending: 0
           };
         }
         restaurantSettlements[rId].totalOrders += 1;
         restaurantSettlements[rId].gross += total;
         restaurantSettlements[rId].commission += commission;
         restaurantSettlements[rId].net += (total - commission);
+        if (order.paymentStatus === 'pending') {
+          restaurantSettlements[rId].pending += total;
+        }
       }
     });
 
@@ -284,8 +303,11 @@ router.get('/finance', authenticateUser, authorizeRole('admin'), async (req, res
       data: {
         totalGrossRevenue,
         totalCommission,
-        weeklyReport,
-        settlements: Object.values(restaurantSettlements)
+        pendingRevenue,
+        weeklyReport: dailyReport,
+        settlements: Object.values(restaurantSettlements),
+        totalOrders: orders.length,
+        averageOrderValue: orders.length > 0 ? totalGrossRevenue / orders.length : 0
       }
     });
   } catch (error) {

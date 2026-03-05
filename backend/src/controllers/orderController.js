@@ -92,6 +92,14 @@ export const createOrder = async (req, res) => {
     }
 
     console.log(`💾 [Create Order API] Saving order updates...`);
+    // Define shares (e.g., 80/20)
+    const PARTNER_SHARE = 0.80;
+    const PLATFORM_SHARE = 0.20;
+
+    // Calculate and store real-time shares
+    order.partnerEarnings = Math.round(order.total * PARTNER_SHARE);
+    order.platformFee = Math.round(order.total * PLATFORM_SHARE);
+
     await order.save();
 
     console.log(`🧹 [Create Order API] Clearing user's cart...`);
@@ -114,7 +122,7 @@ export const createOrder = async (req, res) => {
     const io = getIO();
     const populatedOrder = await Order.findById(order._id)
       .populate('customer', 'name phone')
-      .populate('restaurant', 'name location');
+      .populate('restaurant', 'name location owner');
 
     const orderPayloadForRider = {
       _id: populatedOrder._id,
@@ -129,14 +137,16 @@ export const createOrder = async (req, res) => {
       items: populatedOrder.items,
     };
 
-    // Broadcast to ALL riders so they see it in the marketplace
-    io.to('riders').emit('new_order_available', orderPayloadForRider);
+    // Notify the specific restaurant owner that there is a new order
+    if (populatedOrder.restaurant && populatedOrder.restaurant.owner) {
+      io.to(populatedOrder.restaurant.owner.toString()).emit('new_restaurant_order', orderPayloadForRider);
+    }
     // Also inform admin immediately
     io.to('admins').emit('new_order', orderPayloadForRider);
 
     res.status(201).json({
       success: true,
-      message: 'Order created successfully. Riders notified.',
+      message: 'Order created successfully. Waiting for restaurant approval.',
       data: order,
     });
   } catch (error) {
@@ -163,7 +173,8 @@ export const getOrderHistory = async (req, res) => {
     } else if (type === 'available' && req.userRole === 'rider') {
       console.log(`🛎️ [Get Order History API] Fetching available orders for rider.`);
       // Show orders that are waiting for acceptance, being prepared, or ready, and have no rider
-      query = { rider: null, orderStatus: { $in: ['placed', 'preparing', 'ready'] } };
+      // Riders see orders that the restaurant has confirmed but no rider has accepted yet
+      query = { rider: null, orderStatus: { $in: ['confirmed', 'preparing', 'ready'] } };
     } else if (req.userRole === 'restaurant') {
       console.log(`🏪 [Get Order History API] Fetching orders for restaurant owner.`);
       const restaurant = await Restaurant.findOne({ owner: req.userId });
@@ -280,6 +291,21 @@ export const updateOrderStatus = async (req, res) => {
       });
     }
 
+    // Authorization checks
+    if (req.userRole === 'restaurant') {
+      const restaurant = await Restaurant.findOne({ owner: req.userId });
+      if (!restaurant || restaurant._id.toString() !== order.restaurant.toString()) {
+        return res.status(403).json({ success: false, message: 'Forbidden: You can only update orders for your restaurant' });
+      }
+    }
+
+    if (req.userRole === 'rider') {
+      // Riders can only update orders that are assigned to them
+      if (!order.rider || order.rider.toString() !== req.userId) {
+        return res.status(403).json({ success: false, message: 'Forbidden: You can only update orders assigned to you' });
+      }
+    }
+
     console.log(`🔄 [Update Order Status API] Changing status from ${order.orderStatus} to ${status}`);
     order.orderStatus = status;
     order.statusHistory.push({
@@ -299,13 +325,37 @@ export const updateOrderStatus = async (req, res) => {
 
     // Notify Customer + Admin via Socket.io
     const io = getIO();
+
+    if (status === 'confirmed') {
+      const fullOrderForRider = await Order.findById(order._id)
+        .populate('customer', 'name phone')
+        .populate('restaurant', 'name location');
+
+      const orderPayloadForRider = {
+        _id: fullOrderForRider._id,
+        orderId: fullOrderForRider.orderId,
+        customerName: fullOrderForRider.customer?.name,
+        restaurantName: fullOrderForRider.restaurant?.name,
+        restaurantAddress: fullOrderForRider.restaurant?.location?.address,
+        deliveryAddress: fullOrderForRider.deliveryAddress,
+        total: fullOrderForRider.total,
+        deliveryFee: fullOrderForRider.deliveryFee,
+        orderStatus: fullOrderForRider.orderStatus,
+        items: fullOrderForRider.items,
+      };
+
+      // Broadcast to ALL riders now that the restaurant has accepted
+      io.to('riders').emit('new_order_available', orderPayloadForRider);
+    }
+
     const customerId = order.customer.toString();
 
     const statusMessages = {
       confirmed: 'Your order has been confirmed!',
       preparing: 'The restaurant is preparing your food. 🍳',
       ready: 'Food is ready and a rider is being assigned. 🏍️',
-      on_the_way: 'Your order is on the way! 🛵',
+      picked_up: 'Rider has picked up your food from the restaurant! 🛵',
+      on_the_way: 'Your order is on the way! 🚗',
       delivered: 'Order delivered! Enjoy your meal! 🎉',
       cancelled: 'Your order has been cancelled.',
     };
@@ -395,13 +445,11 @@ export const acceptOrder = async (req, res) => {
 
     console.log(`🔄 [Accept Order API] Assigning order to rider...`);
     order.rider = req.userId;
-    // Set status to on_the_way when rider accepts
-    order.orderStatus = 'on_the_way';
 
     order.statusHistory.push({
-      status: 'on_the_way',
+      status: order.orderStatus,
       timestamp: new Date(),
-      note: 'Rider accepted the order and is on the way'
+      note: 'Rider accepted the order and is on the way to restaurant'
     });
 
     console.log(`💾 [Accept Order API] Saving order updates...`);
@@ -418,18 +466,18 @@ export const acceptOrder = async (req, res) => {
     // Notify Customer, Admin, and other riders
     const io = getIO();
 
-    // Tell customer their rider is on the way
+    // Tell customer their rider has been assigned
     io.to(order.customer.toString()).emit('order_status_update', {
       orderId: order._id,
-      status: 'on_the_way',
-      message: `🛵 Your rider ${riderInfo?.name || 'is'} on the way!`,
+      status: order.orderStatus,
+      message: `🛵 Rider ${riderInfo?.name || 'has been'} assigned to your order!`,
       rider: { name: riderInfo?.name, phone: riderInfo?.phone },
     });
 
     // Tell admin which rider claimed it + full order info
     io.to('admins').emit('order_claimed', {
       orderId: order._id,
-      orderStatus: 'on_the_way',
+      orderStatus: order.orderStatus,
       rider: { _id: req.userId, name: riderInfo?.name, phone: riderInfo?.phone, email: riderInfo?.email },
     });
 
@@ -438,7 +486,7 @@ export const acceptOrder = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Order accepted! You are now on the way.',
+      message: 'Order accepted! Please head to the restaurant.',
       data: order,
     });
   } catch (error) {
@@ -472,6 +520,20 @@ export const rateOrder = async (req, res) => {
     if (!order) {
       console.log(`⚠️ [Rate Order API] Order not found: ${orderId}`);
       return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.restaurant) {
+      const restaurant = await Restaurant.findById(order.restaurant);
+      if (restaurant) {
+        const newReviewCount = (restaurant.reviewCount || 0) + 1;
+        const currentTotalScore = (restaurant.rating || 4) * (restaurant.reviewCount || 0);
+        const newRating = (currentTotalScore + score) / newReviewCount;
+
+        restaurant.reviewCount = newReviewCount;
+        restaurant.rating = parseFloat(newRating.toFixed(1));
+        await restaurant.save();
+        console.log(`⭐ [Rate Order API] Restaurant ${restaurant._id} rating updated to ${restaurant.rating}`);
+      }
     }
 
     console.log(`✅ [Rate Order API] Order rated successfully.`);

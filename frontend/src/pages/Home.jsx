@@ -90,7 +90,8 @@ const Home = () => {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        const { data } = await axios.get('/api/restaurants');
+        const city = localStorage.getItem('userLocation');
+        const { data } = await axios.get(`/api/restaurants`, { params: { city } });
         // Backend now returns the array directly
         const list = Array.isArray(data) ? data : (data?.data || []);
         setRestaurants(list.length ? list : FALLBACK_RESTAURANTS);
@@ -103,8 +104,6 @@ const Home = () => {
     };
     fetchRestaurants();
   }, []);
-
-  if (loading) return <Loader_Component message="Curating the best kitchens..." />;
 
   // Handle filter from Hero cuisine tags or search bar
   const handleHeroFilter = (query) => {
@@ -120,11 +119,42 @@ const Home = () => {
     }
   };
 
-  // Combine category filter + text search
+  // Dynamic categories derived from data
+  const dynamicCategories = React.useMemo(() => {
+    const cuisineSet = new Set();
+    restaurants.forEach(r => {
+      if (Array.isArray(r.cuisines)) {
+        r.cuisines.forEach(c => {
+          if (c) cuisineSet.add(c.charAt(0).toUpperCase() + c.slice(1).toLowerCase());
+        });
+      }
+    });
+
+    // Sort and limit/map with emojis
+    const emojis = {
+      'Pizza': '🍕', 'Sushi': '🍣', 'Burgers': '🍔', 'Indian': '🍛', 'Chinese': '🥡',
+      'Healthy': '🥗', 'Italian': '🍝', 'Japanese': '🍱', 'American': '🍟', 'BBQ': '🍗',
+      'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐'
+    };
+
+    const sorted = Array.from(cuisineSet).sort();
+    return sorted.map(label => ({
+      label,
+      emoji: emojis[label] || '🍽️',
+      color: `from-slate-100 to-slate-50` // Default color
+    }));
+  }, [restaurants]);
+
+  useEffect(() => {
+    // Also update CATEGORY_FILTERS-like list for the pill filters
+    // (We could use the set here too)
+  }, [restaurants]);
+
+  // Combined category filter + text search
   const filtered = restaurants.filter((r) => {
     const matchesCategory =
       activeFilter === 'All' ||
-      r.cuisines?.some((c) => c.toLowerCase().includes(activeFilter.toLowerCase()));
+      r.cuisines?.some((c) => c.toLowerCase() === activeFilter.toLowerCase());
 
     const matchesSearch =
       !searchQuery ||
@@ -133,6 +163,8 @@ const Home = () => {
 
     return matchesCategory && matchesSearch;
   });
+
+  if (loading) return <Loader_Component message="Curating the best kitchens..." />;
 
   return (
     <div className="bg-white min-h-screen">
@@ -156,6 +188,34 @@ const Home = () => {
         </div>
       </div>
 
+      {/* Trending Now Horizontal Section */}
+      <div className="bg-slate-50/50 py-16 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block animate-pulse">
+                Hot & Fast
+              </span>
+              <h2 className="text-3xl font-black tracking-tight text-slate-900">
+                Trending <span className="text-orange-500">Now</span>
+              </h2>
+            </div>
+            <div className="hidden md:flex gap-2">
+              <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 cursor-pointer hover:bg-white transition-all">←</div>
+              <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 cursor-pointer hover:bg-white transition-all">→</div>
+            </div>
+          </div>
+
+          <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-none snap-x transition-all">
+            {restaurants.filter(r => r.rating >= 4.7).slice(0, 6).map((res, i) => (
+              <div key={res._id} className="min-w-[300px] md:min-w-[350px] snap-start">
+                <RestaurantCard restaurant={res} index={i} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Trending Categories */}
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="flex items-center justify-between mb-10">
@@ -170,39 +230,40 @@ const Home = () => {
         </div>
 
         {/* Category Cards */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 mb-16">
-          {[
-            { label: 'Pizza', emoji: '🍕', color: 'from-orange-100 to-orange-50' },
-            { label: 'Sushi', emoji: '🍣', color: 'from-pink-100 to-pink-50' },
-            { label: 'Burgers', emoji: '🍔', color: 'from-yellow-100 to-yellow-50' },
-            { label: 'Indian', emoji: '🍛', color: 'from-amber-100 to-amber-50' },
-            { label: 'Chinese', emoji: '🥡', color: 'from-red-100 to-red-50' },
-            { label: 'Healthy', emoji: '🥗', color: 'from-green-100 to-green-50' },
-          ].map(({ label, emoji, color }) => (
-            <button
-              key={label}
-              onClick={() => {
-                applyFilter(activeFilter === label ? 'All' : label);
-                document.getElementById('restaurant-section')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className={`group flex flex-col items-center gap-3 p-5 rounded-2xl bg-gradient-to-br ${color} border border-transparent hover:border-orange-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${activeFilter === label ? 'ring-2 ring-orange-500 shadow-lg shadow-orange-100' : ''
-                }`}
-            >
-              <span className="text-3xl group-hover:scale-110 transition-transform duration-300">{emoji}</span>
-              <span className="text-xs font-black text-slate-700 tracking-wide">{label}</span>
-            </button>
-          ))}
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none mb-16 px-1">
+          {dynamicCategories.length > 0 ? (
+            dynamicCategories.slice(0, 10).map(({ label, emoji, color }) => (
+              <button
+                key={label}
+                onClick={() => {
+                  applyFilter(activeFilter === label ? 'All' : label);
+                  document.getElementById('restaurant-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`group shrink-0 w-32 flex flex-col items-center gap-3 p-6 rounded-3xl bg-white border border-slate-100 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-orange-100 ${activeFilter === label ? 'ring-2 ring-orange-500 shadow-xl shadow-orange-100 bg-orange-50/30' : ''}`}
+              >
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-all ${activeFilter === label ? 'bg-orange-500/20' : 'bg-slate-50'}`}>
+                  {emoji}
+                </div>
+                <span className="text-[10px] font-black text-slate-800 tracking-widest uppercase">{label}</span>
+              </button>
+            ))
+          ) : (
+            // Fallback while loading
+            [1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="w-32 h-32 bg-slate-50 rounded-3xl animate-pulse" />
+            ))
+          )}
         </div>
 
         {/* Filters Row */}
         <div className="flex items-center gap-3 mb-10 overflow-x-auto pb-2 scrollbar-none">
-          {CATEGORY_FILTERS.map((filter) => (
+          {['All', ...dynamicCategories.map(c => c.label)].map((filter) => (
             <button
               key={filter}
               onClick={() => applyFilter(filter)}
-              className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeFilter === filter
+              className={`shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${activeFilter === filter
                 ? 'bg-slate-900 text-white shadow-lg'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
+                : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
                 }`}
             >
               {filter}

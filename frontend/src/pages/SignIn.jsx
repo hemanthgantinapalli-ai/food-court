@@ -132,23 +132,6 @@ export default function SignIn() {
             'Sign In'
           )}
         </button>
-
-        {/* Divider */}
-        <div className="flex items-center gap-4 py-2">
-          <div className="flex-1 h-px bg-slate-100" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">or</span>
-          <div className="flex-1 h-px bg-slate-100" />
-        </div>
-
-        {/* Google Sign In */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-4 py-4 rounded-3xl bg-white border border-slate-100 font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
-        >
-          <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
-          <span className="text-sm">Sign in with Google</span>
-        </button>
       </form>
 
       {/* Demo Creds Hint */}

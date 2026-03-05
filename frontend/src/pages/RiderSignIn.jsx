@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, CheckCircle2, Bike, ShieldCheck, Phone } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import {
+    Mail, Lock, Eye, EyeOff, Bike, Phone, CheckCircle,
+    MapPin, FileText, ShieldCheck, ChevronRight, ArrowLeft, Truck
+} from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import AuthLayout from '../components/AuthLayout';
 import API from '../api/axios';
 
 export default function RiderSignIn() {
-    const [mode, setMode] = useState('login'); // 'login', 'signup', 'pending'
+    const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'pending'
     const [email, setEmail] = useState('rider@foodcourt.com');
     const [password, setPassword] = useState('rider123');
     const [showPass, setShowPass] = useState(false);
 
-    // Signup specific state
     const [formData, setFormData] = useState({
         fullName: '',
         phone: '',
@@ -22,12 +23,9 @@ export default function RiderSignIn() {
     });
 
     const [loading, setLoading] = useState(false);
-    const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
-
-    // Where to go after login
     const from = location.state?.from?.pathname || '/rider';
 
     const handleLogin = async (e) => {
@@ -35,17 +33,11 @@ export default function RiderSignIn() {
         setError('');
         setLoading(true);
         try {
-            // Use the specific Rider endpoint to ensure approval check happens
             const res = await API.post('/riders/auth/login', { email, password });
             const { token, user } = res.data;
-
-            // Set localStorage
             localStorage.setItem('token', token);
             localStorage.setItem('user', JSON.stringify(user));
-
-            // Hydrate Zustand auth store state directly
             useAuthStore.setState({ user, token });
-
             navigate(from, { replace: true });
         } catch (err) {
             setError(err.response?.data?.message || 'Invalid credentials.');
@@ -59,11 +51,7 @@ export default function RiderSignIn() {
         setError('');
         setLoading(true);
         try {
-            await API.post('/riders/auth/signup', {
-                email,
-                password,
-                ...formData
-            });
+            await API.post('/riders/auth/signup', { email, password, ...formData });
             setMode('pending');
         } catch (err) {
             setError(err.response?.data?.message || 'Signup failed.');
@@ -72,23 +60,29 @@ export default function RiderSignIn() {
         }
     };
 
-    const handleGoogleSignIn = () => {
-        alert('Google Sign In functionality coming soon!');
-    };
-
+    // ── PENDING SCREEN ──────────────────────────────────────────────────
     if (mode === 'pending') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#F8F9FB] font-sans">
-                <div className="text-center animate-fade-up max-w-md p-10 bg-white shadow-xl rounded-3xl">
-                    <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <ShieldCheck size={40} className="text-orange-500" />
+            <div className="min-h-screen flex items-center justify-center font-sans bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
+                <div className="text-center animate-fade-up max-w-md w-full">
+                    <div className="relative w-32 h-32 mx-auto mb-8">
+                        <div className="absolute inset-0 bg-indigo-500/20 rounded-full animate-ping" />
+                        <div className="relative w-32 h-32 bg-indigo-500/10 border border-indigo-500/30 rounded-full flex items-center justify-center">
+                            <CheckCircle size={52} className="text-indigo-400" />
+                        </div>
                     </div>
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-4">Application Submitted!</h2>
-                    <p className="text-slate-500 font-medium leading-relaxed mb-8">
-                        We have received your details. Your profile status is <span className="text-orange-600 font-bold">PENDING</span>.
-                        Our team will verify your documents shortly. You will be able to log in once approved by the admin.
+                    <h2 className="text-3xl font-black text-white tracking-tight mb-4">Application Submitted!</h2>
+                    <p className="text-slate-400 font-medium leading-relaxed mb-2">
+                        Your rider profile is currently{' '}
+                        <span className="text-indigo-400 font-black">PENDING REVIEW</span>.
                     </p>
-                    <button onClick={() => navigate('/')} className="px-8 py-3 bg-slate-100 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors">
+                    <p className="text-slate-500 text-sm mb-10">
+                        Our admin team will verify your documents and approve your account shortly.
+                    </p>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="px-10 py-4 bg-indigo-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-900/50"
+                    >
                         Back to Home
                     </button>
                 </div>
@@ -96,187 +90,313 @@ export default function RiderSignIn() {
         );
     }
 
+    // ── SIGNUP SCREEN ────────────────────────────────────────────────────
     if (mode === 'signup') {
         return (
-            <AuthLayout
-                title="Join the Fleet"
-                subtitle="Complete mandatory details to apply as a rider"
-                footerText="Already have an account?"
-                footerAction="Sign In"
-                onFooterClick={() => { setMode('login'); setError(''); setEmail('rider@foodcourt.com'); setPassword('rider123'); }}
-            >
-                <form onSubmit={handleSignup} className="space-y-4 animate-fade-up">
+            <div className="min-h-screen font-sans bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex">
+                {/* Left Branding Panel */}
+                <div className="hidden lg:flex w-2/5 flex-col justify-between p-12 relative overflow-hidden">
+                    <div className="absolute top-[-20%] right-[-15%] w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
+                    <div className="absolute bottom-[-10%] left-[-15%] w-[400px] h-[400px] rounded-full bg-blue-600/10 blur-[100px]" />
+
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-16">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center">
+                                <Truck size={20} className="text-white" />
+                            </div>
+                            <span className="font-black text-white text-lg tracking-tight">Rider Portal</span>
+                        </div>
+
+                        <h2 className="text-white text-4xl font-black tracking-tight leading-tight mb-6">
+                            Join the<br /><span className="text-indigo-400">Delivery</span><br />Revolution
+                        </h2>
+                        <p className="text-slate-400 text-base font-medium leading-relaxed">
+                            Earn on your own schedule. Deliver happiness across the city and grow with us.
+                        </p>
+
+                        <div className="mt-12 space-y-4">
+                            {[
+                                { icon: '💰', title: 'Great Earnings', desc: 'Up to ₹800/day based on deliveries' },
+                                { icon: '🕐', title: 'Flexible Hours', desc: 'Work when you want, rest when you need' },
+                                { icon: '🛡️', title: 'Insured Rides', desc: 'Accident coverage on every delivery' },
+                            ].map((item, i) => (
+                                <div key={i} className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                                    <span className="text-2xl">{item.icon}</span>
+                                    <div>
+                                        <p className="text-white font-black text-sm">{item.title}</p>
+                                        <p className="text-slate-400 text-xs font-medium mt-0.5">{item.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <p className="relative z-10 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+                        FoodCourt Rider Platform v1.0
+                    </p>
+                </div>
+
+                {/* Right Form Panel */}
+                <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
+                    <div className="w-full max-w-[480px] py-10 animate-fade-up">
+
+                        {/* Mobile Logo */}
+                        <div className="lg:hidden flex items-center gap-3 mb-10">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center">
+                                <Truck size={18} className="text-white" />
+                            </div>
+                            <span className="font-black text-white text-base tracking-tight">Rider Portal</span>
+                        </div>
+
+                        <h1 className="text-3xl font-black text-white tracking-tight mb-1">Apply as a Rider</h1>
+                        <p className="text-slate-400 font-medium mb-8 text-sm">Fill in your details to start your journey</p>
+
+                        {error && (
+                            <div className="mb-6 px-4 py-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3">
+                                <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" /> {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSignup} className="space-y-5">
+                            {/* Account Credentials */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Account Credentials</p>
+                                <div className="relative">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input
+                                        type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        placeholder="Email Address"
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input
+                                        type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        placeholder="Password (Min 6 chars)" minLength={6}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Personal Info */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Personal Info</p>
+                                <div className="relative">
+                                    <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input
+                                        type="text" required value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        placeholder="Full Name (as per Aadhaar)"
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input
+                                        type="text" required value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        placeholder="Phone Number" maxLength={10}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Vehicle Details */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Vehicle Details</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="relative">
+                                        <Bike className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                        <select
+                                            value={formData.vehicleType} onChange={e => setFormData({ ...formData, vehicleType: e.target.value })}
+                                            className="w-full pl-10 pr-3 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                                        >
+                                            <option value="bike">Bike</option>
+                                            <option value="scooter">Scooter</option>
+                                            <option value="bicycle">Bicycle</option>
+                                        </select>
+                                    </div>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                        <input
+                                            type="text" required value={formData.vehicleNumber} onChange={e => setFormData({ ...formData, vehicleNumber: e.target.value.toUpperCase() })}
+                                            className="w-full pl-10 pr-3 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold uppercase placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                            placeholder="MH12AB1234"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="relative">
+                                    <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input
+                                        type="text" required value={formData.licenseNumber} onChange={e => setFormData({ ...formData, licenseNumber: e.target.value.toUpperCase() })}
+                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold uppercase placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        placeholder="Driving License Number"
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <input
+                                        type="text" required value={formData.aadhaarNumber} onChange={e => setFormData({ ...formData, aadhaarNumber: e.target.value })}
+                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold tracking-widest placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        placeholder="Aadhaar Number (12 Digits)" maxLength={12}
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit" disabled={loading}
+                                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-black text-sm uppercase tracking-[0.15em] text-white transition-all shadow-xl shadow-indigo-900/50 active:scale-[0.98] disabled:opacity-50"
+                            >
+                                {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Bike size={18} /> Submit Application</>}
+                            </button>
+                        </form>
+
+                        <p className="text-center mt-8 text-slate-500 text-sm font-bold">
+                            Already a rider?{' '}
+                            <button onClick={() => { setMode('login'); setError(''); setEmail('rider@foodcourt.com'); setPassword('rider123'); }} className="text-indigo-400 hover:text-indigo-300 font-black underline underline-offset-4 transition-colors">
+                                Sign In
+                            </button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ── LOGIN SCREEN ─────────────────────────────────────────────────────
+    return (
+        <div className="min-h-screen font-sans bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex">
+            {/* Left Branding Panel */}
+            <div className="hidden lg:flex w-2/5 flex-col justify-between p-12 relative overflow-hidden">
+                <div className="absolute top-[-20%] right-[-15%] w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
+                <div className="absolute bottom-[-10%] left-[-15%] w-[400px] h-[400px] rounded-full bg-blue-600/10 blur-[100px]" />
+
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-16">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center">
+                            <Truck size={20} className="text-white" />
+                        </div>
+                        <span className="font-black text-white text-lg tracking-tight">Rider Portal</span>
+                    </div>
+
+                    <h2 className="text-white text-5xl font-black tracking-tight leading-tight mb-6">
+                        Your Road,<br /><span className="text-indigo-400">Your Rules.</span>
+                    </h2>
+                    <p className="text-slate-400 text-lg font-medium leading-relaxed mb-12">
+                        The fastest delivery partners in the city. Login to manage your deliveries, track earnings, and go online.
+                    </p>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-4">
+                        {[
+                            { value: '2K+', label: 'Active Riders' },
+                            { value: '₹800', label: 'Avg Daily Earn' },
+                            { value: '4.9★', label: 'Avg Rating' },
+                        ].map((s, i) => (
+                            <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center">
+                                <p className="text-indigo-400 font-black text-xl">{s.value}</p>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">{s.label}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <p className="relative z-10 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+                    FoodCourt Rider Platform v1.0
+                </p>
+            </div>
+
+            {/* Right Login Form */}
+            <div className="flex-1 flex items-center justify-center p-6">
+                <div className="w-full max-w-[400px] animate-fade-up">
+
+                    {/* Mobile Logo */}
+                    <div className="lg:hidden flex items-center gap-3 mb-10">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center">
+                            <Truck size={18} className="text-white" />
+                        </div>
+                        <span className="font-black text-white text-base tracking-tight">Rider Portal</span>
+                    </div>
+
+                    {/* Back to home */}
+                    <Link to="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-300 text-xs font-black uppercase tracking-widest mb-8 transition-colors">
+                        <ArrowLeft size={14} /> Home
+                    </Link>
+
+                    <h1 className="text-4xl font-black text-white tracking-tight mb-1">Welcome Back</h1>
+                    <p className="text-slate-400 font-medium text-sm mb-10">Sign in to your rider account</p>
+
                     {error && (
-                        <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3 animate-shake">
+                        <div className="mb-6 px-4 py-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3">
                             <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" /> {error}
                         </div>
                     )}
 
-                    <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Account details</label>
-                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none" placeholder="Email Address" />
-                        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none" placeholder="Password (Min 6 chars)" minLength={6} />
-                    </div>
-
-                    <div className="space-y-2 mt-4">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Personal Info</label>
-                        <input type="text" required value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none" placeholder="Full Name (As per Aadhaar)" />
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input type="text" required value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none" placeholder="Phone Number" maxLength={10} />
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        {/* Email */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Email Address</label>
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                                <input
+                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+                                    className="w-full pl-11 pr-4 py-4 rounded-2xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    placeholder="rider@foodcourt.com"
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <select value={formData.vehicleType} onChange={e => setFormData({ ...formData, vehicleType: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none bg-white">
-                                <option value="bike">Bike</option>
-                                <option value="scooter">Scooter</option>
-                                <option value="bicycle">Bicycle</option>
-                            </select>
+                        {/* Password */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Password</label>
+                            <div className="relative">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 transition-colors" size={18} />
+                                <input
+                                    type={showPass ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
+                                    className="w-full pl-11 pr-12 py-4 rounded-2xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    placeholder="••••••••"
+                                />
+                                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
+                                    {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
-                        <div>
-                            <input type="text" required value={formData.vehicleNumber} onChange={e => setFormData({ ...formData, vehicleNumber: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none uppercase" placeholder="Vehicle No." />
-                        </div>
-                    </div>
 
-                    <div>
-                        <input type="text" required value={formData.licenseNumber} onChange={e => setFormData({ ...formData, licenseNumber: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none uppercase" placeholder="Driving License Number" />
-                    </div>
-
-                    <div>
-                        <input type="text" required value={formData.aadhaarNumber} onChange={e => setFormData({ ...formData, aadhaarNumber: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 font-bold outline-none tracking-widest" placeholder="Aadhaar Number (12 Digits)" maxLength={12} />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full flex items-center justify-center gap-3 mt-4 py-4 rounded-[1rem] bg-orange-500 font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl shadow-orange-500/20 active:scale-[0.98] disabled:opacity-50 hover:bg-orange-600"
-                    >
-                        {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Submit Application'}
-                    </button>
-                </form>
-            </AuthLayout>
-        );
-    }
-
-    return (
-        <AuthLayout
-            title="Welcome Back"
-            subtitle="Hey, welcome back up to your special place"
-            footerText="Don't have a rider account?"
-            footerAction="Apply Now"
-            onFooterClick={() => { setMode('signup'); setError(''); setEmail(''); setPassword(''); }}
-        >
-            <form onSubmit={handleLogin} className="space-y-6">
-                {error && (
-                    <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3 animate-shake">
-                        <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" /> {error}
-                    </div>
-                )}
-
-                {/* Email Field */}
-                <div className="space-y-2">
-                    <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                        Username or email
-                    </label>
-                    <div className="relative group">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
-                        <input
-                            type="email"
-                            className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
-                            placeholder="rider@foodcourt.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                        />
-                    </div>
-                </div>
-
-                {/* Password Field */}
-                <div className="space-y-2">
-                    <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                        Password
-                    </label>
-                    <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
-                        <input
-                            type={showPass ? 'text' : 'password'}
-                            className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                        />
+                        {/* Sign In Button */}
                         <button
-                            type="button"
-                            onClick={() => setShowPass(!showPass)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors"
+                            type="submit" disabled={loading}
+                            className="w-full flex items-center justify-center gap-3 py-4 mt-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-black text-sm uppercase tracking-[0.15em] text-white transition-all shadow-xl shadow-indigo-900/50 active:scale-[0.98] disabled:opacity-50"
                         >
-                            {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                            {loading
+                                ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                : <><span>Sign In</span><ChevronRight size={18} /></>
+                            }
                         </button>
-                    </div>
-                </div>
+                    </form>
 
-                {/* Remember Me & Forgot Password */}
-                <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                        <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-orange-500 border-orange-500' : 'bg-white border-slate-200 group-hover:border-orange-300'}`}>
-                            <input
-                                type="checkbox"
-                                className="hidden"
-                                checked={rememberMe}
-                                onChange={() => setRememberMe(!rememberMe)}
-                            />
-                            {rememberMe && <CheckCircle2 className="text-white" size={12} strokeWidth={4} />}
+                    {/* Demo Credentials */}
+                    <div className="mt-8 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-4">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                            <Bike size={18} />
                         </div>
-                        <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900">Remember me</span>
-                    </label>
-                    <Link to="/forgot-password" title="Forgot Password Page" className="text-sm font-bold text-orange-500 hover:text-orange-600 transition-colors underline decoration-dotted underline-offset-4">
-                        Forgot Password?
-                    </Link>
-                </div>
+                        <div>
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">Demo Credentials</p>
+                            <p className="text-[10px] font-bold text-slate-400 tracking-wide">{email} / {password}</p>
+                        </div>
+                    </div>
 
-                {/* Sign In Button */}
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full flex items-center justify-center gap-3 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl shadow-orange-500/20 active:scale-[0.98] disabled:opacity-50 bg-orange-500 hover:bg-orange-600"
-                >
-                    {loading ? (
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                        'Sign In'
-                    )}
-                </button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-4 py-2">
-                    <div className="flex-1 h-px bg-slate-100" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">or</span>
-                    <div className="flex-1 h-px bg-slate-100" />
-                </div>
-
-                {/* Google Sign In */}
-                <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    className="w-full flex items-center justify-center gap-4 py-4 rounded-3xl bg-white border border-slate-100 font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
-                >
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
-                    <span className="text-sm">Sign in with Google</span>
-                </button>
-            </form>
-
-            <div className="mt-8 p-4 rounded-3xl border border-dashed flex items-center gap-4 border-orange-200 bg-orange-50/50">
-                <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
-                    <Bike size={20} />
-                </div>
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pre-filled Demo Credentials</p>
-                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">{email} / {password}</p>
+                    {/* Apply footer */}
+                    <p className="text-center mt-8 text-slate-500 text-sm font-bold">
+                        Want to deliver with us?{' '}
+                        <button
+                            onClick={() => { setMode('signup'); setError(''); setEmail(''); setPassword(''); }}
+                            className="text-indigo-400 hover:text-indigo-300 font-black underline underline-offset-4 transition-colors"
+                        >
+                            Apply Now
+                        </button>
+                    </p>
                 </div>
             </div>
-        </AuthLayout>
+        </div>
     );
 }

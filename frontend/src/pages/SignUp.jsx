@@ -1,22 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, User as UserIcon, Eye, EyeOff, CheckCircle, ShieldCheck, Bike, Store } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Lock, User as UserIcon, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../context/authStore.js';
 import AuthLayout from '../components/AuthLayout';
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: searchParams.get('role') || 'customer' });
-
-  useEffect(() => {
-    const role = searchParams.get('role');
-    if (role) setFormData(prev => ({ ...prev, role }));
-  }, [searchParams]);
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'customer' });
 
   const signUp = useAuthStore((s) => s.signUp);
 
@@ -43,19 +37,10 @@ export default function SignUp() {
     }
   };
 
-  const roleColors = {
-    customer: 'orange',
-    admin: 'purple',
-    rider: 'blue',
-    restaurant: 'emerald'
-  };
-
-  const currentColor = roleColors[formData.role] || 'orange';
-
   return (
     <AuthLayout
       title="Create Account"
-      subtitle="Join Academy and explore the future of dining"
+      subtitle="Sign up and start ordering your favourite food"
       footerText="Already have an account?"
       footerAction="Sign In"
       footerLink="/signin"
@@ -71,44 +56,12 @@ export default function SignUp() {
       )}
 
       {error && (
-        <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3 animate-shake">
+        <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide flex items-center gap-3">
           <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" /> {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Role Switcher */}
-        <div className="grid grid-cols-4 gap-3 bg-slate-50 p-2 rounded-[2rem] border border-slate-100">
-          {[
-            { id: 'customer', icon: UserIcon },
-            { id: 'admin', icon: ShieldCheck },
-            { id: 'rider', icon: Bike },
-            { id: 'restaurant', icon: Store }
-          ].map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setFormData({ ...formData, role: r.id })}
-              className={`flex items-center justify-center p-3 rounded-2xl transition-all duration-300 ${formData.role === r.id
-                ? `bg-white text-${roleColors[r.id]}-500 shadow-sm border border-slate-100`
-                : 'text-slate-400 hover:text-slate-600'
-                }`}
-            >
-              <r.icon size={20} />
-            </button>
-          ))}
-        </div>
-
-        {/* Role Indicator Info (Mini) */}
-        <div className={`p-4 rounded-3xl border flex items-center gap-4 transition-all bg-${currentColor}-50 border-${currentColor}-100 text-${currentColor}-700`}>
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-white shadow-sm shrink-0">
-            {formData.role === 'admin' ? <ShieldCheck size={20} /> : formData.role === 'rider' ? <Bike size={20} /> : formData.role === 'restaurant' ? <Store size={20} /> : <UserIcon size={20} />}
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 leading-none mb-1">Account Role</p>
-            <p className="font-black text-sm uppercase tracking-wider">{formData.role}</p>
-          </div>
-        </div>
 
         {/* Name */}
         <div className="space-y-2">

@@ -3,9 +3,15 @@ import MenuItem from '../models/MenuItem.js';
 
 export const getRestaurants = async (req, res) => {
     try {
-        const restaurants = await Restaurant.find({ isApproved: true })
+        const { city } = req.query;
+        let query = { isApproved: true };
+        if (city && city !== 'Select Location') {
+            query['location.city'] = { $regex: city, $options: 'i' };
+        }
+
+        const restaurants = await Restaurant.find(query)
             .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
-        return res.status(200).json(restaurants);   // ✅ Return array directly — frontend expects array
+        return res.status(200).json(restaurants);
     } catch (error) {
         console.error("🔥 [Get Restaurants API] Error:", error.message);
         return res.status(500).json({ success: false, message: error.message });

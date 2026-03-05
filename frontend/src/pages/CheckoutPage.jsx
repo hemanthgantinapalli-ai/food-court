@@ -13,7 +13,7 @@ const PAYMENT_METHODS = [
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getTotal, discount, coupon, clearCart } = useCartStore();
+  const { items, getTotal, discount, coupon, clearCart, getRestaurantId } = useCartStore();
   const { user } = useAuthStore();
   const { addOrder } = useOrderStore();
 
@@ -62,6 +62,7 @@ export default function CheckoutPage() {
     const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
 
     const orderPayload = {
+      restaurant: getRestaurantId(),
       deliveryAddress: {
         street: address.street,
         city: address.city,

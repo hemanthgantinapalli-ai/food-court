@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { authenticateUser, authorizeRole } from '../middleware/auth.js';
 import Rider from '../models/Rider.js';
 import Order from '../models/Order.js';
@@ -7,6 +8,43 @@ import { getIO } from '../utils/socket.js';
 import { sendOtp, emailLogin, emailSignup } from '../controllers/riderAuthController.js';
 
 const router = express.Router();
+
+// ─── GET /api/riders/stats ──────────────────────────────────────────────────
+// Rider fetches their own stats summary for dashboard
+router.get('/stats', authenticateUser, authorizeRole('rider'), async (req, res) => {
+  try {
+    const userId = req.userId;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [rider, totalDeliveries, todayDeliveries, activeDeliveries, totalEarningsAgg] = await Promise.all([
+      Rider.findOne({ user: userId }),
+      Order.countDocuments({ rider: userId, orderStatus: 'delivered' }),
+      Order.countDocuments({ rider: userId, orderStatus: 'delivered', createdAt: { $gte: startOfToday } }),
+      Order.countDocuments({ rider: userId, orderStatus: { $in: ['confirmed', 'preparing', 'ready', 'on_the_way'] } }),
+      Order.aggregate([
+        { $match: { rider: new mongoose.Types.ObjectId(userId), orderStatus: 'delivered' } },
+        { $group: { _id: null, total: { $sum: '$deliveryFee' } } }
+      ])
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isOnline: rider?.isOnline || false,
+        isVerified: rider?.isVerified || false,
+        rating: rider?.rating || 4.5,
+        totalEarnings: totalEarningsAgg[0]?.total || 0,
+        totalDeliveries,
+        todayDeliveries,
+        activeDeliveries,
+      },
+    });
+  } catch (error) {
+    console.error(`🔥 [Rider Stats] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // ─── AUTHENTICATION (OTP Based - Legacy / Disabled) ──────────────────────────
 router.post('/auth/send-otp', sendOtp);

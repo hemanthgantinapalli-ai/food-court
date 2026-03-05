@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Clock, Bike, ChevronRight, MapPin } from 'lucide-react';
+import { Star, Clock, Bike, ChevronRight, MapPin, Flame } from 'lucide-react';
 
 const IMAGE_FALLBACKS = [
   'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80',
@@ -35,11 +35,16 @@ export default function RestaurantCard({ restaurant, index = 0 }) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
           {/* Rating badge */}
-          <div className="absolute top-4 left-4">
-            <div className="bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm">
+          <div className="absolute top-4 left-4 flex flex-col gap-2">
+            <div className="bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm w-fit">
               <Star size={13} className="fill-yellow-400 text-yellow-400" />
               <span className="text-sm font-black text-slate-900">{rating}</span>
             </div>
+            {parseFloat(rating) >= 4.7 && (
+              <div className="bg-orange-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1 w-fit animate-pulse">
+                <Flame size={10} /> Trending
+              </div>
+            )}
           </div>
 
           {/* Free delivery badge */}

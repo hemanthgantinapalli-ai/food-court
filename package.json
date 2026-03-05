@@ -9,8 +9,8 @@
     "dev": "npm run cleanup && concurrently \"npm run dev-frontend\" \"npm run dev-backend\"",
     "dev-frontend": "cd frontend && vite",
     "dev-backend": "cd backend && npm run dev",
-    "build": "cd frontend && vite build",
-    "preview": "cd frontend && vite preview",
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && npm install && node src/server.js",
     "fresh": "npm run cleanup && npm run dev"
   },
   "dependencies": {

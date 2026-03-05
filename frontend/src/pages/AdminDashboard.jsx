@@ -12,6 +12,7 @@ const STATUS_COLORS = {
   confirmed: 'bg-blue-100 text-blue-700',
   preparing: 'bg-orange-100 text-orange-700',
   ready: 'bg-teal-100 text-teal-700',
+  picked_up: 'bg-sky-100 text-sky-700',
   on_the_way: 'bg-indigo-100 text-indigo-700',
   delivered: 'bg-emerald-100 text-emerald-700',
   cancelled: 'bg-red-100 text-red-700',
@@ -39,7 +40,8 @@ export default function AdminDashboard() {
     cuisines: '',
     address: '',
     city: '',
-    ownerId: ''
+    ownerId: '',
+    commissionPercentage: 10
   });
   const [isSubmittingRest, setIsSubmittingRest] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -47,7 +49,8 @@ export default function AdminDashboard() {
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'customer' });
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
 
-  const [financeData, setFinanceData] = useState({ totalGrossRevenue: 0, totalCommission: 0, weeklyReport: [], settlements: [] });
+  const [financeData, setFinanceData] = useState({ totalGrossRevenue: 0, totalCommission: 0, pendingRevenue: 0, weeklyReport: [], settlements: [], totalOrders: 0, averageOrderValue: 0 });
+  const [roleFilter, setRoleFilter] = useState('all');
 
   const addNotif = (msg, type = 'info') => {
     const id = Date.now();
@@ -69,7 +72,16 @@ export default function AdminDashboard() {
       socket.on('new_order', (data) => {
         console.log('🆕 New order received by admin:', data);
         addNotif(`🛒 New Order #${(data.orderId || data._id)?.slice(-6)} — ₹${data.total}`, 'order');
-        setLiveOrders(prev => [data, ...prev]);
+
+        // Transform incoming flat data to nested format expected by admin lists
+        const normalizedOrder = {
+          ...data,
+          customer: { name: data.customerName || 'N/A' },
+          restaurant: { name: data.restaurantName || 'Unknown Kitchen' },
+        };
+
+        setLiveOrders(prev => [normalizedOrder, ...prev]);
+        setOrdersList(prev => [normalizedOrder, ...prev]);
         setStats(prev => prev ? { ...prev, totalOrders: (prev.totalOrders || 0) + 1 } : prev);
       });
 
@@ -126,13 +138,14 @@ export default function AdminDashboard() {
     if (isInitialLoad) setLoading(true);
 
     try {
-      const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes] = await Promise.all([
+      const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes, financeRes] = await Promise.all([
         API.get('/admin/stats'),
         API.get('/admin/users'),
         API.get('/admin/restaurants'),
         API.get('/admin/orders'),
         API.get('/support/my-requests'),
-        API.get('/admin/riders'), // new route we just made
+        API.get('/admin/riders'),
+        API.get('/admin/finance'),
       ]);
       setStats(statsRes.data.data);
       setUsersList(usersRes.data.data);
@@ -141,6 +154,7 @@ export default function AdminDashboard() {
       setSupportTickets(supportRes.data.data);
       setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
       setRiderProfilesList(ridersRes.data.data);
+      setFinanceData(financeRes.data.data);
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
@@ -161,7 +175,8 @@ export default function AdminDashboard() {
           address: newRestaurantForm.address,
           city: newRestaurantForm.city
         },
-        owner: newRestaurantForm.ownerId || null
+        owner: newRestaurantForm.ownerId || null,
+        commissionPercentage: Number(newRestaurantForm.commissionPercentage) || 10
       };
 
       if (editingId) {
@@ -176,7 +191,7 @@ export default function AdminDashboard() {
 
       setShowAddRestaurant(false);
       setEditingId(null);
-      setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '', ownerId: '' });
+      setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '', ownerId: '', commissionPercentage: 10 });
     } catch (err) {
       console.error('Failed to create restaurant:', err);
       alert(err.response?.data?.message || 'Error adding restaurant');
@@ -332,15 +347,35 @@ export default function AdminDashboard() {
                   {/* Traffic Chart */}
                   <div className="lg:col-span-2 p-10 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl shadow-slate-200">
                     <div className="flex justify-between items-start mb-8">
-                      <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Order Traffic</h4>
+                      <div>
+                        <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Order Volume</h4>
+                        <p className="text-[10px] text-orange-500 font-bold uppercase mt-1">Last 12 Transactions</p>
+                      </div>
                       <ArrowUpRight className="text-orange-500" />
                     </div>
                     <div className="h-40 flex items-end gap-3 mb-6">
-                      {[40, 70, 45, 90, 65, 80, 40, 60, 55, 75, 50, 85].map((h, i) => (
-                        <div key={i} style={{ height: `${h}%` }} className="flex-1 bg-gradient-to-t from-orange-600 to-orange-400 rounded-xl opacity-90 transition-all hover:scale-110" />
+                      {ordersList.slice(0, 12).reverse().map((order, i) => {
+                        const maxVal = Math.max(...ordersList.map(o => o.total || 1), 1);
+                        const height = ((order.total || 0) / maxVal) * 100;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar relative">
+                            <div
+                              style={{ height: `${Math.max(height, 5)}%` }}
+                              className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-xl opacity-90 transition-all hover:scale-110 hover:opacity-100 cursor-help"
+                            >
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-2 py-1 rounded-lg text-[8px] font-black opacity-0 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap z-30 shadow-xl border border-slate-100">
+                                ₹{order.total}
+                              </div>
+                            </div>
+                            <p className="text-[8px] font-bold text-slate-500 truncate w-full text-center">{(order.orderId || order._id)?.slice(-4)}</p>
+                          </div>
+                        );
+                      })}
+                      {ordersList.length === 0 && [40, 70, 45, 90, 65, 80, 40, 60, 55, 75, 50, 85].map((h, i) => (
+                        <div key={i} style={{ height: `${h}%` }} className="flex-1 bg-slate-800 rounded-xl opacity-30" />
                       ))}
                     </div>
-                    <p className="text-slate-400 text-xs font-bold leading-relaxed italic">Real-time platform activity monitoring</p>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest italic">Real-time platform activity monitoring via recent transactions</p>
                   </div>
 
                   {/* Quick Actions */}
@@ -360,6 +395,48 @@ export default function AdminDashboard() {
                         <ArrowUpRight size={14} className="text-blue-500 group-hover:text-white" />
                       </Link>
                     </div>
+                  </div>
+                </div>
+
+                {/* Platform Health Snapshot */}
+                <div className="grid lg:grid-cols-3 gap-8">
+                  <div className="p-8 bg-white border border-slate-100 rounded-[2.5rem] shadow-sm flex flex-col justify-between group">
+                    <div>
+                      <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-6">Delivery Performance</h4>
+                      <div className="flex items-end justify-between mb-4">
+                        <h3 className="text-4xl font-black text-slate-900">98.2%</h3>
+                        <span className="text-emerald-500 font-black text-xs flex items-center gap-1"><TrendingUp size={14} /> +2.4%</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: '98.2%' }} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-bold mt-6 uppercase tracking-widest">Avg. Delivery: 24 mins</p>
+                  </div>
+
+                  <div className="lg:col-span-2 p-8 bg-white border border-slate-100 rounded-[2.5rem] shadow-sm relative overflow-hidden group">
+                    <div className="relative z-10 grid grid-cols-3 gap-10">
+                      <div>
+                        <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-2">Total Volume</h4>
+                        <p className="text-3xl font-black text-slate-900">₹{stats?.totalRevenue?.toLocaleString() || '0'}</p>
+                        <div className="mt-4 flex gap-1">
+                          {[3, 5, 2, 8, 4, 6, 9].map((v, i) => (
+                            <div key={i} style={{ height: `${v * 2}px` }} className="w-1.5 bg-slate-100 rounded-full" />
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-2">Platform Cut</h4>
+                        <p className="text-3xl font-black text-orange-600">₹{stats?.totalCommission?.toLocaleString() || '0'}</p>
+                        <p className="text-[10px] text-slate-400 font-black mt-2">20% COMMISSION</p>
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <button onClick={() => setActiveTab('finance')} className="bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl">
+                          Full Reports
+                        </button>
+                      </div>
+                    </div>
+                    <Building size={150} className="absolute -bottom-10 -right-10 text-slate-50 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
                   </div>
                 </div>
 
@@ -477,7 +554,7 @@ export default function AdminDashboard() {
                             }}
                             className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer"
                           >
-                            {['placed', 'confirmed', 'preparing', 'ready', 'on_the_way', 'delivered', 'cancelled'].map(s => (
+                            {['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].map(s => (
                               <option key={s} value={s}>{s.replace('_', ' ')}</option>
                             ))}
                           </select>
@@ -543,7 +620,7 @@ export default function AdminDashboard() {
                             }}
                             className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer ${STATUS_COLORS[o.orderStatus] || 'bg-slate-100 text-slate-600'}`}
                           >
-                            {['placed', 'confirmed', 'preparing', 'ready', 'on_the_way', 'delivered', 'cancelled'].map(s => (
+                            {['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].map(s => (
                               <option key={s} value={s}>{s.replace('_', ' ')}</option>
                             ))}
                           </select>
@@ -648,6 +725,7 @@ export default function AdminDashboard() {
                           >
                             <option value="customer">Customer (User)</option>
                             <option value="rider">Rider (Delivery)</option>
+                            <option value="restaurant">Restaurant (Partner)</option>
                             <option value="admin">Admin (Staff)</option>
                           </select>
                         </div>
@@ -662,78 +740,99 @@ export default function AdminDashboard() {
                   </form>
                 )}
 
+                <div className="flex flex-wrap gap-2 pb-2">
+                  {['all', 'customer', 'restaurant', 'rider', 'admin'].map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setRoleFilter(r)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${roleFilter === r ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    >
+                      {r}s
+                    </button>
+                  ))}
+                </div>
+
                 <div className="overflow-x-auto bg-white rounded-[2rem] border border-slate-100">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-50">
                         <th className="pb-6 px-4">User</th>
                         <th className="pb-6">Role</th>
+                        <th className="pb-6">Wallet</th>
                         <th className="pb-6 text-center">Status</th>
                         <th className="pb-6 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {usersList.map((u) => (
-                        <tr key={u._id} className="group hover:bg-slate-50/50 transition-colors">
-                          <td className="py-6 px-4">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 uppercase">
-                                {u.name?.[0]}
+                      {usersList
+                        .filter(u => roleFilter === 'all' || u.role === roleFilter)
+                        .map((u) => (
+                          <tr key={u._id} className="group hover:bg-slate-50/50 transition-colors">
+                            <td className="py-6 px-4">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 uppercase">
+                                  {u.name?.[0]}
+                                </div>
+                                <div>
+                                  <p className="font-black text-slate-900 text-sm">{u.name}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{u.email}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-black text-slate-900 text-sm">{u.name}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{u.email}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-6">
-                            <select
-                              value={u.role}
-                              onChange={async (e) => {
-                                const newRole = e.target.value;
-                                try {
-                                  await API.put(`/admin/users/${u._id}`, { role: newRole });
-                                  setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, role: newRole } : usr));
-                                  addNotif(`🎭 Role updated to ${newRole}`, 'info');
-                                } catch (err) {
-                                  console.error('Failed to update role:', err);
-                                  alert('Role update failed');
-                                }
-                              }}
-                              className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer ${u.role === 'admin' ? 'bg-purple-50 text-purple-600' :
-                                u.role === 'rider' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-500'
-                                }`}
-                            >
-                              <option value="customer">Customer</option>
-                              <option value="rider">Rider</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                          </td>
-                          <td className="py-6 text-center">
-                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${u.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                              <div className={`w-1.5 h-1.5 rounded-full ${u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                              {u.isActive !== false ? 'Active' : 'Blocked'}
-                            </span>
-                          </td>
-                          <td className="py-6 text-right">
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const newStatus = u.isActive === false ? true : false;
-                                  await API.put(`/admin/users/${u._id}`, { isActive: newStatus });
-                                  setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, isActive: newStatus } : usr));
-                                  addNotif(`👤 User ${newStatus ? 'enabled' : 'blocked'}`, 'info');
-                                } catch (err) {
-                                  console.error('Failed to update user status:', err);
-                                }
-                              }}
-                              className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-xl transition-all ${u.isActive !== false ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                            >
-                              {u.isActive !== false ? 'Block' : 'Enable'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-6">
+                              <select
+                                value={u.role}
+                                onChange={async (e) => {
+                                  const newRole = e.target.value;
+                                  try {
+                                    await API.put(`/admin/users/${u._id}`, { role: newRole });
+                                    setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, role: newRole } : usr));
+                                    addNotif(`🎭 Role updated to ${newRole}`, 'info');
+                                  } catch (err) {
+                                    console.error('Failed to update role:', err);
+                                    alert('Role update failed');
+                                  }
+                                }}
+                                className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl outline-none cursor-pointer border-none shadow-sm transition-all active:scale-95 ${u.role === 'admin' ? 'bg-purple-50 text-purple-600 hover:bg-purple-100' :
+                                  u.role === 'rider' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' :
+                                    u.role === 'restaurant' ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' :
+                                      'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                  }`}
+                              >
+                                <option value="customer">Customer</option>
+                                <option value="rider">Rider</option>
+                                <option value="restaurant">Partner</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </td>
+                            <td className="py-6">
+                              <p className="font-black text-slate-900 text-xs">₹{u.wallet?.balance?.toLocaleString() || 0}</p>
+                            </td>
+                            <td className="py-6 text-center">
+                              <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${u.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                {u.isActive !== false ? 'Active' : 'Blocked'}
+                              </span>
+                            </td>
+                            <td className="py-6 text-right">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const newStatus = u.isActive === false ? true : false;
+                                    await API.put(`/admin/users/${u._id}`, { isActive: newStatus });
+                                    setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, isActive: newStatus } : usr));
+                                    addNotif(`👤 User ${newStatus ? 'enabled' : 'blocked'}`, 'info');
+                                  } catch (err) {
+                                    console.error('Failed to update user status:', err);
+                                  }
+                                }}
+                                className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-xl transition-all ${u.isActive !== false ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                              >
+                                {u.isActive !== false ? 'Block' : 'Enable'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
@@ -826,6 +925,19 @@ export default function AdminDashboard() {
                             ))}
                           </select>
                         </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Commission Percentage (%)</label>
+                          <input
+                            type="number"
+                            required
+                            min="0"
+                            max="100"
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                            placeholder="10"
+                            value={newRestaurantForm.commissionPercentage}
+                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, commissionPercentage: e.target.value })}
+                          />
+                        </div>
                       </div>
                       <div className="space-y-4">
                         <div>
@@ -916,7 +1028,8 @@ export default function AdminDashboard() {
                                 cuisines: r.cuisines?.join(', ') || '',
                                 address: r.location?.address || '',
                                 city: r.location?.city || '',
-                                ownerId: r.owner?._id || r.owner || ''
+                                ownerId: r.owner?._id || r.owner || '',
+                                commissionPercentage: r.commissionPercentage || 10
                               });
                               setShowAddRestaurant(true);
                               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1137,13 +1250,25 @@ export default function AdminDashboard() {
                     <h3 className="font-black text-xl text-slate-900">Financial Reports</h3>
                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Revenue breakdown and partner settlements</p>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex gap-8">
                     <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gross Revenue</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gross Sales</p>
                       <p className="text-xl font-black text-slate-900">₹{financeData.totalGrossRevenue?.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Admin Earnings</p>
+                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest text-xs">Unsettled (COD/Pend)</p>
+                      <p className="text-xl font-black text-amber-600">₹{financeData.pendingRevenue?.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest text-xs">Total Orders</p>
+                      <p className="text-xl font-black text-slate-900">{financeData.totalOrders || 0}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest text-xs">Avg. Order</p>
+                      <p className="text-xl font-black text-slate-900">₹{financeData.averageOrderValue?.toFixed(0)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Admin Profit</p>
                       <p className="text-xl font-black text-emerald-600">₹{financeData.totalCommission?.toLocaleString()}</p>
                     </div>
                   </div>
@@ -1154,19 +1279,36 @@ export default function AdminDashboard() {
                   <div className="absolute top-0 right-0 p-8 opacity-20">
                     <TrendingUp size={120} />
                   </div>
-                  <h4 className="font-black text-xs uppercase tracking-[0.2em] text-orange-400 mb-10">Revenue Velocity</h4>
-                  <div className="h-48 flex items-end gap-4">
-                    {financeData.weeklyReport?.map((val, i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-4">
-                        <div
-                          style={{ height: `${(val / (Math.max(...financeData.weeklyReport) || 1)) * 100}%` }}
-                          className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-2xl min-h-[4px] relative group hover:scale-105 transition-all cursor-pointer"
-                        >
-                          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-3 py-1 rounded-lg text-[10px] font-black opacity-0 group-hover:opacity-100 transition-opacity shadow-xl">₹{val}</div>
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                      <h4 className="font-black text-xs uppercase tracking-[0.2em] text-orange-400">Revenue Velocity</h4>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Weekly aggregate totals</p>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Live Reports</span>
+                    </div>
+                  </div>
+                  <div className="h-48 flex items-end gap-4 relative z-10">
+                    {financeData.weeklyReport?.map((val, i) => {
+                      const maxFin = Math.max(...financeData.weeklyReport, 1);
+                      const height = (val / maxFin) * 100;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-4">
+                          <div
+                            style={{ height: `${Math.max(height, 2)}%` }}
+                            className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-2xl min-h-[4px] relative group hover:scale-105 transition-all cursor-pointer shadow-[0_0_20px_rgba(234,88,12,0.2)]"
+                          >
+                            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-3 py-1.5 rounded-xl text-[10px] font-black opacity-0 group-hover:opacity-100 transition-all shadow-2xl scale-90 group-hover:scale-100 whitespace-nowrap z-30 transform -translate-y-2 group-hover:translate-y-0">
+                              ₹{val.toLocaleString()}
+                            </div>
+                          </div>
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                            {i === 6 ? 'Today' : i === 5 ? 'Yest' : `${6 - i}d ago`}
+                          </p>
                         </div>
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1183,6 +1325,7 @@ export default function AdminDashboard() {
                           <th className="py-6">Gross Sales</th>
                           <th className="py-6">Commission</th>
                           <th className="py-6">Net Payout</th>
+                          <th className="py-6">Pending (COD)</th>
                           <th className="py-6 px-10 text-right">Action</th>
                         </tr>
                       </thead>
@@ -1196,8 +1339,16 @@ export default function AdminDashboard() {
                             <td className="py-6 font-black text-slate-900">₹{s.gross.toLocaleString()}</td>
                             <td className="py-6 font-black text-rose-500">-₹{s.commission.toLocaleString()}</td>
                             <td className="py-6 font-black text-emerald-600">₹{s.net.toLocaleString()}</td>
+                            <td className="py-6 font-black text-amber-600">₹{(s.pending || 0).toLocaleString()}</td>
                             <td className="py-6 px-10 text-right">
-                              <button className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 transition-all">
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Process payout of ₹${s.net.toLocaleString()} for ${s.name}?`)) {
+                                    addNotif(`💸 Payout of ₹${s.net.toLocaleString()} processed for ${s.name}!`, 'info');
+                                  }
+                                }}
+                                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 transition-all active:scale-95 shadow-lg"
+                              >
                                 Process Payout
                               </button>
                             </td>

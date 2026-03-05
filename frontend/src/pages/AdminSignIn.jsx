@@ -44,9 +44,9 @@ export default function AdminSignIn() {
         <AuthLayout
             title="Welcome Back"
             subtitle="Hey, welcome back up to your special place"
-            footerText="Need admin support?"
-            footerAction="Contact Support"
-            footerLink="#"
+            footerText="New administrator?"
+            footerAction="Create Admin Account"
+            footerLink="/admin/signup"
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 {error && (
@@ -121,7 +121,7 @@ export default function AdminSignIn() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-3 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl shadow-purple-500/20 active:scale-[0.98] disabled:opacity-50 bg-purple-600 hover:bg-purple-700"
+                    className="w-full flex items-center justify-center gap-3 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-50 bg-emerald-600 hover:bg-emerald-700"
                 >
                     {loading ? (
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -129,35 +129,7 @@ export default function AdminSignIn() {
                         'Sign In'
                     )}
                 </button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-4 py-2">
-                    <div className="flex-1 h-px bg-slate-100" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">or</span>
-                    <div className="flex-1 h-px bg-slate-100" />
-                </div>
-
-                {/* Google Sign In */}
-                <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    className="w-full flex items-center justify-center gap-4 py-4 rounded-3xl bg-white border border-slate-100 font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
-                >
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
-                    <span className="text-sm">Sign in with Google</span>
-                </button>
             </form>
-
-            {/* Demo Creds Hint */}
-            <div className="mt-8 p-4 rounded-3xl border border-dashed flex items-center gap-4 border-purple-200 bg-purple-50/50">
-                <div className="p-2 rounded-xl bg-purple-100 text-purple-600">
-                    <ShieldCheck size={20} />
-                </div>
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pre-filled Demo Credentials</p>
-                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">{email} / {password}</p>
-                </div>
-            </div>
         </AuthLayout>
     );
 }
