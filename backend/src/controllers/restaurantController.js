@@ -36,8 +36,8 @@ export const createRestaurant = async (req, res) => {
         console.log("📝 [Create Restaurant API] Payload received:", req.body);
         const payload = {
             ...req.body,
-            isApproved: true, // Auto-approve for convenience during testing
-            isOpen: true,      // Set open by default
+            isApproved: req.userRole === 'admin', // Auto-approve only if created by admin
+            isOpen: false,      // Set closed by default until approved
             reviewCount: 0,
             rating: 4.0        // Default rating for appearance
         };

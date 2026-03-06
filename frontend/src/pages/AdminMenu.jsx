@@ -16,7 +16,7 @@ export default function AdminMenu() {
     name: '',
     price: '',
     description: '',
-    category: 'Mains',
+    category: '',
     image: '',
     recipe: ''
   });
@@ -110,7 +110,7 @@ export default function AdminMenu() {
       name: '',
       price: '',
       description: '',
-      category: 'Mains',
+      category: '',
       image: '',
       recipe: ''
     });
@@ -208,18 +208,30 @@ export default function AdminMenu() {
                   <div>
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Category</label>
                     <select
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500/50 font-medium text-slate-800"
+                      required
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500/50 font-medium text-slate-800 cursor-pointer"
                       value={form.category}
                       onChange={e => setForm({ ...form, category: e.target.value })}
                     >
+                      <option value="">Select Category</option>
                       <option value="Starters">Starters</option>
                       <option value="Mains">Mains</option>
                       <option value="Desserts">Desserts</option>
                       <option value="Beverages">Beverages</option>
                       <option value="Pizza">Pizza</option>
                       <option value="Pasta">Pasta</option>
-                      <option value="Sushi">Sushi</option>
+                      <option value="Burgers">Burgers</option>
+                      <option value="Sandwiches">Sandwiches</option>
+                      <option value="Chinese">Chinese</option>
+                      <option value="Indian">Indian</option>
+                      <option value="Tandoor">Tandoor</option>
+                      <option value="Continental">Continental</option>
+                      <option value="Fast Food">Fast Food</option>
+                      <option value="Healthy / Salads">Healthy / Salads</option>
+                      <option value="Breakfast">Breakfast</option>
+                      <option value="Snacks">Snacks</option>
                       <option value="Groceries">Groceries</option>
+                      <option value="Sushi">Sushi</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>

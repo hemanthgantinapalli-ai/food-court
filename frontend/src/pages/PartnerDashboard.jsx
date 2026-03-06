@@ -31,7 +31,7 @@ export default function PartnerDashboard() {
     const [formLoading, setFormLoading] = useState(false);
     const [showMenuForm, setShowMenuForm] = useState(false);
     const [editingMenuId, setEditingMenuId] = useState(null);
-    const [menuForm, setMenuForm] = useState({ name: '', price: '', category: 'Mains', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
+    const [menuForm, setMenuForm] = useState({ name: '', price: '', category: '', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
 
     const [editingRestaurantId, setEditingRestaurantId] = useState(null);
     const [showRestaurantForm, setShowRestaurantForm] = useState(false);
@@ -120,7 +120,7 @@ export default function PartnerDashboard() {
             }
             setShowMenuForm(false);
             setEditingMenuId(null);
-            setMenuForm({ name: '', price: '', category: 'Mains', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
+            setMenuForm({ name: '', price: '', category: '', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
         } catch (error) {
             addNotif(error.response?.data?.message || 'Failed to save item', 'error');
         } finally {
@@ -589,22 +589,32 @@ export default function PartnerDashboard() {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Category</label>
-                                                <input
-                                                    list="menu-categories"
-                                                    className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none"
+                                                <select
+                                                    required
+                                                    className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none cursor-pointer"
                                                     value={menuForm.category}
                                                     onChange={e => setMenuForm({ ...menuForm, category: e.target.value })}
-                                                    placeholder="Type or select category..."
-                                                />
-                                                <datalist id="menu-categories">
-                                                    {Array.from(new Set(menuItems.map(i => i.category))).map(cat => (
-                                                        <option key={cat} value={cat} />
-                                                    ))}
-                                                    <option value="Starters" />
-                                                    <option value="Mains" />
-                                                    <option value="Desserts" />
-                                                    <option value="Beverages" />
-                                                </datalist>
+                                                >
+                                                    <option value="">Select Category</option>
+                                                    <option value="Starters">Starters</option>
+                                                    <option value="Mains">Mains</option>
+                                                    <option value="Desserts">Desserts</option>
+                                                    <option value="Beverages">Beverages</option>
+                                                    <option value="Pizza">Pizza</option>
+                                                    <option value="Pasta">Pasta</option>
+                                                    <option value="Burgers">Burgers</option>
+                                                    <option value="Sandwiches">Sandwiches</option>
+                                                    <option value="Chinese">Chinese</option>
+                                                    <option value="Indian">Indian</option>
+                                                    <option value="Tandoor">Tandoor</option>
+                                                    <option value="Continental">Continental</option>
+                                                    <option value="Fast Food">Fast Food</option>
+                                                    <option value="Healthy / Salads">Healthy / Salads</option>
+                                                    <option value="Breakfast">Breakfast</option>
+                                                    <option value="Snacks">Snacks</option>
+                                                    <option value="Combos">Combos</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Restaurant</label>

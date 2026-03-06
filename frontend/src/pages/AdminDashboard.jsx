@@ -1088,6 +1088,7 @@ export default function AdminDashboard() {
                                 await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                 setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
                                 addNotif(`✅ ${r.name} approved!`, 'info');
+                                fetchData(); // Sync stats & badge counts
                               } catch (err) {
                                 console.error('Approval failed:', err);
                               }
@@ -1177,6 +1178,7 @@ export default function AdminDashboard() {
                                   await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                   setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
                                   addNotif(`✨ ${r.name} is now a partner!`, 'info');
+                                  fetchData(); // Sync stats & badge counts
                                 } catch (err) {
                                   console.error('Approval failed:', err);
                                   alert('Approval failed: ' + (err.response?.data?.message || err.message));
@@ -1247,6 +1249,7 @@ export default function AdminDashboard() {
                                   await API.put(`/admin/riders/${r._id}/approve`, {});
                                   setRiderProfilesList(prev => prev.map(rider => rider._id === r._id ? { ...rider, status: 'APPROVED' } : rider));
                                   addNotif(`✅ Rider ${r.fullName} Approved!`, 'info');
+                                  fetchData(); // Sync stats & badge counts
                                 } catch (err) {
                                   console.error('Approval failed:', err);
                                   addNotif('❌ Approval failed.', 'error');
