@@ -8,22 +8,45 @@ export const useCartStore = create(
       restaurantId: null,
       coupon: null,
       discount: 0,
+      conflictItem: null,
       addToCart: (product) => {
         const currentItems = get().items;
+        const currentRestaurantId = get().restaurantId;
+        const newRestaurantId = product.restaurant?._id || product.restaurant;
+
+        // Conflict Detection: If cart has items from a different restaurant
+        if (currentRestaurantId && newRestaurantId && currentRestaurantId !== newRestaurantId) {
+          set({ conflictItem: product });
+          return { conflict: true };
+        }
+
         const existingItem = currentItems.find((item) => item._id === product._id);
-        // Track restaurantId from the first item added
-        const restaurantId = product.restaurant?._id || product.restaurant || get().restaurantId;
         if (existingItem) {
           set({
             items: currentItems.map((item) =>
               item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
             ),
-            restaurantId,
+            restaurantId: newRestaurantId,
           });
         } else {
-          set({ items: [...currentItems, { ...product, quantity: 1 }], restaurantId });
+          set({ items: [...currentItems, { ...product, quantity: 1 }], restaurantId: newRestaurantId });
+        }
+        return { conflict: false };
+      },
+      confirmClearAndAdd: () => {
+        const product = get().conflictItem;
+        if (product) {
+          const newRestaurantId = product.restaurant?._id || product.restaurant;
+          set({
+            items: [{ ...product, quantity: 1 }],
+            restaurantId: newRestaurantId,
+            conflictItem: null,
+            coupon: null,
+            discount: 0
+          });
         }
       },
+      cancelConflict: () => set({ conflictItem: null }),
       updateQuantity: (id, quantity) => {
         const currentItems = get().items;
         if (quantity < 1) {
@@ -41,7 +64,7 @@ export const useCartStore = create(
         set({ items: newItems });
         if (newItems.length === 0) set({ coupon: null, discount: 0, restaurantId: null });
       },
-      clearCart: () => set({ items: [], coupon: null, discount: 0, restaurantId: null }),
+      clearCart: () => set({ items: [], coupon: null, discount: 0, restaurantId: null, conflictItem: null }),
       getTotal: () => get().items.reduce((acc, item) => acc + item.price * item.quantity, 0),
       getRestaurantId: () => get().restaurantId,
       applyCoupon: (code) => {

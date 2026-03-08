@@ -17,6 +17,23 @@ export const authenticateUser = (req, res, next) => {
     }
 };
 
+export const optionalAuthenticateUser = (req, res, next) => {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+        return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.userId = decoded.id;
+        req.userRole = decoded.role;
+    } catch (error) {
+        // Invalid token? Just continue as guest
+    }
+    next();
+};
+
 export const authorizeRole = (...roles) => {
     return (req, res, next) => {
         if (!req.userRole) return res.status(403).json({ success: false, message: 'Forbidden' });

@@ -3,10 +3,50 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     Store, Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft,
     CheckCircle, FileText, CreditCard, MapPin, Phone, Building2,
-    UtensilsCrossed, Upload, Shield, Receipt, Landmark
+    UtensilsCrossed, Upload, Shield, Receipt, Landmark, X, Image
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
+
+function ImageUploadField({ label, fieldKey, value, onChange, icon: Icon, required = false, hint = '' }) {
+    const handleFile = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => onChange(fieldKey, ev.target.result);
+        reader.readAsDataURL(file);
+    };
+    const id = `doc-${fieldKey}`;
+    return (
+        <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                {label}{required && <span className="text-rose-500 ml-1">*</span>}
+            </label>
+            <label htmlFor={id} className="flex items-center gap-3 cursor-pointer group">
+                <div className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed transition-all ${value ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/50'
+                    }`}>
+                    <Icon size={16} className={value ? 'text-emerald-600' : 'text-slate-400'} />
+                    <span className={`text-sm font-bold flex-1 ${value ? 'text-emerald-700' : 'text-slate-400'}`}>
+                        {value ? '✓ Image uploaded' : 'Click to upload image'}
+                    </span>
+                    <Upload size={14} className={value ? 'text-emerald-500' : 'text-slate-300 group-hover:text-emerald-400'} />
+                    <input id={id} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+                </div>
+                {value && (
+                    <button type="button" onClick={() => onChange(fieldKey, '')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 transition-all shrink-0">
+                        <X size={16} />
+                    </button>
+                )}
+            </label>
+            {hint && !value && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
+            {value && (
+                <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-200">
+                    <img src={value} alt="preview" className="w-full h-full object-cover" />
+                </div>
+            )}
+        </div>
+    );
+}
 
 const STEPS = [
     { id: 1, title: 'Account', subtitle: 'Your login credentials' },
@@ -44,15 +84,20 @@ export default function RestaurantSignUp() {
         city: '',
         state: '',
         zipCode: '',
+        restaurantBanner: '', // image upload
         // Step 3 — Documents
         fssaiLicense: '',
+        fssaiImage: '',     // image upload
         gstin: '',
         panNumber: '',
+        panImage: '',       // image upload
         bankAccountName: '',
         bankAccountNumber: '',
         bankIfsc: '',
         bankName: '',
     });
+
+    const handleImageChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
     const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -84,6 +129,7 @@ export default function RestaurantSignUp() {
         }
         if (step === 3) {
             if (!form.fssaiLicense.trim()) return setError('FSSAI License number is required'), false;
+            if (!form.fssaiImage) return setError('Please upload your FSSAI License certificate image.'), false;
             if (!form.panNumber.trim()) return setError('PAN number is required'), false;
         }
         return true;
@@ -425,6 +471,16 @@ export default function RestaurantSignUp() {
                                         className="w-full px-4 py-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm"
                                     />
                                 </div>
+
+                                {/* Restaurant Banner Photo */}
+                                <ImageUploadField
+                                    label="Restaurant Banner / Cover Photo"
+                                    fieldKey="restaurantBanner"
+                                    value={form.restaurantBanner}
+                                    onChange={handleImageChange}
+                                    icon={Image}
+                                    hint="Upload a high-quality photo of your restaurant or signature dish"
+                                />
                             </div>
                         )}
 
@@ -447,6 +503,15 @@ export default function RestaurantSignUp() {
                                         type="text" value={form.fssaiLicense} onChange={e => update('fssaiLicense', e.target.value)}
                                         placeholder="14-digit FSSAI License Number"
                                         className="w-full px-4 py-3.5 rounded-xl bg-white border border-amber-200 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm"
+                                    />
+                                    <ImageUploadField
+                                        label="Upload FSSAI Certificate"
+                                        fieldKey="fssaiImage"
+                                        value={form.fssaiImage}
+                                        onChange={handleImageChange}
+                                        icon={Shield}
+                                        required
+                                        hint="Upload a clear scan or photo of your FSSAI certificate"
                                     />
                                     <a href="https://foscos.fssai.gov.in" target="_blank" rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 mt-3 text-[9px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 transition-colors">
@@ -493,6 +558,14 @@ export default function RestaurantSignUp() {
                                         placeholder="ABCDE1234F"
                                         maxLength={10}
                                         className="w-full px-4 py-3.5 rounded-xl bg-white border border-purple-200 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm uppercase"
+                                    />
+                                    <ImageUploadField
+                                        label="Upload PAN Card Image"
+                                        fieldKey="panImage"
+                                        value={form.panImage}
+                                        onChange={handleImageChange}
+                                        icon={CreditCard}
+                                        hint="Upload a clear photo of your PAN card (optional)"
                                     />
                                 </div>
 

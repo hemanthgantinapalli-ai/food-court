@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
     User, Package, Heart, CreditCard, HelpCircle,
     MapPin, Phone, Mail, LogOut, ChevronRight,
     Clock, ShieldCheck, Wallet, ArrowRight,
     TrendingUp, Star, Search, MessageSquare,
-    Gift, Bell, ExternalLink, Truck, ArrowUpRight
+    Gift, Bell, ExternalLink, Truck, ArrowUpRight,
+    Plus, Minus, X, Bike
 } from 'lucide-react';
 import { socket, connectSocket, disconnectSocket, joinRoleRoom } from '../api/socket.js';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
+import { useCartStore } from '../store/cartStore';
 import API from '../api/axios';
 import Loader from '../components/Loader';
 
@@ -20,6 +22,7 @@ const TABS = [
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'help', label: 'Help Desk', icon: HelpCircle },
+    { id: 'profile_link', label: 'Profile Settings', icon: User },
 ];
 
 export default function CustomerDashboard() {
@@ -29,6 +32,10 @@ export default function CustomerDashboard() {
     // However, the store might still be used elsewhere or for other purposes.
     const { fetchOrders: fetchOrdersFromStore } = useOrderStore(); // Renamed to avoid conflict
 
+    // cart helpers needed for quick reorder buttons
+    const { items: cartItems, addToCart, removeFromCart } = useCartStore();
+
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
 
@@ -48,33 +55,31 @@ export default function CustomerDashboard() {
     const [reviewForm, setReviewForm] = useState({ score: 5, review: '' });
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
+    // Rewards modal state
+    const [showRewardsModal, setShowRewardsModal] = useState(false);
+    const [transactions, setTransactions] = useState([]);
+    const [topUpAmount, setTopUpAmount] = useState('');
+    const [isToppingUp, setIsToppingUp] = useState(false);
+    const [toasts, setToasts] = useState([]);
+
+    const addToast = (msg, type = 'info') => {
+        const id = Date.now();
+        setToasts(prev => [{ id, msg, type }, ...prev].slice(0, 5));
+        setTimeout(() => setToasts(prev => prev.filter(n => n.id !== id)), 4000);
+    };
+
     useEffect(() => {
         if (user) {
             connectSocket(user._id);
             joinRoleRoom(`user_${user._id}`);
 
             const handleStatusUpdate = (data) => {
-                const newNotif = {
-                    id: Date.now(),
-                    title: 'Order Update',
-                    message: data.message,
-                    time: new Date().toLocaleTimeString(),
-                    orderId: data.orderId,
-                    type: data.status === 'delivered' ? 'success' : 'info'
-                };
-                setNotifications(prev => [newNotif, ...prev]);
+                fetchNotifications();
                 fetchData();
             };
 
             const handleSupportUpdate = (data) => {
-                const newNotif = {
-                    id: Date.now(),
-                    title: 'Support Update',
-                    message: data.message,
-                    time: new Date().toLocaleTimeString(),
-                    type: 'info'
-                };
-                setNotifications(prev => [newNotif, ...prev]);
+                fetchNotifications();
                 fetchSupportTickets();
             };
 
@@ -102,6 +107,8 @@ export default function CustomerDashboard() {
                 await Promise.all([
                     fetchData(),
                     fetchSupportTickets(),
+                    fetchNotifications(),
+                    fetchTransactions(),
                     getProfile()
                 ]);
             } catch (err) {
@@ -146,6 +153,34 @@ export default function CustomerDashboard() {
         }
     }
 
+    async function fetchTransactions() {
+        try {
+            const res = await API.get('/wallet/transactions');
+            setTransactions(res.data.data);
+        } catch (err) {
+            console.error('Error fetching transactions:', err);
+        }
+    }
+
+    async function handleTopUp(e) {
+        e.preventDefault();
+        if (!topUpAmount || isNaN(topUpAmount) || Number(topUpAmount) <= 0) return;
+        setIsToppingUp(true);
+        try {
+            const res = await API.post('/wallet/topup', { amount: Number(topUpAmount) });
+            if (res.data.success) {
+                setTopUpAmount('');
+                getProfile();
+                fetchTransactions();
+                addToast('✅ Wallet topped up successfully!', 'success');
+            }
+        } catch (err) {
+            addToast(err.response?.data?.message || 'Failed to top up wallet', 'error');
+        } finally {
+            setIsToppingUp(false);
+        }
+    }
+
     // Derived stats for efficiency
     const stats = React.useMemo(() => {
         const totalSpent = orders.reduce((sum, o) => sum + (o.orderStatus === 'delivered' ? (Number(o.total) || 0) : 0), 0);
@@ -163,6 +198,24 @@ export default function CustomerDashboard() {
         }
     }
 
+    async function fetchNotifications() {
+        try {
+            const res = await API.get('/notifications');
+            setNotifications(res.data?.data || []);
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+        }
+    }
+
+    const handleClearNotifications = async () => {
+        try {
+            await API.delete('/notifications/clear');
+            setNotifications([]);
+        } catch (error) {
+            console.error('Failed to clear notifications:', error);
+        }
+    };
+
     const handleSupportSubmit = async (e) => {
         e.preventDefault();
         setSubmittingSupport(true);
@@ -171,16 +224,20 @@ export default function CustomerDashboard() {
             setSupportForm({ subject: '', message: '', orderId: '', priority: 'medium' });
             setShowSupportForm(false);
             fetchSupportTickets();
-            alert('Support request submitted successfully!');
+            addToast('✅ Support request submitted successfully!', 'success');
         } catch (error) {
             console.error('Failed to submit support request:', error);
-            alert('Failed to submit support request');
+            addToast(error.response?.data?.message || 'Failed to submit support request', 'error');
         } finally {
             setSubmittingSupport(false);
         }
     };
 
     const handleUpdateTab = (tabId) => {
+        if (tabId === 'profile_link') {
+            navigate('/profile');
+            return;
+        }
         setSearchParams({ tab: tabId });
     };
 
@@ -192,13 +249,13 @@ export default function CustomerDashboard() {
                 score: reviewForm.score,
                 review: reviewForm.review
             });
-            alert('Thank you for your feedback!');
+            addToast('⭐ Thank you for your feedback!', 'success');
             setSelectedOrderForReview(null);
             setReviewForm({ score: 5, review: '' });
             fetchData();
         } catch (error) {
             console.error('Review failed:', error);
-            alert('Failed to submit review');
+            addToast(error.response?.data?.message || 'Failed to submit review', 'error');
         } finally {
             setIsSubmittingReview(false);
         }
@@ -220,6 +277,16 @@ export default function CustomerDashboard() {
 
     return (
         <div className="min-h-screen bg-[#F8F9FB] pt-24 pb-20">
+            {/* Toast Notifications */}
+            <div className="fixed top-6 right-6 z-[9999] space-y-2 max-w-xs w-full pointer-events-none">
+                {toasts.map(n => (
+                    <div key={n.id} className={`px-5 py-4 rounded-2xl shadow-2xl font-black text-sm text-white transition-all animate-in slide-in-from-right-4 duration-300 ${n.type === 'success' ? 'bg-emerald-600' :
+                            n.type === 'error' ? 'bg-rose-600' : 'bg-slate-900'
+                        }`}>
+                        {n.msg}
+                    </div>
+                ))}
+            </div>
             <div className="max-w-7xl mx-auto px-6">
 
                 {/* Header Hero Section */}
@@ -295,6 +362,26 @@ export default function CustomerDashboard() {
                                         </button>
                                     </div>
                                     <Gift size={80} className="absolute -bottom-4 -right-4 opacity-10 group-hover:scale-110 transition-transform" />
+                                </div>
+
+                                <div className="mt-6 bg-gradient-to-br from-orange-400 to-red-600 rounded-3xl p-6 text-white relative overflow-hidden group cursor-pointer shadow-lg" onClick={() => navigate('/rider')}>
+                                    <div className="relative z-10">
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">
+                                            {user?.role === 'rider' ? 'Quick Access' : 'Join our fleet'}
+                                        </p>
+                                        <h4 className="font-black text-lg leading-tight mb-2">
+                                            {user?.role === 'rider' ? 'Rider Dashboard' : 'Earn on your own schedule.'}
+                                        </h4>
+                                        <p className="text-[9px] text-white/80 font-medium mb-4 leading-relaxed">
+                                            {user?.role === 'rider'
+                                                ? 'Manage your deliveries, earnings and online status from your dedicated rider console.'
+                                                : 'Become a FoodCourt rider, enjoy flexible hours, instant payouts, and great incentives. Setup your Rider account today!'}
+                                        </p>
+                                        <div className="bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 w-max">
+                                            {user?.role === 'rider' ? 'Go to Dashboard' : 'Apply Now'} 🏍️
+                                        </div>
+                                    </div>
+                                    <Bike size={80} className="absolute -bottom-4 -right-4 opacity-10 group-hover:scale-110 transition-transform" />
                                 </div>
                             </div>
                         </div>
@@ -390,7 +477,11 @@ export default function CustomerDashboard() {
                                                     <p className="text-2xl font-black text-slate-900">4,850</p>
                                                 </div>
 
-                                                <button className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-slate-200">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowRewardsModal(true)}
+                                                    className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-slate-200"
+                                                >
                                                     Redeem Rewards
                                                 </button>
                                             </div>
@@ -446,16 +537,48 @@ export default function CustomerDashboard() {
                                                 <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No favorites saved yet to show here</p>
                                             </div>
                                         ) : (
-                                            favoriteFoods.slice(0, 3).map(food => (
-                                                <div key={food._id} className="bg-white rounded-[3rem] p-6 border border-slate-100 shadow-sm hover:shadow-xl transition-all group flex flex-col items-center text-center">
-                                                    <div className="w-full aspect-square rounded-[2rem] overflow-hidden mb-6">
-                                                        <img src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
+                                            favoriteFoods.slice(0, 3).map(food => {
+                                                const cartItem = cartItems.find(i => i._id === food._id);
+                                                const quantity = cartItem ? cartItem.quantity : 0;
+                                                // determine restaurant reference (id or object)
+                                                const restaurantRef = food.restaurant?._id || food.restaurant || food.restaurantId;
+
+                                                return (
+                                                    <div key={food._id} className="bg-white rounded-[3rem] p-6 border border-slate-100 shadow-sm hover:shadow-xl transition-all group flex flex-col items-center text-center">
+                                                        <div className="w-full aspect-square rounded-[2rem] overflow-hidden mb-6">
+                                                            <img src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
+                                                        </div>
+                                                        <h4 className="font-black text-slate-900 mb-1">{food.name}</h4>
+                                                        <p className="text-orange-600 font-black text-xl mb-6">₹{food.price}</p>
+
+                                                        {/* add-to-cart button or quantity selector */}
+                                                        {quantity === 0 ? (
+                                                            <button
+                                                                onClick={() => addToCart({ ...food, restaurant: restaurantRef })}
+                                                                className="w-full bg-slate-50 text-slate-900 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all"
+                                                            >
+                                                                Add to Bag
+                                                            </button>
+                                                        ) : (
+                                                            <div className="flex items-center gap-4 bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-lg">
+                                                                <button
+                                                                    onClick={() => removeFromCart(food._id)}
+                                                                    className="hover:text-orange-400 transition-colors"
+                                                                >
+                                                                    <Minus size={16} strokeWidth={3} />
+                                                                </button>
+                                                                <span className="font-black text-base w-5 text-center">{quantity}</span>
+                                                                <button
+                                                                    onClick={() => addToCart({ ...food, restaurant: restaurantRef })}
+                                                                    className="hover:text-orange-400 transition-colors"
+                                                                >
+                                                                    <Plus size={16} strokeWidth={3} />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <h4 className="font-black text-slate-900 mb-1">{food.name}</h4>
-                                                    <p className="text-orange-600 font-black text-xl mb-6">₹{food.price}</p>
-                                                    <Link to={`/restaurant/${food.restaurantId}`} className="w-full bg-slate-50 text-slate-900 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">Add to Bag</Link>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </div>
@@ -517,7 +640,7 @@ export default function CustomerDashboard() {
                                                             Order #{order.orderId?.slice(-8) || order._id.slice(-8)} • {new Date(order.createdAt).toLocaleDateString()}
                                                         </p>
                                                         <h3 className="text-xl font-black text-slate-900 mb-1">{order.restaurant?.name || 'Restaurant Order'}</h3>
-                                                        <p className="text-slate-500 font-bold text-sm">₹{order.total} • {order.items?.length} Items</p>
+                                                        <p className="text-slate-500 font-bold text-sm">₹{Number(order.total).toFixed(2)} • {order.items?.length} Items</p>
                                                     </div>
                                                 </div>
 
@@ -530,6 +653,13 @@ export default function CustomerDashboard() {
                                                         }`}>
                                                         {order.orderStatus?.replace('_', ' ')}
                                                     </span>
+                                                    {order.rating?.score && (
+                                                        <div className="flex gap-0.5 ml-2">
+                                                            {[1, 2, 3, 4, 5].map(s => (
+                                                                <Star key={s} size={10} className={s <= order.rating.score ? 'text-orange-500 fill-orange-500' : 'text-slate-200'} />
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                     <Link to={`/order/${order._id}`} className="grow md:grow-0 text-center bg-slate-100 hover:bg-slate-900 hover:text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                                                         View Details
                                                     </Link>
@@ -645,23 +775,59 @@ export default function CustomerDashboard() {
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-50 rounded-[3rem] p-10 border border-white">
+                                <div className="bg-white rounded-[3rem] p-10 border border-white shadow-sm">
+                                    <h4 className="font-black text-xl mb-8 flex items-center gap-4">
+                                        <Wallet className="text-orange-500" /> Wallet Balance
+                                    </h4>
+                                    <div className="flex flex-col sm:flex-row justify-between items-center gap-8 bg-slate-50 p-8 rounded-3xl">
+                                        <div className="text-center sm:text-left">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Available Funds</p>
+                                            <p className="text-5xl font-black text-slate-900 tracking-tight">₹{user?.wallet?.balance || 0}</p>
+                                        </div>
+                                        <form onSubmit={handleTopUp} className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                                            <input
+                                                type="number"
+                                                placeholder="Enter amount"
+                                                value={topUpAmount}
+                                                onChange={(e) => setTopUpAmount(e.target.value)}
+                                                className="px-6 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:border-orange-500 transition-all font-bold w-full sm:w-40"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={isToppingUp}
+                                                className="px-8 py-4 bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                                            >
+                                                {isToppingUp ? 'Processing...' : 'Top Up Wallet'}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-[3rem] p-10 border border-white shadow-sm">
                                     <h4 className="font-black text-xl mb-8">Recent Transactions</h4>
-                                    <div className="divide-y divide-slate-100">
-                                        {[1, 2, 3].map(i => (
-                                            <div key={i} className="py-6 flex justify-between items-center">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                                                        <Wallet size={16} className="text-orange-500" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-900">Load Wallet</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold">Feb {10 + i}, 2026</p>
-                                                    </div>
-                                                </div>
-                                                <p className="font-black text-emerald-600">+₹500.00</p>
+                                    <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto pr-4">
+                                        {transactions.length === 0 ? (
+                                            <div className="py-10 text-center">
+                                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No transactions yet</p>
                                             </div>
-                                        ))}
+                                        ) : (
+                                            transactions.map(txn => (
+                                                <div key={txn._id} className="py-6 flex justify-between items-center group hover:bg-slate-50/50 transition-colors px-4 rounded-2xl">
+                                                    <div className="flex items-center gap-6">
+                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${txn.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                            {txn.type === 'credit' ? <Plus size={18} /> : <Minus size={18} />}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-slate-900">{txn.description}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(txn.createdAt).toLocaleDateString()} • {new Date(txn.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className={`font-black text-lg ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {txn.type === 'credit' ? '+' : '-'}₹{txn.amount}
+                                                    </p>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -675,7 +841,7 @@ export default function CustomerDashboard() {
                                         <h3 className="text-3xl font-black text-slate-900 tracking-tight">Recent <span className="text-orange-500">Notifications</span></h3>
                                         <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Stay updated with your order progress</p>
                                     </div>
-                                    <button onClick={() => setNotifications([])} className="text-slate-400 font-black text-xs uppercase tracking-widest hover:text-rose-500 transition-colors">Clear All</button>
+                                    <button onClick={handleClearNotifications} className="text-slate-400 font-black text-xs uppercase tracking-widest hover:text-rose-500 transition-colors">Clear All</button>
                                 </div>
 
                                 {notifications.length === 0 ? (
@@ -694,7 +860,7 @@ export default function CustomerDashboard() {
                                                 <div className="flex-1">
                                                     <div className="flex justify-between items-start mb-1">
                                                         <h4 className="font-black text-slate-900">{notif.title}</h4>
-                                                        <span className="text-[10px] font-black text-slate-400">{notif.time}</span>
+                                                        <span className="text-[10px] font-black text-slate-400">{new Date(notif.createdAt || notif.time).toLocaleTimeString()}</span>
                                                     </div>
                                                     <p className="text-sm text-slate-600 font-medium leading-relaxed">{notif.message}</p>
                                                     {notif.orderId && (
@@ -709,6 +875,31 @@ export default function CustomerDashboard() {
                         )}
 
                         {/* Order Review Modal */}
+                        {/* Rewards modal */}
+                        {showRewardsModal && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
+                                <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative animate-fade-up">
+                                    <button
+                                        onClick={() => setShowRewardsModal(false)}
+                                        className="absolute top-4 right-4 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+                                    >
+                                        <X size={20} />
+                                    </button>
+
+                                    <h3 className="text-2xl font-black text-slate-900 text-center mb-4">Rewards Coming Soon</h3>
+                                    <p className="text-slate-500 text-sm text-center font-medium">
+                                        Our rewards portal is under construction. Check back later to redeem your points!
+                                    </p>
+                                    <button
+                                        onClick={() => setShowRewardsModal(false)}
+                                        className="mt-6 w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-xl"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {selectedOrderForReview && (
                             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
                                 <div className="bg-white rounded-[3rem] p-10 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-300">

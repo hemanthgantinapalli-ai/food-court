@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MapPin, Clock, User, Phone, Package, CheckCircle, ChevronLeft } from 'lucide-react';
+import { MapPin, Clock, User, Phone, Package, CheckCircle, ChevronLeft, Star, FileText, Printer } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -42,6 +42,26 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleCancelOrder = async () => {
+    if (!window.confirm('Are you sure you want to cancel this order? This action cannot be undone.')) return;
+
+    setActionLoading(true);
+    try {
+      await API.put(`/orders/${order._id}/cancel`);
+      await fetchOrder(); // Refresh order data
+      alert('Order cancelled successfully.');
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+      alert(error.response?.data?.message || 'Failed to cancel order');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) return <Loader />;
   if (!order) return <div className="text-center py-20">Order not found</div>;
 
@@ -55,7 +75,7 @@ export default function OrderDetailPage() {
 
         {/* Navigation & Actions */}
         <div className="flex justify-between items-center mb-8">
-          <Link to={user?.role === 'rider' ? '/rider' : user?.role === 'admin' ? '/admin' : '/orders'} className="flex items-center gap-2 text-slate-400 font-bold hover:text-orange-600 transition-colors group">
+          <Link to={user?.role === 'rider' ? '/rider' : user?.role === 'admin' ? '/admin' : '/orders'} className="flex items-center gap-2 text-slate-400 font-bold hover:text-orange-600 transition-colors group no-print">
             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:border-orange-100 transition-all">
               <ChevronLeft size={18} />
             </div>
@@ -85,6 +105,15 @@ export default function OrderDetailPage() {
               )}
             </div>
           )}
+
+          {/* Download Receipt / Invoice */}
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-100 rounded-xl text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:text-orange-600 transition-all shadow-sm no-print"
+          >
+            <Printer size={16} />
+            Print Receipt
+          </button>
         </div>
 
         {/* Order Header Card */}
@@ -101,6 +130,17 @@ export default function OrderDetailPage() {
             }`}>
             {order.orderStatus.replace('_', ' ')}
           </div>
+
+          {/* Customer Cancel Action */}
+          {user?.role === 'customer' && order.orderStatus === 'placed' && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={actionLoading}
+              className="px-6 py-3 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-sm no-print disabled:opacity-50"
+            >
+              {actionLoading ? 'Cancelling...' : 'Cancel Order'}
+            </button>
+          )}
         </div>
 
         {/* Status Timeline */}
@@ -140,6 +180,54 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
+        {/* Rating Section (If exists) */}
+        {order.rating?.score && (
+          <div className="bg-white rounded-[2.5rem] p-10 mb-8 shadow-sm border border-slate-100 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Star size={120} className="fill-orange-500 text-orange-500 rotate-12" />
+            </div>
+            <div className="relative z-10">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
+                  <Star size={16} className="text-orange-500 fill-orange-500" /> Your Experience
+                </h3>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      size={14}
+                      className={s <= order.rating.score ? "text-orange-500 fill-orange-500" : "text-slate-100 fill-slate-100"}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="p-6 bg-slate-50 rounded-[1.8rem] border border-slate-100">
+                <p className="text-slate-700 font-medium italic">"{order.rating.review || 'No written review provided.'}"</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">
+                  Rated on {new Date(order.rating.timestamp || order.updatedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Prompt for Delivered Orders without rating */}
+        {order.orderStatus === 'delivered' && !order.rating?.score && user?.role === 'customer' && (
+          <div className="bg-orange-600 rounded-[2.5rem] p-10 mb-8 shadow-xl shadow-orange-100 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group">
+            <div className="relative z-10 text-center md:text-left">
+              <h3 className="text-2xl font-black mb-2 tracking-tight">How was your meal?</h3>
+              <p className="text-orange-100 font-bold text-sm">Tap below to share your feedback and help others!</p>
+            </div>
+            <Link
+              to="/dashboard?tab=orders"
+              className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg relative z-10"
+            >
+              Rate Now
+            </Link>
+            <Star size={180} className="absolute -bottom-20 -right-20 text-white/10 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+          </div>
+        )}
+
         <div className="grid md:grid-cols-3 gap-8 mb-8">
           {/* Items Table */}
           <div className="md:col-span-2 bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
@@ -176,13 +264,13 @@ export default function OrderDetailPage() {
               ].filter(item => item.value !== 0).map((item, i) => (
                 <div key={i} className="flex justify-between items-center">
                   <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{item.label}</span>
-                  <span className={`font-black ${item.color || 'text-white'}`}>₹{Math.abs(item.value)}</span>
+                  <span className={`font-black ${item.color || 'text-white'}`}>₹{Math.abs(Number(item.value)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
             <div className="border-t border-white/10 pt-6">
               <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Total Paid</p>
-              <p className="text-4xl font-black text-orange-400 tracking-tighter">₹{order.total}</p>
+              <p className="text-4xl font-black text-orange-400 tracking-tighter">₹{Number(order.total).toFixed(2)}</p>
             </div>
           </div>
         </div>

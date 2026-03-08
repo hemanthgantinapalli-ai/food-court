@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Rider from "../models/Rider.js";
 import Restaurant from "../models/Restaurant.js";
 import MenuItem from "../models/MenuItem.js";
 import { generateToken } from "../utils/jwt.js";
@@ -86,11 +87,22 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.userId)
       .populate("favorites", "name image rating cuisines location")
-      .populate("favoriteFoods", "name price description image isVeg")
+      .populate("favoriteFoods", "name price description image isVeg restaurant")
       .select("-password");
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    let riderData = null;
+    let restaurants = [];
+
+    if (user.role === 'rider') {
+      riderData = await Rider.findOne({ user: user._id });
+    } else if (user.role === 'restaurant') {
+      restaurants = await Restaurant.find({ owner: user._id });
+    }
+
     res.status(200).json({
       user: {
         id: user._id,
@@ -102,6 +114,8 @@ export const getProfile = async (req, res) => {
         wallet: user.wallet || { balance: 0 },
         favorites: user.favorites || [],
         favoriteFoods: user.favoriteFoods || [],
+        riderData,
+        restaurants,
       },
     });
   } catch (error) {
@@ -127,7 +141,7 @@ export const toggleFavoriteFood = async (req, res) => {
     }
 
     await user.save();
-    const updatedUser = await User.findById(req.userId).populate("favoriteFoods", "name price description image isVeg");
+    const updatedUser = await User.findById(req.userId).populate("favoriteFoods", "name price description image isVeg restaurant");
 
     res.status(200).json({
       message: "Favorites updated",
@@ -183,6 +197,15 @@ export const updateProfile = async (req, res) => {
 
     await user.save();
 
+    let riderData = null;
+    let restaurants = [];
+
+    if (user.role === 'rider') {
+      riderData = await Rider.findOne({ user: user._id });
+    } else if (user.role === 'restaurant') {
+      restaurants = await Restaurant.find({ owner: user._id });
+    }
+
     res.status(200).json({
       message: "Profile updated successfully",
       user: {
@@ -195,6 +218,8 @@ export const updateProfile = async (req, res) => {
         wallet: user.wallet || { balance: 0 },
         favorites: user.favorites || [],
         favoriteFoods: user.favoriteFoods || [],
+        riderData,
+        restaurants,
       },
     });
   } catch (error) {

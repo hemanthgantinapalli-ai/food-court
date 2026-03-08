@@ -59,6 +59,7 @@ const restaurantSchema = new mongoose.Schema(
     deliveryTime: { type: Number, default: 30 },       // minutes
     deliveryFee: { type: Number, default: 49 },        // ₹
     commissionPercentage: { type: Number, default: 10 }, // Admin set commission
+    averagePrice: { type: Number, default: 500 },       // Typical price for two
   },
   { timestamps: true }
 );

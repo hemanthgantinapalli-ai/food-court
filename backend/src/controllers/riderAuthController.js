@@ -63,8 +63,8 @@ export const emailLogin = async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        // Find rider user
-        const user = await User.findOne({ email, role: 'rider' }).select('+password');
+        // Find rider user with normalized email
+        const user = await User.findOne({ email: email.toLowerCase(), role: 'rider' }).select('+password');
         if (!user) {
             return res.status(404).json({ message: 'No rider account found with this email. Please apply.' });
         }
@@ -109,21 +109,24 @@ export const emailSignup = async (req, res) => {
             return res.status(400).json({ message: 'Please provide all mandatory profile details including email and password.' });
         }
 
-        // Check if email or phone already registered
-        let user = await User.findOne({ $or: [{ email }, { phone }], role: 'rider' });
-        if (user) {
+        // Check if email or phone already registered (Check all roles because email is unique)
+        let existingUser = await User.findOne({
+            $or: [
+                { email: email.toLowerCase() },
+                { phone }
+            ]
+        });
+
+        if (existingUser) {
             return res.status(400).json({ message: 'Email or phone number already registered. Please sign in.' });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        user = await User.create({
+        // Create user relying on model hook for hashing
+        const user = await User.create({
             name: fullName,
             phone,
-            email,
-            password: hashedPassword,
+            email: email.toLowerCase(),
+            password,
             role: 'rider'
         });
 

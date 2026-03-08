@@ -1,16 +1,20 @@
 import { Router } from 'express';
-import { authenticateUser, authorizeRole } from '../middleware/auth.js';
+import { authenticateUser, authorizeRole, optionalAuthenticateUser } from '../middleware/auth.js';
+import Restaurant from '../models/Restaurant.js';
+import MenuItem from '../models/MenuItem.js';
 import {
     getRestaurants,
     getRestaurantById,
     createRestaurant,
     deleteRestaurant,
-    updateRestaurant
+    updateRestaurant,
+    getRecommendedRestaurants
 } from '../controllers/restaurantController.js';
 
 const router = Router();
 
 router.get('/', getRestaurants);
+router.get('/recommendations', optionalAuthenticateUser, getRecommendedRestaurants);
 // ✅ Critical: This was missing — clicking any restaurant card was 404ing
 router.get('/search/global', async (req, res) => {
     try {

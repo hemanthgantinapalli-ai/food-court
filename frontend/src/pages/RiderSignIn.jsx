@@ -2,25 +2,66 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
     Mail, Lock, Eye, EyeOff, Bike, Phone, CheckCircle,
-    MapPin, FileText, ShieldCheck, ChevronRight, ArrowLeft, Truck
+    MapPin, FileText, ShieldCheck, ChevronRight, ArrowLeft, Truck, Upload, X, Camera
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 
+function ImageUploadField({ label, fieldKey, value, onChange, icon: Icon, required = false, accept = 'image/*', previewCircle = false }) {
+    const handleFile = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => onChange(fieldKey, ev.target.result);
+        reader.readAsDataURL(file);
+    };
+    const inputId = `upload-${fieldKey}`;
+    return (
+        <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-indigo-400">{label}{required && <span className="text-rose-400 ml-1">*</span>}</label>
+            <label htmlFor={inputId} className="flex items-center gap-3 cursor-pointer group">
+                <div className={`relative flex-1 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/80 border ${value ? 'border-indigo-500/60' : 'border-white/10'} hover:border-indigo-500/40 transition-all`}>
+                    <Icon size={16} className="text-slate-500 shrink-0" />
+                    <span className={`text-sm font-bold truncate ${value ? 'text-indigo-400' : 'text-slate-500'}`}>
+                        {value ? '✓ Image uploaded' : 'Click to upload image'}
+                    </span>
+                    <Upload size={14} className="ml-auto text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                    <input id={inputId} type="file" accept={accept} onChange={handleFile} className="hidden" />
+                </div>
+                {value && (
+                    <button type="button" onClick={() => onChange(fieldKey, '')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all shrink-0">
+                        <X size={16} />
+                    </button>
+                )}
+            </label>
+            {value && (
+                <div className={`overflow-hidden border-2 border-indigo-500/30 ${previewCircle ? 'w-20 h-20 rounded-full mx-auto' : 'w-full h-36 rounded-xl'}`}>
+                    <img src={value} alt="preview" className="w-full h-full object-cover" />
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function RiderSignIn() {
     const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'pending'
-    const [email, setEmail] = useState('rider@foodcourt.com');
-    const [password, setPassword] = useState('rider123');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
 
     const [formData, setFormData] = useState({
         fullName: '',
         phone: '',
+        profilePhoto: '',
         vehicleType: 'bike',
         vehicleNumber: '',
         licenseNumber: '',
         aadhaarNumber: '',
+        aadhaarImage: '',
+        licenseImage: '',
     });
+
+    const handleImageChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -49,6 +90,27 @@ export default function RiderSignIn() {
     const handleSignup = async (e) => {
         e.preventDefault();
         setError('');
+
+        // Strict Validation
+        if (!/^\d{10}$/.test(formData.phone)) {
+            return setError('Phone number must be exactly 10 digits.');
+        }
+        if (!/^\d{12}$/.test(formData.aadhaarNumber)) {
+            return setError('Aadhaar number must be exactly 12 digits.');
+        }
+        if (formData.licenseNumber.length < 5) {
+            return setError('Please enter a valid License Number.');
+        }
+        if (formData.vehicleNumber.length < 4) {
+            return setError('Please enter a valid Vehicle Number.');
+        }
+        if (!formData.aadhaarImage) {
+            return setError('Please upload a photo of your Aadhaar card.');
+        }
+        if (!formData.licenseImage) {
+            return setError('Please upload a photo of your Driving License.');
+        }
+
         setLoading(true);
         try {
             await API.post('/riders/auth/signup', { email, password, ...formData });
@@ -172,10 +234,13 @@ export default function RiderSignIn() {
                                 <div className="relative">
                                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                                     <input
-                                        type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        type={showPass ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)}
+                                        className="w-full pl-11 pr-12 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                                         placeholder="Password (Min 6 chars)" minLength={6}
                                     />
+                                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
+                                        {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
                             </div>
 
@@ -195,9 +260,18 @@ export default function RiderSignIn() {
                                     <input
                                         type="text" required value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })}
                                         className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                        placeholder="Phone Number" maxLength={10}
+                                        placeholder="Phone Number (10 Digits)" maxLength={10}
                                     />
                                 </div>
+                                {/* Profile Photo Upload */}
+                                <ImageUploadField
+                                    label="Profile Photo (Optional)"
+                                    fieldKey="profilePhoto"
+                                    value={formData.profilePhoto}
+                                    onChange={handleImageChange}
+                                    icon={Camera}
+                                    previewCircle
+                                />
                             </div>
 
                             {/* Vehicle Details */}
@@ -243,6 +317,28 @@ export default function RiderSignIn() {
                                 </div>
                             </div>
 
+                            {/* Document Uploads */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-5">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">📄 Document Uploads</p>
+                                <p className="text-[10px] text-slate-500 font-bold -mt-2">Clear photos required — ensure text is readable</p>
+                                <ImageUploadField
+                                    label="Aadhaar Card Photo"
+                                    fieldKey="aadhaarImage"
+                                    value={formData.aadhaarImage}
+                                    onChange={handleImageChange}
+                                    icon={ShieldCheck}
+                                    required
+                                />
+                                <ImageUploadField
+                                    label="Driving License Photo"
+                                    fieldKey="licenseImage"
+                                    value={formData.licenseImage}
+                                    onChange={handleImageChange}
+                                    icon={FileText}
+                                    required
+                                />
+                            </div>
+
                             <button
                                 type="submit" disabled={loading}
                                 className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-black text-sm uppercase tracking-[0.15em] text-white transition-all shadow-xl shadow-indigo-900/50 active:scale-[0.98] disabled:opacity-50"
@@ -253,7 +349,7 @@ export default function RiderSignIn() {
 
                         <p className="text-center mt-8 text-slate-500 text-sm font-bold">
                             Already a rider?{' '}
-                            <button onClick={() => { setMode('login'); setError(''); setEmail('rider@foodcourt.com'); setPassword('rider123'); }} className="text-indigo-400 hover:text-indigo-300 font-black underline underline-offset-4 transition-colors">
+                            <button onClick={() => { setMode('login'); setError(''); setEmail(''); setPassword(''); }} className="text-indigo-400 hover:text-indigo-300 font-black underline underline-offset-4 transition-colors">
                                 Sign In
                             </button>
                         </p>
@@ -341,7 +437,7 @@ export default function RiderSignIn() {
                                 <input
                                     type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                                     className="w-full pl-11 pr-4 py-4 rounded-2xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                    placeholder="rider@foodcourt.com"
+                                    placeholder="Enter your email"
                                 />
                             </div>
                         </div>
@@ -373,17 +469,6 @@ export default function RiderSignIn() {
                             }
                         </button>
                     </form>
-
-                    {/* Demo Credentials */}
-                    <div className="mt-8 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-4">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                            <Bike size={18} />
-                        </div>
-                        <div>
-                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">Demo Credentials</p>
-                            <p className="text-[10px] font-bold text-slate-400 tracking-wide">{email} / {password}</p>
-                        </div>
-                    </div>
 
                     {/* Apply footer */}
                     <p className="text-center mt-8 text-slate-500 text-sm font-bold">

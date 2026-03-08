@@ -22,6 +22,7 @@ export default function RestaurantDetail() {
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
+  const [vegFilter, setVegFilter] = useState('all'); // 'all', 'veg', 'non-veg'
   const [isFavorited, setIsFavorited] = useState(false);
 
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -89,7 +90,13 @@ export default function RestaurantDetail() {
   );
 
   const categories = ['All', ...new Set(menu.map(item => item.category).filter(Boolean))];
-  const filteredMenu = activeCategory === 'All' ? menu : menu.filter(i => i.category === activeCategory);
+  const filteredMenu = menu.filter(item => {
+    const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
+    const matchesVeg = vegFilter === 'all' ||
+      (vegFilter === 'veg' && item.isVeg) ||
+      (vegFilter === 'non-veg' && !item.isVeg);
+    return matchesCategory && matchesVeg;
+  });
 
   return (
     <div className="bg-white min-h-screen pb-20">
@@ -172,23 +179,45 @@ export default function RestaurantDetail() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 mt-12">
 
-        {/* Category Tabs */}
-        {categories.length > 1 && (
-          <div className="flex gap-3 mb-10 overflow-x-auto pb-2">
-            {categories.map((cat) => (
+        {/* Category & Filter Row */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+          {categories.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`shrink-0 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${activeCategory === cat
+                    ? 'bg-slate-900 text-white shadow-lg'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Veg/Non-Veg Filter */}
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl shrink-0">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'veg', label: 'Veg' },
+              { id: 'non-veg', label: 'Non-Veg' }
+            ].map((btn) => (
               <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`shrink-0 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${activeCategory === cat
-                  ? 'bg-slate-900 text-white shadow-lg'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                key={btn.id}
+                onClick={() => setVegFilter(btn.id)}
+                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${vegFilter === btn.id
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-600'
                   }`}
               >
-                {cat}
+                {btn.label}
               </button>
             ))}
           </div>
-        )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
 

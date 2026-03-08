@@ -1,4 +1,5 @@
 import SupportRequest from '../models/SupportRequest.js';
+import Notification from '../models/Notification.js';
 import { getIO } from '../utils/socket.js';
 
 export const createSupportRequest = async (req, res) => {
@@ -58,10 +59,20 @@ export const updateSupportStatus = async (req, res) => {
 
         // Notify user via socket
         const io = getIO();
+        const updateMessage = `Your support request status has been updated to: ${status}`;
+
+        // Create persistent notification
+        await Notification.create({
+            user: request.user,
+            title: 'Support Update',
+            message: updateMessage,
+            type: 'info'
+        });
+
         io.to(request.user.toString()).emit('support_update', {
             id: request._id,
             status: request.status,
-            message: `Your support request status has been updated to: ${status}`
+            message: updateMessage
         });
 
         res.status(200).json({ success: true, data: request });

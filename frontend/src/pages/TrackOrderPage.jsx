@@ -4,6 +4,35 @@ import API from '../api/axios';
 import { useAuthStore } from '../context/authStore';
 import { useSearchParams, Link } from 'react-router-dom';
 import { socket, connectSocket, disconnectSocket } from '../api/socket.js';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
+import marker from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// Fix for default Leaflet markers in React
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: marker2x,
+    iconUrl: marker,
+    shadowUrl: markerShadow,
+});
+
+const riderIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
+});
+
+const restIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
+});
 
 const STATUS_MAPPING = {
     'placed': 0,
@@ -192,19 +221,125 @@ export default function TrackOrderPage() {
                     <div className="space-y-6 animate-fade-up">
                         {/* Success / Delivery Message */}
                         {currentStatus === 4 && (
-                            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[2rem] p-10 text-white text-center shadow-xl shadow-emerald-100 animate-bounce-short">
-                                <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-4xl">
-                                    😋
+                            <div className="space-y-6">
+                                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[2.5rem] p-10 text-white text-center shadow-xl shadow-emerald-100 animate-fade-up">
+                                    <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-4xl">
+                                        😋
+                                    </div>
+                                    <h2 className="text-4xl font-black mb-2 tracking-tight">Enjoy Your Feast!</h2>
+                                    <p className="text-emerald-50 font-medium text-lg">Your order was delivered successfully in record time.</p>
                                 </div>
-                                <h2 className="text-3xl font-black mb-2 tracking-tight">Enjoy Your Feast!</h2>
-                                <p className="text-emerald-50 font-medium">Your order has been delivered. We hope you love it!</p>
-                                <div className="mt-8 flex justify-center gap-4">
-                                    <button
-                                        onClick={() => alert('Thank you for rating! This helps us improve.')}
-                                        className="bg-white text-emerald-600 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-50 transition-colors"
+
+                                {/* Delivery Summary - Restaurant & Rider Details */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-up animate-delay-200">
+                                    {/* Restaurant Profile */}
+                                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:scale-[1.02]">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                                            Local Treasure
+                                        </p>
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-16 h-16 bg-orange-50 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center text-3xl">
+                                                {order.restaurant?.image ? (
+                                                    <img src={order.restaurant.image} alt="" className="w-full h-full object-cover" />
+                                                ) : '🍳'}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-lg">{order.restaurant?.name || 'Restaurant'}</p>
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <span className="text-orange-600 font-black text-xs">Top Rated</span>
+                                                    <span className="text-slate-300">|</span>
+                                                    <span className="text-slate-400 text-xs font-bold uppercase tracking-tight">Hygienic</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Rider Profile */}
+                                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:scale-[1.02]">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                                            <Truck size={14} /> Delivery Hero
+                                        </p>
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-16 h-16 bg-blue-50 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center text-3xl">
+                                                {order.rider?.profilePhoto ? (
+                                                    <img src={order.rider.profilePhoto} alt="" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                                                ) : '🚴'}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-lg">{order.rider?.name || 'Partner'}</p>
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <span className="text-blue-600 font-black text-xs">Platinum Level</span>
+                                                    <span className="text-slate-300">|</span>
+                                                    <span className="text-slate-400 text-xs font-bold uppercase tracking-tight">Verified</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-[2rem] border-2 border-slate-50 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500">
+                                            <CheckCircle size={24} />
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-slate-900 leading-tight">Rate your experience</p>
+                                            <p className="text-slate-400 text-xs font-medium">Earn 50 loyalty points per review</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1 text-2xl cursor-pointer hover:scale-105 transition-transform">
+                                        {['⭐', '⭐', '⭐', '⭐', '⭐'].map((s, i) => <span key={i} className="hover:animate-bounce">{s}</span>)}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Live Map (Only show when rider is on the way AND has location) */}
+                        {currentStatus === 3 && order.rider?.currentLocation?.latitude && order.restaurant?.location?.coordinates && (
+                            <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 relative h-64 md:h-80 w-full z-0">
+                                <MapContainer
+                                    center={[order.rider.currentLocation.latitude, order.rider.currentLocation.longitude]}
+                                    zoom={14}
+                                    className="h-full w-full z-0"
+                                    zoomControl={false}
+                                >
+                                    <TileLayer
+                                        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                                    />
+                                    {/* Rider Marker */}
+                                    <Marker
+                                        position={[order.rider.currentLocation.latitude, order.rider.currentLocation.longitude]}
+                                        icon={riderIcon}
                                     >
-                                        Rate Experience
-                                    </button>
+                                        <Popup>Your Rider: {order.rider?.name}</Popup>
+                                    </Marker>
+
+                                    {/* Restaurant Marker */}
+                                    {order.restaurant.location.coordinates[1] && order.restaurant.location.coordinates[0] && (
+                                        <>
+                                            <Marker
+                                                position={[order.restaurant.location.coordinates[1], order.restaurant.location.coordinates[0]]}
+                                                icon={restIcon}
+                                            >
+                                                <Popup>{order.restaurant.name}</Popup>
+                                            </Marker>
+
+                                            <Polyline
+                                                positions={[
+                                                    [order.restaurant.location.coordinates[1], order.restaurant.location.coordinates[0]],
+                                                    [order.rider.currentLocation.latitude, order.rider.currentLocation.longitude]
+                                                ]}
+                                                color="#f97316"
+                                                weight={4}
+                                                dashArray="10, 10"
+                                            />
+                                        </>
+                                    )}
+                                </MapContainer>
+
+                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl text-xs font-black tracking-widest uppercase shadow-lg z-[1000] border border-slate-100 flex items-center gap-2 text-slate-700">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Live GPS
                                 </div>
                             </div>
                         )}
@@ -297,8 +432,10 @@ export default function TrackOrderPage() {
                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Your Rider</p>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center font-black text-xl">
-                                            🚴
+                                        <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl overflow-hidden shadow-lg flex items-center justify-center font-black text-xl">
+                                            {order.rider?.profilePhoto ? (
+                                                <img src={order.rider.profilePhoto} alt="" className="w-full h-full object-cover" />
+                                            ) : '🚴'}
                                         </div>
                                         <div>
                                             <p className="font-black text-lg">{order.rider.name || order.rider.firstName || 'Rider'}</p>

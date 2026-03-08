@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock } from 'lucide-react';
+import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock, Wallet } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -8,20 +8,27 @@ import { useOrderStore } from '../store/orderStore';
 const PAYMENT_METHODS = [
   { id: 'upi', label: 'UPI / QR Code', icon: Smartphone, desc: 'Google Pay, PhonePe, Paytm' },
   { id: 'card', label: 'Credit / Debit Card', icon: CreditCard, desc: 'Visa, Mastercard, RuPay' },
+  { id: 'wallet', label: 'FoodCourt Wallet', icon: Wallet, desc: 'Pay using your wallet balance' },
   { id: 'cod', label: 'Cash on Delivery', icon: Banknote, desc: 'Pay when you receive' },
 ];
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotal, discount, coupon, clearCart, getRestaurantId } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, getProfile } = useAuthStore();
   const { addOrder } = useOrderStore();
 
+  // Always fetch fresh user profile so wallet balance is current (not stale from login)
+  useEffect(() => {
+    getProfile();
+  }, []);
 
-  const [step, setStep] = useState(1); // 1 = Address, 2 = Payment
+
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [success, setSuccess] = useState(false);
+  const [orderError, setOrderError] = useState('');
 
   const [address, setAddress] = useState({
     name: user?.name || user?.firstName || '',
@@ -38,6 +45,8 @@ export default function CheckoutPage() {
   const deliveryFee = subtotal > 0 ? 49 : 0;
   const tax = Math.round(subtotal * 0.05);
   const total = subtotal + deliveryFee + tax - (discount || 0);
+  // Always read from live user state (getProfile refreshes this on mount)
+  const walletBalance = user?.wallet?.balance ?? 0;
 
   const validate = () => {
     const e = {};
@@ -58,11 +67,30 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     setLoading(true);
+    setOrderError('');
+
+    // Re-fetch latest user profile to get current wallet balance before payment
+    const freshUser = await getProfile();
+    const currentWalletBalance = freshUser?.wallet?.balance ?? user?.wallet?.balance ?? 0;
 
     const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
 
+    // Wallet balance check with fresh data
+    if (normalizedPaymentMethod === 'wallet' && currentWalletBalance < total) {
+      setOrderError(`Insufficient wallet balance. Your balance is ₹${currentWalletBalance}, but the order total is ₹${total.toFixed(0)}.`);
+      setLoading(false);
+      return;
+    }
+    const targetRestaurant = getRestaurantId() || (items.length > 0 ? (items[0].restaurant?._id || items[0].restaurant) : null) || null;
+
+    if (!targetRestaurant) {
+      setOrderError("Your cart items seem to have lost their restaurant. Please clear your cart and add items again.");
+      setLoading(false);
+      return;
+    }
+
     const orderPayload = {
-      restaurant: getRestaurantId(),
+      restaurant: targetRestaurant,
       deliveryAddress: {
         street: address.street,
         city: address.city,
@@ -87,6 +115,7 @@ export default function CheckoutPage() {
     };
 
     try {
+      setOrderError('');
       await addOrder(orderPayload);
       clearCart();
       setLoading(false);
@@ -95,7 +124,7 @@ export default function CheckoutPage() {
     } catch (err) {
       console.error('Order create error:', err);
       setLoading(false);
-      alert(err.message || 'Failed to create order');
+      setOrderError(err.message || 'Failed to create order. Please try again.');
     }
   };
 
@@ -300,9 +329,43 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
+                {paymentMethod === 'wallet' && (
+                  <div className="mb-6 p-4 bg-orange-50 rounded-2xl border border-orange-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Available Balance</span>
+                      <span className="text-sm font-black text-orange-600">₹{walletBalance.toLocaleString()}</span>
+                    </div>
+                    {walletBalance < total ? (
+                      <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest leading-relaxed">Insufficient balance. Your wallet has ₹{walletBalance} but order is ₹{total.toFixed(0)}. Please top up or choose another method.</p>
+                    ) : (
+                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest leading-relaxed">✓ Balance sufficient. ₹{total.toFixed(0)} will be debited from your wallet.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {orderError && (
+                  <div className="mb-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
+                    <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-white text-[10px] font-black">!</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-rose-700 font-black text-sm">{orderError}</p>
+                      {orderError.toLowerCase().includes('wallet') && (
+                        <button onClick={() => navigate('/dashboard')} className="mt-2 text-[10px] font-black uppercase tracking-widest text-rose-600 underline underline-offset-2 hover:text-rose-800">
+                          Top Up Wallet →
+                        </button>
+                      )}
+                    </div>
+                    <button onClick={() => setOrderError('')} className="text-rose-400 hover:text-rose-600 transition-colors shrink-0">
+                      <span className="text-sm font-black">✕</span>
+                    </button>
+                  </div>
+                )}
+
                 <button
                   onClick={handlePlaceOrder}
-                  disabled={loading}
+                  disabled={loading || (paymentMethod === 'wallet' && walletBalance < total)}
                   className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all shadow-xl shadow-orange-100 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {loading ? (

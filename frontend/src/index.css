@@ -116,3 +116,61 @@ body {
 .animate-shake {
   animation: shake 0.2s ease-in-out 0s 2;
 }
+
+/* Print Utilities - For Professional Receipts */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    padding: 0 !important;
+    font-size: 12pt;
+  }
+
+  header,
+  footer,
+  nav,
+  .dashboard-sidebar,
+  .mobile-menu-btn {
+    display: none !important;
+  }
+
+  .max-w-4xl {
+    max-width: 100% !important;
+    margin: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .bg-white,
+  .bg-slate-900,
+  .bg-orange-50 {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: 1px solid #eee !important;
+  }
+
+  .text-white,
+  .text-slate-400,
+  .text-slate-500 {
+    color: black !important;
+  }
+
+  .rounded-\[2\.5rem\],
+  .rounded-2xl {
+    border-radius: 8px !important;
+  }
+
+  h1,
+  .text-4xl {
+    font-size: 18pt !important;
+  }
+
+  /* Force display of hidden journey tracker elements during print */
+  .journey-tracker-label {
+    display: block !important;
+  }
+}

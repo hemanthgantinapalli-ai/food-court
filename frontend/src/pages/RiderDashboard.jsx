@@ -1,6 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon, CheckCircle, Truck, ArrowUpRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon, CheckCircle, Truck, ArrowUpRight, Bell, ArrowRight } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -8,6 +8,7 @@ import API from '../api/axios';
 import { socket, connectSocket, disconnectSocket, joinRoleRoom } from '../api/socket.js';
 
 export default function RiderDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [assignedOrders, setAssignedOrders] = React.useState([]);
   const [availableOrders, setAvailableOrders] = React.useState([]);
@@ -15,7 +16,9 @@ export default function RiderDashboard() {
   const [activeTab, setActiveTab] = React.useState('overview');
   const [isOnline, setIsOnline] = React.useState(false);
   const [stats, setStats] = React.useState(null);
+  const [persistentNotifications, setPersistentNotifications] = React.useState([]);
   const [toastMsg, setToastMsg] = React.useState('');
+  const [transactions, setTransactions] = React.useState([]);
 
   // Support state
   const [supportTickets, setSupportTickets] = React.useState([]);
@@ -32,6 +35,8 @@ export default function RiderDashboard() {
     if (user?.role === 'rider') {
       fetchData();
       fetchSupportTickets();
+      fetchNotifications();
+      fetchTransactions();
     }
   }, [user]);
 
@@ -54,7 +59,7 @@ export default function RiderDashboard() {
       fetchSupportTickets();
       showToast('✅ Help request submitted!');
     } catch (error) {
-      alert('Failed to submit support request');
+      showToast('❌ Failed to submit support request. Try again.');
     } finally {
       setSubmittingSupport(false);
     }
@@ -77,6 +82,7 @@ export default function RiderDashboard() {
           return [data, ...prev];
         });
         showToast(`🛵 New order from ${data.restaurantName || 'a restaurant'}!`);
+        fetchNotifications();
       });
 
       // Another rider claimed this order — remove from our list
@@ -89,6 +95,7 @@ export default function RiderDashboard() {
         console.log('🛵 Order strictly assigned to you:', data);
         setAssignedOrders((prev) => [data, ...prev]);
         showToast('🛵 New Order Assigned by Admin!');
+        fetchNotifications();
         if (window.Notification && Notification.permission === 'granted') {
           new Notification('New Task!', { body: `Admin assigned you Order #${(data.orderId || data._id)?.slice(-6)}` });
         }
@@ -99,6 +106,7 @@ export default function RiderDashboard() {
         setAssignedOrders(prev =>
           prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.status } : o)
         );
+        fetchNotifications();
       });
 
       fetchData();
@@ -169,6 +177,33 @@ export default function RiderDashboard() {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const res = await API.get('/notifications');
+      setPersistentNotifications(res.data.data);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const res = await API.get('/wallet/transactions');
+      setTransactions(res.data.data);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    try {
+      await API.delete('/notifications/clear');
+      setPersistentNotifications([]);
+    } catch (err) {
+      showToast('Failed to clear notifications');
+    }
+  };
+
   const handleAcceptOrder = async (orderId) => {
     try {
       // ✅ Correct endpoint
@@ -178,7 +213,7 @@ export default function RiderDashboard() {
       setActiveTab('active');
     } catch (error) {
       console.error('Failed to accept order:', error);
-      alert(error?.response?.data?.message || 'Could not accept order. It may have been taken.');
+      showToast(error?.response?.data?.message || 'Could not accept order. It may have been taken.');
     }
   };
 
@@ -187,9 +222,10 @@ export default function RiderDashboard() {
       await useOrderStore.getState().updateStatus(orderId, newStatus);
       showToast(newStatus === 'delivered' ? '🎉 Order delivered!' : '✅ Status updated!');
       fetchData();
+      fetchNotifications();
     } catch (error) {
       console.error('Failed to update status:', error);
-      alert('Failed to update order status');
+      showToast('Failed to update order status');
     }
   };
 
@@ -302,12 +338,21 @@ export default function RiderDashboard() {
               { id: 'overview', label: 'Overview', count: 0 },
               { id: 'available', label: 'New Orders', count: availableOrders.length },
               { id: 'active', label: 'Active Deliveries', count: activeDeliveries.length },
+              { id: 'wallet', label: 'Wallet & Earnings', count: 0 },
+              { id: 'notifications', label: 'Notifications', count: persistentNotifications.filter(n => !n.read).length },
               { id: 'completed', label: 'History', count: 0 },
-              { id: 'help', label: 'Help Desk', count: 0 }
+              { id: 'help', label: 'Help Desk', count: 0 },
+              { id: 'profile_link', label: 'Profile Settings', count: 0 }
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.id === 'profile_link') {
+                    navigate('/profile');
+                    return;
+                  }
+                  setActiveTab(tab.id);
+                }}
                 className={`flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === tab.id
                   ? 'bg-white text-orange-600 shadow-sm'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
@@ -325,6 +370,53 @@ export default function RiderDashboard() {
 
           <div className="p-8 md:p-12">
             <div className="space-y-8">
+              {/* ─────── WALLET TAB ─────── */}
+              {activeTab === 'wallet' && (
+                <div className="space-y-8 animate-fade-up">
+                  <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Available Balance</p>
+                        <h2 className="text-6xl font-black tracking-tight">₹{user?.wallet?.balance || 0}</h2>
+                        <p className="text-xs text-emerald-400 font-bold mt-4 uppercase tracking-[0.2em]">Ready for Withdrawal</p>
+                      </div>
+                      <div className="flex gap-4">
+                        <button onClick={() => showToast('Withdrawal feature coming soon! Stay tuned.')} className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all transform active:scale-95 shadow-xl">Withdraw Funds</button>
+                      </div>
+                    </div>
+                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                      <TrendingUp size={120} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm">
+                    <h4 className="font-black text-xl mb-8">Earning Transactions</h4>
+                    <div className="divide-y divide-slate-50">
+                      {transactions.length === 0 ? (
+                        <div className="py-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic">No earnings recorded yet</div>
+                      ) : (
+                        transactions.map(txn => (
+                          <div key={txn._id} className="py-6 flex justify-between items-center group hover:bg-slate-50 transition-colors px-4 rounded-2xl">
+                            <div className="flex items-center gap-6">
+                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${txn.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                <Package size={20} />
+                              </div>
+                              <div>
+                                <p className="font-black text-slate-900">{txn.description}</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">#{txn.transactionId?.slice(-8)} • {new Date(txn.createdAt).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <p className={`font-black text-lg ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {txn.type === 'credit' ? '+' : '-'}₹{txn.amount}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ────── OVERVIEW ────── */}
               {activeTab === 'overview' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -685,6 +777,68 @@ export default function RiderDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ─── NOTIFICATIONS ─── */}
+        {activeTab === 'notifications' && (
+          <div className="p-8 md:p-12 space-y-8 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+              <div>
+                <h3 className="font-black text-xl text-slate-900">Notifications</h3>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Order alerts and system updates</p>
+              </div>
+              {persistentNotifications.length > 0 && (
+                <button
+                  onClick={handleClearNotifications}
+                  className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all border border-slate-200"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            {persistentNotifications.length === 0 ? (
+              <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                <Bell className="text-slate-300 mx-auto mb-4" size={40} />
+                <p className="font-black text-slate-900 text-xl mb-2">You're all caught up!</p>
+                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">New assignments and updates will appear here</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {persistentNotifications.map(notif => (
+                  <div key={notif._id} className={`p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex items-start gap-6 relative overflow-hidden group ${!notif.read ? 'border-l-4 border-l-orange-500' : ''}`}>
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                      notif.type === 'error' ? 'bg-rose-50 text-rose-600' :
+                        'bg-blue-50 text-blue-600'
+                      }`}>
+                      <Bell size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-black text-slate-900 text-lg leading-tight">{notif.title}</h4>
+                        <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">{new Date(notif.createdAt).toLocaleString()}</p>
+                      </div>
+                      <p className="text-slate-500 text-sm font-medium mt-1 leading-relaxed">{notif.message}</p>
+                      {notif.orderId && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('active');
+                            window.scrollTo({ top: 300, behavior: 'smooth' });
+                          }}
+                          className="inline-flex items-center gap-2 mt-4 text-[10px] font-black text-orange-600 uppercase tracking-widest hover:gap-3 transition-all"
+                        >
+                          View Delivery Info <ArrowRight size={12} className="ml-1" />
+                        </button>
+                      )}
+                    </div>
+                    {!notif.read && (
+                      <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

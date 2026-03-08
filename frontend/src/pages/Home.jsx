@@ -68,9 +68,15 @@ const FALLBACK_RESTAURANTS = [
 
 const Home = () => {
   const [restaurants, setRestaurants] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Advanced Filters
+  const [fastDelivery, setFastDelivery] = useState(false);
+  const [highRating, setHighRating] = useState(false);
+  const [sortBy, setSortBy] = useState('none'); // 'rating', 'deliveryTime', 'none'
 
   // Read ?cuisine= from URL on mount so category links work
   const cuisineParam = searchParams.get('cuisine') || 'All';
@@ -101,14 +107,16 @@ const Home = () => {
 
         console.log(`[Home] Fetching restaurants for city: "${city}"`);
 
-        const { data } = await API.get(`/restaurants`, {
-          params: { city: city ? city.trim() : undefined }
-        });
+        const [resResponse, recResponse] = await Promise.all([
+          API.get(`/restaurants`, { params: { city: city ? city.trim() : undefined } }),
+          API.get('/restaurants/recommendations').catch(e => ({ data: { data: [] } }))
+        ]);
 
-        console.log('[Home] Backend response:', data);
-        const list = Array.isArray(data) ? data : (data?.data || []);
+        console.log('[Home] Backend response:', resResponse.data);
+        const list = Array.isArray(resResponse.data) ? resResponse.data : (resResponse.data?.data || []);
 
         setRestaurants(list);
+        setRecommendations(recResponse.data?.data || []);
 
         if (list.length === 0) {
           console.warn(`[Home] No restaurants found in ${city}.`);
@@ -205,7 +213,19 @@ const Home = () => {
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.cuisines?.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return matchesCategory && matchesSearch;
+    // 3. Fast Delivery ( < 30 mins)
+    const matchesFast = !fastDelivery || (r.deliveryTime || 30) < 30;
+
+    // 4. High Rating ( 4.5+ )
+    const matchesRating = !highRating || parseFloat(r.rating || 0) >= 4.5;
+
+    return matchesCategory && matchesSearch && matchesFast && matchesRating;
+  }).sort((a, b) => {
+    if (sortBy === 'rating') return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
+    if (sortBy === 'deliveryTime') return (a.deliveryTime || 30) - (b.deliveryTime || 30);
+    if (sortBy === 'priceLowHigh') return (a.averagePrice || 0) - (b.averagePrice || 0);
+    // Actually, sorting by restaurant name if price is not available.
+    return 0;
   });
 
   if (loading) return <Loader_Component message="Curating the best kitchens..." />;
@@ -231,6 +251,31 @@ const Home = () => {
           ))}
         </div>
       </div>
+
+      {/* AI Recommendations Section */}
+      {!loading && recommendations.length > 0 && !searchQuery && activeFilter === 'All' && (
+        <div className="bg-orange-50/50 py-16 overflow-hidden border-b border-orange-100/50">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block animate-pulse">
+                  Based on your history
+                </span>
+                <h2 className="text-3xl font-black tracking-tight text-slate-900">
+                  Recommended <span className="text-orange-500">For You</span>
+                </h2>
+              </div>
+            </div>
+            <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-none snap-x transition-all">
+              {recommendations.map((res, i) => (
+                <div key={res._id} className="min-w-[300px] md:min-w-[350px] snap-start">
+                  <RestaurantCard restaurant={res} index={i + 4} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Trending Now Horizontal Section */}
       <div className="bg-slate-50/50 py-16 overflow-hidden">
@@ -321,6 +366,35 @@ const Home = () => {
               "{searchQuery}" ✕
             </button>
           )}
+
+          {/* Vertical Divider */}
+          <div className="w-px h-8 bg-slate-200 shrink-0 mx-2 hidden md:block" />
+
+          {/* Quick Filters */}
+          <button
+            onClick={() => setFastDelivery(!fastDelivery)}
+            className={`shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${fastDelivery ? 'bg-orange-500 text-white border-orange-400 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
+          >
+            ⚡ Fast Delivery
+          </button>
+          <button
+            onClick={() => setHighRating(!highRating)}
+            className={`shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${highRating ? 'bg-orange-500 text-white border-orange-400 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
+          >
+            ⭐ 4.5+ Rated
+          </button>
+
+          {/* Sort Dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border bg-white text-slate-500 border-slate-100 hover:bg-slate-50 outline-none cursor-pointer"
+          >
+            <option value="none">SORT BY</option>
+            <option value="rating">Rating: High to Low</option>
+            <option value="deliveryTime">Delivery: Fast to Slow</option>
+            <option value="priceLowHigh">Cost: Low to High</option>
+          </select>
         </div>
 
         {/* Section Header — anchored so Hero scroll works */}
@@ -395,26 +469,7 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Become a Rider CTA */}
-      <div className="bg-gradient-to-r from-orange-100 to-orange-50 py-16 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div>
-            <span className="text-orange-500 font-black tracking-widest text-sm uppercase mb-2 block">Join our fleet</span>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-4">
-              Earn on your own schedule.
-            </h2>
-            <p className="text-slate-600 font-medium text-lg max-w-xl">
-              Become a FoodCourt rider, enjoy flexible hours, instant payouts, and great incentives. Setup your Rider account today!
-            </p>
-          </div>
-          <Link
-            to="/rider"
-            className="flex items-center gap-3 bg-orange-500 text-white px-8 py-4 rounded-2xl font-black text-lg hover:bg-orange-600 transition-colors shadow-xl shadow-orange-200"
-          >
-            <span>🏍️</span> Go to Rider Dashboard
-          </Link>
-        </div>
-      </div>
+
 
       {/* Why Choose Us Section */}
       <div className="bg-slate-950 py-24 px-6">

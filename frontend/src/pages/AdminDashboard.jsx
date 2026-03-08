@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle } from 'lucide-react';
+import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   const [restaurantsList, setRestaurantsList] = useState([]);
   const [ordersList, setOrdersList] = useState([]);
   const [liveOrders, setLiveOrders] = useState([]); // real-time new orders
-  const [notifications, setNotifications] = useState([]);
+  const [persistentNotifications, setPersistentNotifications] = useState([]); // persistent from DB
   const [supportTickets, setSupportTickets] = useState([]);
   const [ridersList, setRidersList] = useState([]);
   const [riderProfilesList, setRiderProfilesList] = useState([]); // for Rider applications map
@@ -48,14 +48,18 @@ export default function AdminDashboard() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'customer' });
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+  const [showUserPass, setShowUserPass] = useState(false);
+
+  const [toasts, setToasts] = useState([]); // transient session notifications
 
   const [financeData, setFinanceData] = useState({ totalGrossRevenue: 0, totalCommission: 0, pendingRevenue: 0, weeklyReport: [], settlements: [], totalOrders: 0, averageOrderValue: 0 });
+  const [allTransactions, setAllTransactions] = useState([]);
   const [roleFilter, setRoleFilter] = useState('all');
 
-  const addNotif = (msg, type = 'info') => {
+  const addToast = (msg, type = 'info') => {
     const id = Date.now();
-    setNotifications(prev => [{ id, msg, type }, ...prev].slice(0, 10));
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
+    setToasts(prev => [{ id, msg, type }, ...prev].slice(0, 10));
+    setTimeout(() => setToasts(prev => prev.filter(n => n.id !== id)), 5000);
   };
 
   useEffect(() => {
@@ -71,7 +75,8 @@ export default function AdminDashboard() {
       // ── Real-time event handlers ──
       socket.on('new_order', (data) => {
         console.log('🆕 New order received by admin:', data);
-        addNotif(`🛒 New Order #${(data.orderId || data._id)?.slice(-6)} — ₹${data.total}`, 'order');
+        addToast(`🛒 New Order #${(data.orderId || data._id)?.slice(-6)} — ₹${data.total}`, 'order');
+        fetchNotifications();
 
         // Transform incoming flat data to nested format expected by admin lists
         const normalizedOrder = {
@@ -87,7 +92,8 @@ export default function AdminDashboard() {
 
       socket.on('order_claimed', (data) => {
         console.log('🛵 Order claimed by rider:', data);
-        addNotif(`🛵 Rider ${data.rider?.name || 'Unknown'} picked up Order #${data.orderId?.toString().slice(-6)}`, 'rider');
+        addToast(`🛵 Rider ${data.rider?.name || 'Unknown'} picked up Order #${data.orderId?.toString().slice(-6)}`, 'rider');
+        fetchNotifications();
         // Update liveOrders list with rider info
         setLiveOrders(prev =>
           prev.map(o => o._id === data.orderId?.toString()
@@ -119,18 +125,21 @@ export default function AdminDashboard() {
             )
           );
           if (data.status === 'delivered') {
-            addNotif(`✅ Order #${data.orderId?.toString().slice(-6)} delivered!`, 'delivered');
+            addToast(`✅ Order #${data.orderId?.toString().slice(-6)} delivered!`, 'delivered');
+            fetchNotifications();
           }
         }
       });
 
       socket.on('order_needs_rider', (data) => {
-        addNotif(`🛵 Order #${(data.orderId || data._id)?.toString().slice(-6)} needs a rider!`, 'info');
+        addToast(`🛵 Order #${(data.orderId || data._id)?.toString().slice(-6)} needs a rider!`, 'info');
+        fetchNotifications();
         fetchData();
       });
 
       socket.on('order_assigned', (data) => {
-        addNotif(`✅ Rider assigned to #${data.orderId?.toString().slice(-6)}`, 'success');
+        addToast(`✅ Rider assigned to #${data.orderId?.toString().slice(-6)}`, 'success');
+        fetchNotifications();
         fetchData();
       });
 
@@ -144,10 +153,20 @@ export default function AdminDashboard() {
     }
   }, [user]);
 
+  const fetchAllTransactions = async () => {
+    try {
+      const res = await API.get('/wallet/all-transactions');
+      setAllTransactions(res.data.data);
+    } catch (err) {
+      console.error('Error fetching all transactions:', err);
+    }
+  };
+
   const fetchData = async () => {
-    // Only show loader if we don't have data yet to prevent flickering on updates
     const isInitialLoad = !stats || usersList.length === 0;
     if (isInitialLoad) setLoading(true);
+
+    fetchNotifications();
 
     try {
       const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes, financeRes] = await Promise.all([
@@ -167,10 +186,50 @@ export default function AdminDashboard() {
       setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
       setRiderProfilesList(ridersRes.data.data);
       setFinanceData(financeRes.data.data);
+
+      fetchAllTransactions();
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
       if (isInitialLoad) setLoading(false);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await API.get('/notifications');
+      setPersistentNotifications(res.data.data);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    try {
+      await API.delete('/notifications/clear');
+      setPersistentNotifications([]);
+      addToast('🗑️ Notifications cleared', 'info');
+    } catch (err) {
+      addToast('Failed to clear notifications', 'error');
+    }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      addToast('📊 Generating CSV Report...', 'info');
+      const response = await API.get('/orders/export-analytics', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `foodcourt_orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      addToast('✅ Export downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Export error:', error);
+      // Silently log — the export may not be implemented yet on the backend
+      addToast('📊 Export feature is being set up. Please try again later.', 'info');
     }
   };
 
@@ -194,11 +253,11 @@ export default function AdminDashboard() {
       if (editingId) {
         const res = await API.put(`/restaurants/${editingId}`, payload);
         setRestaurantsList(prev => prev.map(r => r._id === editingId ? res.data.data : r));
-        addNotif('✨ Restaurant updated successfully!', 'info');
+        addToast('✨ Restaurant updated successfully!', 'info');
       } else {
         const res = await API.post('/restaurants', payload);
         setRestaurantsList(prev => [res.data.data, ...prev]);
-        addNotif('🏪 Restaurant added successfully!', 'info');
+        addToast('🏪 Restaurant added successfully!', 'info');
       }
 
       setShowAddRestaurant(false);
@@ -206,7 +265,7 @@ export default function AdminDashboard() {
       setNewRestaurantForm({ name: '', description: '', image: '', cuisines: '', address: '', city: '', ownerId: '', commissionPercentage: 10 });
     } catch (err) {
       console.error('Failed to create restaurant:', err);
-      alert(err.response?.data?.message || 'Error adding restaurant');
+      addToast(err.response?.data?.message || 'Error saving restaurant', 'error');
     } finally {
       setIsSubmittingRest(false);
     }
@@ -217,9 +276,9 @@ export default function AdminDashboard() {
     try {
       await API.delete(`/restaurants/${id}`);
       setRestaurantsList(prev => prev.filter(r => r._id !== id));
-      addNotif('🗑️ Restaurant deleted', 'info');
+      addToast('🗑️ Restaurant deleted', 'info');
     } catch (err) {
-      alert('Delete failed');
+      addToast('Delete failed. Please try again.', 'error');
     }
   };
 
@@ -250,7 +309,7 @@ export default function AdminDashboard() {
 
       {/* Toast Notifications */}
       <div className="fixed top-6 right-6 z-50 space-y-2 max-w-xs w-full">
-        {notifications.map(n => (
+        {toasts.map(n => (
           <div
             key={n.id}
             className={`px-5 py-4 rounded-2xl shadow-2xl font-black text-sm text-white transition-all ${n.type === 'order' ? 'bg-orange-600' :
@@ -317,6 +376,7 @@ export default function AdminDashboard() {
               { id: 'approvals', label: `Approvals ${(restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length})` : ''}` },
               { id: 'finance', label: 'Finance' },
               { id: 'support', label: `Support ${supportTickets.filter(t => t.status === 'open').length > 0 ? `(${supportTickets.filter(t => t.status === 'open').length})` : ''}` },
+              { id: 'notifications', label: `Notifications ${persistentNotifications.filter(n => !n.read).length > 0 ? `(${persistentNotifications.filter(n => !n.read).length})` : ''}` },
               { id: 'users', label: 'Users' },
               { id: 'restaurants', label: 'Restaurants' },
             ].map(tab => (
@@ -327,7 +387,7 @@ export default function AdminDashboard() {
                   ? 'bg-white text-orange-600 shadow-sm'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
               >
-                {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && (restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0) ? (
+                {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && (restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0) || (tab.id === 'notifications' && persistentNotifications.filter(n => !n.read).length > 0) ? (
                   <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                 ) : null}
                 {tab.label}
@@ -532,11 +592,15 @@ export default function AdminDashboard() {
                                   const riderId = e.target.value;
                                   if (!riderId) return;
                                   try {
-                                    await API.post(`/admin/orders/${order._id}/assign`, { riderId });
-                                    addNotif(`🛵 Assigned to rider!`, 'info');
-                                    fetchData();
+                                    const res = await API.post(`/admin/orders/${order._id}/assign`, { riderId });
+                                    addToast(`🛵 Assigned to rider!`, 'success');
+                                    // Update the local state instead of just fetchData()
+                                    const updatedOrder = res.data.data;
+                                    setOrdersList(prev => prev.map(o => o._id === order._id ? updatedOrder : o));
+                                    fetchNotifications();
                                   } catch (err) {
-                                    alert('Failed to assign rider');
+                                    console.error('Assignment failed:', err);
+                                    addToast(err.response?.data?.message || 'Failed to assign rider', 'error');
                                   }
                                 }}
                                 className="bg-orange-50 text-orange-600 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-orange-200 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer"
@@ -560,10 +624,11 @@ export default function AdminDashboard() {
                               try {
                                 await API.put(`/orders/${order._id}/status`, { status: newStatus });
                                 setOrdersList(prev => prev.map(item => item._id === order._id ? { ...item, orderStatus: newStatus } : item));
-                                addNotif(`✅ Order #${(order.orderId || order._id)?.slice(-6)} → ${newStatus}`, 'info');
+                                addToast(`✅ Order #${(order.orderId || order._id)?.slice(-6)} → ${newStatus}`, 'info');
+                                fetchNotifications();
                               } catch (err) {
                                 const msg = err.response?.data?.message || 'Failed to update status';
-                                alert(`Error: ${msg}`);
+                                addToast(`⚠️ ${msg}`, 'error');
                                 console.error('Update failed:', err);
                               }
                             }}
@@ -581,9 +646,10 @@ export default function AdminDashboard() {
                                 try {
                                   await API.put(`/orders/${order._id}/status`, { status: 'cancelled' });
                                   setOrdersList(prev => prev.map(item => item._id === order._id ? { ...item, orderStatus: 'cancelled' } : item));
-                                  addNotif(`🚫 Order #${(order.orderId || order._id)?.slice(-6)} cancelled`, 'info');
+                                  addToast(`🚫 Order #${(order.orderId || order._id)?.slice(-6)} cancelled`, 'info');
+                                  fetchNotifications();
                                 } catch (err) {
-                                  alert(err.response?.data?.message || 'Failed to cancel order');
+                                  addToast(err.response?.data?.message || 'Failed to cancel order', 'error');
                                 }
                               }}
                               className="px-4 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
@@ -604,7 +670,12 @@ export default function AdminDashboard() {
 
             {/* ─── ALL ORDERS ─── */}
             {activeTab === 'orders' && (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto space-y-6">
+                <div className="flex justify-end mb-4">
+                  <button onClick={handleExportCSV} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl active:scale-95 flex items-center gap-2">
+                    <TrendingUp size={16} /> Export Orders CSV
+                  </button>
+                </div>
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-50">
@@ -695,11 +766,12 @@ export default function AdminDashboard() {
                       try {
                         const res = await API.post('/auth/register', newUserForm);
                         setUsersList(prev => [res.data.user, ...prev]);
-                        addNotif('👤 User created successfully!', 'info');
+                        addToast('👤 User created successfully!', 'info');
+                        fetchNotifications();
                         setShowAddUser(false);
                         setNewUserForm({ name: '', email: '', password: '', role: 'customer' });
                       } catch (err) {
-                        alert(err.response?.data?.message || 'Failed to create user');
+                        addToast(err.response?.data?.message || 'Failed to create user', 'error');
                       } finally {
                         setIsSubmittingUser(false);
                       }
@@ -739,15 +811,24 @@ export default function AdminDashboard() {
                       <div className="space-y-4">
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Password</label>
-                          <input
-                            required
-                            type="password"
-                            minLength={6}
-                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
-                            placeholder="••••••••"
-                            value={newUserForm.password}
-                            onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                          />
+                          <div className="relative">
+                            <input
+                              required
+                              type={showUserPass ? 'text' : 'password'}
+                              minLength={6}
+                              className="w-full bg-slate-50 border border-slate-100 pl-6 pr-12 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                              placeholder="••••••••"
+                              value={newUserForm.password}
+                              onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowUserPass(!showUserPass)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-orange-600 transition-colors"
+                            >
+                              {showUserPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Account Role</label>
@@ -820,10 +901,10 @@ export default function AdminDashboard() {
                                   try {
                                     await API.put(`/admin/users/${u._id}`, { role: newRole });
                                     setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, role: newRole } : usr));
-                                    addNotif(`🎭 Role updated to ${newRole}`, 'info');
+                                    addToast(`🎭 Role updated to ${newRole}`, 'info');
                                   } catch (err) {
                                     console.error('Failed to update role:', err);
-                                    alert('Role update failed');
+                                    addToast('Role update failed. Please try again.', 'error');
                                   }
                                 }}
                                 className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl outline-none cursor-pointer border-none shadow-sm transition-all active:scale-95 ${u.role === 'admin' ? 'bg-purple-50 text-purple-600 hover:bg-purple-100' :
@@ -854,7 +935,7 @@ export default function AdminDashboard() {
                                     const newStatus = u.isActive === false ? true : false;
                                     await API.put(`/admin/users/${u._id}`, { isActive: newStatus });
                                     setUsersList(prev => prev.map(usr => usr._id === u._id ? { ...usr, isActive: newStatus } : usr));
-                                    addNotif(`👤 User ${newStatus ? 'enabled' : 'blocked'}`, 'info');
+                                    addToast(`👤 User ${newStatus ? 'enabled' : 'blocked'}`, 'info');
                                   } catch (err) {
                                     console.error('Failed to update user status:', err);
                                   }
@@ -862,6 +943,68 @@ export default function AdminDashboard() {
                                 className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-xl transition-all ${u.isActive !== false ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
                               >
                                 {u.isActive !== false ? 'Block' : 'Enable'}
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm(`Are you sure you want to PERMANENTLY delete ${u.name}? This cannot be undone.`)) {
+                                    try {
+                                      await API.delete(`/admin/users/${u._id}`);
+                                      setUsersList(prev => prev.filter(usr => usr._id !== u._id));
+                                      addToast(`🗑️ User deleted`, 'info');
+                                    } catch (err) {
+                                      console.error('Failed to delete user:', err);
+                                      addToast('Delete failed. Please try again.', 'error');
+                                    }
+                                  }
+                                }}
+                                className="p-2 text-rose-300 hover:text-rose-600 transition-colors ml-2"
+                                title="Delete User Permanently"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const amount = window.prompt("Enter amount to adjust (e.g. 100 for credit, -100 for debit):");
+                                  if (!amount) return;
+
+                                  const numAmount = Number(amount);
+                                  if (isNaN(numAmount) || numAmount <= 0) {
+                                    addToast('Please enter a valid amount.', 'error');
+                                    return;
+                                  }
+
+                                  const reason = window.prompt("Reason for adjustment:");
+                                  if (!reason) return;
+
+                                  try {
+                                    const type = numAmount > 0 ? 'credit' : 'debit';
+                                    const absAmount = Math.abs(numAmount);
+
+                                    await API.post('/wallet/manual', {
+                                      targetUserId: u._id,
+                                      amount: absAmount,
+                                      type,
+                                      description: reason
+                                    });
+
+                                    // Update local state
+                                    setUsersList(prev => prev.map(usr =>
+                                      usr._id === u._id
+                                        ? { ...usr, wallet: { ...usr.wallet, balance: (usr.wallet?.balance || 0) + numAmount } }
+                                        : usr
+                                    ));
+
+                                    addToast(`💰 Wallet adjusted for ${u.name}`, 'info');
+                                    fetchAllTransactions(); // Refresh audit log if visible
+                                  } catch (err) {
+                                    console.error('Wallet adjustment failed:', err);
+                                    addToast(err.response?.data?.message || 'Adjustment failed', 'error');
+                                  }
+                                }}
+                                className="p-2 text-blue-400 hover:text-blue-600 transition-colors ml-2"
+                                title="Adjust Wallet Balance"
+                              >
+                                <DollarSign size={16} />
                               </button>
                             </td>
                           </tr>
@@ -1087,8 +1230,8 @@ export default function AdminDashboard() {
                               try {
                                 await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                 setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
-                                addNotif(`✅ ${r.name} approved!`, 'info');
-                                fetchData(); // Sync stats & badge counts
+                                addToast(`✅ ${r.name} approved!`, 'info');
+                                fetchNotifications(); // Sync stats & badge counts
                               } catch (err) {
                                 console.error('Approval failed:', err);
                               }
@@ -1177,11 +1320,12 @@ export default function AdminDashboard() {
                                 try {
                                   await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                   setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
-                                  addNotif(`✨ ${r.name} is now a partner!`, 'info');
-                                  fetchData(); // Sync stats & badge counts
+                                  addToast(`✨ ${r.name} is now a partner!`, 'info');
+                                  fetchNotifications(); // Sync stats & badge counts
+                                  fetchData(); // Sync list
                                 } catch (err) {
                                   console.error('Approval failed:', err);
-                                  alert('Approval failed: ' + (err.response?.data?.message || err.message));
+                                  addToast('Approval failed: ' + (err.response?.data?.message || err.message), 'error');
                                 }
                               }}
                               className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-200 transition-all active:scale-95"
@@ -1248,11 +1392,11 @@ export default function AdminDashboard() {
                                 try {
                                   await API.put(`/admin/riders/${r._id}/approve`, {});
                                   setRiderProfilesList(prev => prev.map(rider => rider._id === r._id ? { ...rider, status: 'APPROVED' } : rider));
-                                  addNotif(`✅ Rider ${r.fullName} Approved!`, 'info');
-                                  fetchData(); // Sync stats & badge counts
+                                  addToast(`✅ Rider ${r.fullName} Approved!`, 'info');
+                                  fetchNotifications(); // Sync stats & badge counts
                                 } catch (err) {
                                   console.error('Approval failed:', err);
-                                  addNotif('❌ Approval failed.', 'error');
+                                  addToast('❌ Approval failed.', 'error');
                                 }
                               }}
                               className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
@@ -1262,7 +1406,7 @@ export default function AdminDashboard() {
                             <button
                               onClick={async () => {
                                 if (window.confirm(`Are you sure you want to reject rider ${r.fullName}?`)) {
-                                  alert("Rider rejection API pending, but approval works!");
+                                  addToast(`Rider rejection feature is coming soon.`, 'info');
                                 }
                               }}
                               className="w-14 h-14 flex items-center justify-center bg-white border border-rose-200 text-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-50 hover:border-rose-300 transition-all active:scale-95"
@@ -1286,6 +1430,9 @@ export default function AdminDashboard() {
                     <h3 className="font-black text-xl text-slate-900">Financial Reports</h3>
                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mt-1">Revenue breakdown and partner settlements</p>
                   </div>
+                  <button onClick={handleExportCSV} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl active:scale-95 flex items-center gap-2">
+                    <TrendingUp size={16} /> Export CSV
+                  </button>
                   <div className="flex gap-8">
                     <div className="text-right">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gross Sales</p>
@@ -1380,13 +1527,67 @@ export default function AdminDashboard() {
                               <button
                                 onClick={() => {
                                   if (window.confirm(`Process payout of ₹${s.net.toLocaleString()} for ${s.name}?`)) {
-                                    addNotif(`💸 Payout of ₹${s.net.toLocaleString()} processed for ${s.name}!`, 'info');
+                                    addToast(`💸 Payout of ₹${s.net.toLocaleString()} processed for ${s.name}!`, 'info');
+                                    fetchNotifications();
                                   }
                                 }}
                                 className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 transition-all active:scale-95 shadow-lg"
                               >
                                 Process Payout
                               </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden mt-8">
+                  <div className="p-8 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+                    <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">System Transaction Log (Audit)</h4>
+                    <span className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl uppercase tracking-widest">Real-time Feed</span>
+                  </div>
+                  <div className="overflow-x-auto max-h-[500px]">
+                    <table className="w-full text-left font-sans">
+                      <thead>
+                        <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-50">
+                          <th className="py-6 px-10">User / Role</th>
+                          <th className="py-6">Description</th>
+                          <th className="py-6">Method</th>
+                          <th className="py-6">Amount</th>
+                          <th className="py-6">Status</th>
+                          <th className="py-6 px-10 text-right">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {allTransactions.map((txn) => (
+                          <tr key={txn._id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-6 px-10">
+                              <p className="font-black text-slate-900 text-sm">{txn.user?.name || 'Deleted User'}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{txn.user?.role || 'unknown'}</p>
+                            </td>
+                            <td className="py-6">
+                              <p className="text-xs font-bold text-slate-600 line-clamp-1">{txn.description}</p>
+                              <p className="text-[9px] text-slate-400 font-bold font-mono">#{txn.transactionId?.slice(-12)}</p>
+                            </td>
+                            <td className="py-6">
+                              <span className="text-[10px] font-black uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-xl text-slate-600 border border-slate-200">{txn.paymentMethod || 'other'}</span>
+                            </td>
+                            <td className="py-6">
+                              <p className={`font-black text-sm ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {txn.type === 'credit' ? '+' : '-'}₹{txn.amount?.toLocaleString()}
+                              </p>
+                            </td>
+                            <td className="py-6">
+                              <span className={`text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${txn.status === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                                {txn.status}
+                              </span>
+                            </td>
+                            <td className="py-6 px-10 text-right text-[10px] font-black text-slate-400">
+                              {new Date(txn.createdAt).toLocaleDateString()}
+                              <br />
+                              {new Date(txn.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </td>
                           </tr>
                         ))}
@@ -1456,7 +1657,7 @@ export default function AdminDashboard() {
                                   await API.put(`/support/${ticket._id}/status`, { status: newStatus });
                                   setSupportTickets(prev => prev.map(t => t._id === ticket._id ? { ...t, status: newStatus } : t));
                                 } catch (err) {
-                                  alert('Failed to update ticket status');
+                                  addToast('Failed to update ticket status', 'error');
                                 }
                               }}
                               className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl outline-none cursor-pointer border-none shadow-sm ${ticket.status === 'open' ? 'bg-amber-50 text-amber-600' :
@@ -1476,6 +1677,63 @@ export default function AdminDashboard() {
                 )}
               </div>
             )}
+
+            {/* ─── NOTIFICATIONS ─── */}
+            {activeTab === 'notifications' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900">Platform Notifications</h3>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Stay updated with system events</p>
+                  </div>
+                  {persistentNotifications.length > 0 && (
+                    <button
+                      onClick={handleClearNotifications}
+                      className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all border border-slate-200"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                {persistentNotifications.length === 0 ? (
+                  <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                    <Bell className="text-slate-300 mx-auto mb-4" size={40} />
+                    <p className="font-black text-slate-900 text-xl mb-2">No notifications yet</p>
+                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">New updates will appear here</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {persistentNotifications.map(notif => (
+                      <div key={notif._id} className={`p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex items-start gap-6 relative overflow-hidden group ${!notif.read ? 'border-l-4 border-l-orange-500' : ''}`}>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                          notif.type === 'error' ? 'bg-rose-50 text-rose-600' :
+                            'bg-blue-50 text-blue-600'
+                          }`}>
+                          <Bell size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-black text-slate-900 text-lg leading-tight">{notif.title}</h4>
+                            <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">{new Date(notif.createdAt).toLocaleString()}</p>
+                          </div>
+                          <p className="text-slate-500 text-sm font-medium mt-1 leading-relaxed">{notif.message}</p>
+                          {notif.orderId && (
+                            <Link to={`/order/${notif.orderId}`} className="inline-flex items-center gap-2 mt-4 text-[10px] font-black text-orange-600 uppercase tracking-widest hover:gap-3 transition-all">
+                              View Related Order <ArrowRight size={12} className="ml-1" />
+                            </Link>
+                          )}
+                        </div>
+                        {!notif.read && (
+                          <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
 
           </div>
         </div>

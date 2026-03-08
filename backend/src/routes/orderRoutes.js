@@ -10,7 +10,10 @@ router.get('/:orderId', authenticateUser, orderController.getOrderById);
 router.put('/:orderId/status', authenticateUser, authorizeRole('restaurant', 'admin', 'rider'), orderController.updateOrderStatus);
 router.post('/:orderId/assign-rider', authenticateUser, authorizeRole('admin'), orderController.assignRiderToOrder);
 router.post('/:orderId/accept', authenticateUser, authorizeRole('rider'), orderController.acceptOrder);
+router.get('/export-analytics', authenticateUser, authorizeRole('admin'), orderController.exportOrderAnalytics);
 router.post('/:orderId/rate', authenticateUser, orderController.rateOrder);
+
+router.put('/:orderId/cancel', authenticateUser, orderController.cancelOrder);
 
 router.post('/:orderId/refund', authenticateUser, orderController.requestRefund);
 

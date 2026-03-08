@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown, LayoutDashboard, Bike, FileText, MapPin } from 'lucide-react';
+import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown, LayoutDashboard, Bike, FileText, MapPin, Bell } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
+import API from '../api/axios';
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -20,6 +21,7 @@ export default function Header() {
 
   const [userLocation, setUserLocation] = useState(localStorage.getItem('userLocation') || 'Select Location');
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const POPULAR_CITIES = ['Hyderabad', 'New Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Pune'];
 
@@ -39,7 +41,24 @@ export default function Header() {
     setMobileOpen(false);
     setUserMenuOpen(false);
     setShowLocationPicker(false);
-  }, [location]);
+
+    // Fetch unread notifications count if user logged in
+    if (user) {
+      const fetchCount = async () => {
+        try {
+          const res = await API.get('/notifications');
+          const unread = res.data?.data?.filter(n => !n.read).length || 0;
+          setUnreadCount(unread);
+        } catch (err) {
+          console.error('Failed to fetch notifications count');
+        }
+      };
+      fetchCount();
+      // Poll every 30 seconds for new notifications if not on dashboard
+      const interval = setInterval(fetchCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [location, user]);
 
   const isHomePage = location.pathname === '/';
 
@@ -161,6 +180,28 @@ export default function Header() {
           >
             <Search size={20} />
           </button>
+
+          {/* Notifications Bell */}
+          {user && (
+            <Link
+              id="notifications-header-btn"
+              to={
+                user.role === 'admin' ? '/admin?tab=notifications' :
+                  user.role === 'rider' ? '/rider?tab=notifications' :
+                    user.role === 'restaurant' ? '/partner?tab=notifications' :
+                      '/dashboard?tab=notifications'
+              }
+              className={`relative p-2.5 rounded-xl transition-all ${isScrolled || !isHomePage
+                ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
+                : 'text-white/70 hover:text-white'
+                }`}
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
+              )}
+            </Link>
+          )}
 
           {/* Cart */}
           <Link

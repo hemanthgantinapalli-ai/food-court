@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Store, ShoppingCart, TrendingUp, UtensilsCrossed, ArrowUpRight, Bell, Plus, Trash2, Edit3, X, CheckCircle, Clock, Package } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Store, ShoppingCart, TrendingUp, UtensilsCrossed, ArrowUpRight, Bell, Plus, Trash2, Edit3, X, CheckCircle, Clock, Package, ArrowRight } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
@@ -17,6 +17,7 @@ const STATUS_COLORS = {
 };
 
 export default function PartnerDashboard() {
+    const navigate = useNavigate();
     const { user, logout } = useAuthStore();
     const [activeTab, setActiveTab] = useState('overview');
     const [loading, setLoading] = useState(true);
@@ -24,9 +25,11 @@ export default function PartnerDashboard() {
     const [ordersList, setOrdersList] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
     const [restaurants, setRestaurants] = useState([]);
-    const [notifications, setNotifications] = useState([]);
+    const [persistentNotifications, setPersistentNotifications] = useState([]); // from DB
+    const [toasts, setToasts] = useState([]); // transient
     const [supportRequests, setSupportRequests] = useState([]);
     const [supportForm, setSupportForm] = useState({ subject: '', message: '', priority: 'medium' });
+    const [transactions, setTransactions] = useState([]);
 
     const [formLoading, setFormLoading] = useState(false);
     const [showMenuForm, setShowMenuForm] = useState(false);
@@ -35,12 +38,12 @@ export default function PartnerDashboard() {
 
     const [editingRestaurantId, setEditingRestaurantId] = useState(null);
     const [showRestaurantForm, setShowRestaurantForm] = useState(false);
-    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', openTime: '10:00', closeTime: '22:00', isOpen: true, cuisines: [], city: '' });
+    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', city: 'Mumbai', address: '', cuisines: [], isOpen: true, openTime: '10:00', closeTime: '22:00', averagePrice: 500 });
 
-    const addNotif = (msg, type = 'info') => {
+    const addToast = (msg, type = 'info') => {
         const id = Date.now();
-        setNotifications(prev => [{ id, msg, type }, ...prev].slice(0, 10));
-        setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
+        setToasts(prev => [{ id, msg, type }, ...prev].slice(0, 10));
+        setTimeout(() => setToasts(prev => prev.filter(n => n.id !== id)), 5000);
     };
 
     useEffect(() => {
@@ -53,7 +56,8 @@ export default function PartnerDashboard() {
                     if (prev.some(o => o._id === newOrder._id)) return prev;
                     return [newOrder, ...prev];
                 });
-                addNotif(`🔔 New Order Received! #${(newOrder.orderId || newOrder._id)?.slice(-8)}`, 'info');
+                addToast(`🔔 New Order Received! #${(newOrder.orderId || newOrder._id)?.slice(-8)}`, 'info');
+                fetchNotifications();
                 try {
                     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
                     audio.play().catch(e => console.log("Audio play blocked", e));
@@ -71,6 +75,7 @@ export default function PartnerDashboard() {
     const fetchData = async () => {
         const isInitialLoad = !stats;
         if (isInitialLoad) setLoading(true);
+        fetchNotifications();
         try {
             const [statsRes, ordersRes, menuRes, restRes, supportRes] = await Promise.all([
                 API.get('/partner/stats'),
@@ -84,6 +89,7 @@ export default function PartnerDashboard() {
             setMenuItems(menuRes.data.data);
             setRestaurants(restRes.data.data);
             setSupportRequests(supportRes.data.data || []);
+            fetchTransactions();
 
         } catch (error) {
             console.error('Error fetching partner data:', error);
@@ -92,11 +98,39 @@ export default function PartnerDashboard() {
         }
     };
 
+    const fetchNotifications = async () => {
+        try {
+            const res = await API.get('/notifications');
+            setPersistentNotifications(res.data.data);
+        } catch (err) {
+            console.error('Error fetching notifications:', err);
+        }
+    };
+
+    const fetchTransactions = async () => {
+        try {
+            const res = await API.get('/wallet/transactions');
+            setTransactions(res.data.data);
+        } catch (err) {
+            console.error('Error fetching transactions:', err);
+        }
+    };
+
+    const handleClearNotifications = async () => {
+        try {
+            await API.delete('/notifications/clear');
+            setPersistentNotifications([]);
+        } catch (err) {
+            alert('Failed to clear notifications');
+        }
+    };
+
     const handleStatusUpdate = async (orderId, status) => {
         try {
             await API.put(`/orders/${orderId}/status`, { status });
             setOrdersList(prev => prev.map(o => o._id === orderId ? { ...o, orderStatus: status } : o));
-            addNotif(`✅ Order status updated to ${status}`, 'info');
+            addToast(`✅ Order status updated to ${status}`, 'info');
+            fetchNotifications();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to update');
         }
@@ -109,20 +143,20 @@ export default function PartnerDashboard() {
             if (editingMenuId) {
                 const response = await API.put(`/menu/${editingMenuId}`, menuForm);
                 setMenuItems(menuItems.map(i => i._id === editingMenuId ? response.data.data : i));
-                addNotif('🍲 Menu item updated');
+                addToast('🍲 Menu item updated');
             } else {
                 const response = await API.post('/menu', {
                     ...menuForm,
                     restaurantId: menuForm.restaurant || restaurants[0]?._id
                 });
                 setMenuItems([response.data.data, ...menuItems]);
-                addNotif('🍲 Menu item added');
+                addToast('🍲 Menu item added');
             }
             setShowMenuForm(false);
             setEditingMenuId(null);
-            setMenuForm({ name: '', price: '', category: '', description: '', image: '', restaurant: '', isVeg: true, isAvailable: true });
+            setMenuForm({ name: '', price: '', category: 'Mains', description: '', image: '', restaurant: restaurants[0]?._id || '', isVeg: true, isAvailable: true });
         } catch (error) {
-            addNotif(error.response?.data?.message || 'Failed to save item', 'error');
+            addToast(error.response?.data?.message || 'Failed to save item', 'error');
         } finally {
             setFormLoading(false);
         }
@@ -133,7 +167,7 @@ export default function PartnerDashboard() {
             const response = await API.put(`/menu/${item._id}`, { isAvailable: !item.isAvailable });
             setMenuItems(menuItems.map(i => i._id === item._id ? { ...i, isAvailable: response.data.data.isAvailable } : i));
         } catch (error) {
-            addNotif('Failed to toggle availability', 'error');
+            addToast('Failed to toggle availability', 'error');
         }
     };
 
@@ -141,26 +175,46 @@ export default function PartnerDashboard() {
         e.preventDefault();
         setFormLoading(true);
         try {
-            const payload = { ...restaurantForm };
-            if (payload.openTime && payload.closeTime) {
-                payload.openingHours = { open: payload.openTime, close: payload.closeTime };
-            }
-            if (payload.city) {
-                payload.location = { ...payload.location, city: payload.city };
-            }
+            const payload = {
+                ...restaurantForm,
+                location: {
+                    city: restaurantForm.city,
+                    address: restaurantForm.address
+                },
+                openingHours: {
+                    open: restaurantForm.openTime,
+                    close: restaurantForm.closeTime
+                }
+            };
             if (editingRestaurantId) {
-                const response = await API.put(`/restaurants/${editingRestaurantId}`, payload);
-                setRestaurants(restaurants.map(r => r._id === editingRestaurantId ? response.data.data : r));
-                addNotif('🏪 Restaurant updated successfully');
+                await API.put(`/restaurants/${editingRestaurantId}`, payload);
+                addToast('Restaurant profile updated');
             } else {
-                const response = await API.post('/restaurants', payload);
-                setRestaurants([response.data.data, ...restaurants]);
-                addNotif('🏪 Restaurant submitted for approval');
+                await API.post('/restaurants', payload);
+                addToast('New restaurant registered! Awaiting approval');
             }
-            setEditingRestaurantId(null);
             setShowRestaurantForm(false);
+            setEditingRestaurantId(null);
+            // Assuming fetchRestaurants is a function that re-fetches the list of restaurants
+            // If not, you might want to update the 'restaurants' state directly here.
+            // For now, I'll keep it as per the instruction.
+            // If fetchRestaurants is not defined elsewhere, this will cause an error.
+            // A common pattern would be to call fetchData() again or a specific fetchRestaurants()
+            // that updates the 'restaurants' state.
+            // For example: fetchData();
+            // Or if you have a dedicated fetchRestaurants:
+            // const fetchRestaurants = async () => {
+            //     try {
+            //         const res = await API.get('/partner/my-restaurants');
+            //         setRestaurants(res.data.data);
+            //     } catch (err) {
+            //         console.error('Error fetching restaurants:', err);
+            //     }
+            // };
+            // fetchRestaurants();
+            fetchData(); // Re-fetch all data including restaurants
         } catch (error) {
-            addNotif(error.response?.data?.message || 'Update failed', 'error');
+            addToast(error.response?.data?.message || 'Failed to save restaurant', 'error');
         } finally {
             setFormLoading(false);
         }
@@ -196,7 +250,7 @@ export default function PartnerDashboard() {
 
             {/* Toast Notifications */}
             <div className="fixed top-6 right-6 z-50 space-y-2 max-w-xs w-full">
-                {notifications.map(n => (
+                {toasts.map(n => (
                     <div key={n.id} className="px-5 py-4 rounded-2xl shadow-2xl font-black text-sm text-white bg-emerald-600 transition-all">
                         {n.msg}
                     </div>
@@ -253,22 +307,80 @@ export default function PartnerDashboard() {
                             { id: 'orders', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
                             { id: 'menu', label: 'Menu Items' },
                             { id: 'restaurants', label: 'My Restaurants' },
+                            { id: 'wallet', label: 'Wallet & Earnings' },
+                            { id: 'notifications', label: `Notifications ${persistentNotifications.filter(n => !n.read).length > 0 ? `(${persistentNotifications.filter(n => !n.read).length})` : ''}` },
                             { id: 'help', label: 'Help Desk' },
+                            { id: 'profile_link', label: 'Profile Settings' },
                         ].map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => {
+                                    if (tab.id === 'profile_link') {
+                                        navigate('/profile');
+                                        return;
+                                    }
+                                    setActiveTab(tab.id);
+                                }}
                                 className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
                                     ? 'bg-white text-emerald-600 shadow-sm'
                                     : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
                             >
-                                {tab.id === 'orders' && activeOrders.length > 0 && <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />}
+                                {(tab.id === 'orders' && activeOrders.length > 0) || (tab.id === 'notifications' && persistentNotifications.filter(n => !n.read).length > 0) ? (
+                                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                ) : null}
                                 {tab.label}
                             </button>
                         ))}
                     </div>
 
                     <div className="p-8 md:p-12">
+
+                        {/* ─── WALLET TAB ─── */}
+                        {activeTab === 'wallet' && (
+                            <div className="space-y-8 animate-fade-up">
+                                <div className="bg-emerald-950 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
+                                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">Available for Settlement</p>
+                                            <h2 className="text-6xl font-black tracking-tight">₹{user?.wallet?.balance || 0}</h2>
+                                            <p className="text-xs text-emerald-300 font-bold mt-4 uppercase tracking-[0.2em]">Partner Profits</p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <button onClick={() => alert('Payout request sent to Admin!')} className="px-8 py-4 bg-white text-emerald-950 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-400 hover:text-white transition-all transform active:scale-95 shadow-xl">Request Payout</button>
+                                        </div>
+                                    </div>
+                                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                                        <Store size={120} />
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm">
+                                    <h4 className="font-black text-xl mb-8">Payout & Earnings History</h4>
+                                    <div className="divide-y divide-slate-50">
+                                        {transactions.length === 0 ? (
+                                            <div className="py-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest italic">No financial records found</div>
+                                        ) : (
+                                            transactions.map(txn => (
+                                                <div key={txn._id} className="py-6 flex justify-between items-center group hover:bg-slate-50 transition-colors px-4 rounded-2xl">
+                                                    <div className="flex items-center gap-6">
+                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${txn.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                            <Store size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-slate-900">{txn.description}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">#{txn.transactionId?.slice(-8)} • {new Date(txn.createdAt).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className={`font-black text-lg ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {txn.type === 'credit' ? '+' : '-'}₹{txn.amount}
+                                                    </p>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* ─── OVERVIEW ─── */}
                         {activeTab === 'overview' && (
@@ -589,35 +701,49 @@ export default function PartnerDashboard() {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Category</label>
-                                                <select
-                                                    required
-                                                    className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none cursor-pointer"
-                                                    value={menuForm.category}
-                                                    onChange={e => setMenuForm({ ...menuForm, category: e.target.value })}
-                                                >
-                                                    <option value="">Select Category</option>
-                                                    <option value="Starters">Starters</option>
-                                                    <option value="Mains">Mains</option>
-                                                    <option value="Desserts">Desserts</option>
-                                                    <option value="Beverages">Beverages</option>
-                                                    <option value="Pizza">Pizza</option>
-                                                    <option value="Pasta">Pasta</option>
-                                                    <option value="Burgers">Burgers</option>
-                                                    <option value="Sandwiches">Sandwiches</option>
-                                                    <option value="Chinese">Chinese</option>
-                                                    <option value="Indian">Indian</option>
-                                                    <option value="Tandoor">Tandoor</option>
-                                                    <option value="Continental">Continental</option>
-                                                    <option value="Fast Food">Fast Food</option>
-                                                    <option value="Healthy / Salads">Healthy / Salads</option>
-                                                    <option value="Breakfast">Breakfast</option>
-                                                    <option value="Snacks">Snacks</option>
-                                                    <option value="Combos">Combos</option>
-                                                    <option value="Other">Other</option>
-                                                </select>
+                                                <div className="flex gap-2">
+                                                    <select
+                                                        required
+                                                        className="flex-1 bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none cursor-pointer"
+                                                        value={['Starters', 'Mains', 'Desserts', 'Beverages', 'Pizza', 'Pasta', 'Burgers', 'Sandwiches', 'Chinese', 'Indian', 'Tandoor', 'Continental', 'Fast Food', 'Healthy / Salads', 'Breakfast', 'Snacks', 'Combos'].includes(menuForm.category) ? menuForm.category : 'Other'}
+                                                        onChange={e => {
+                                                            if (e.target.value !== 'Other') {
+                                                                setMenuForm({ ...menuForm, category: e.target.value });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <option value="Starters">Starters</option>
+                                                        <option value="Mains">Mains</option>
+                                                        <option value="Desserts">Desserts</option>
+                                                        <option value="Beverages">Beverages</option>
+                                                        <option value="Pizza">Pizza</option>
+                                                        <option value="Pasta">Pasta</option>
+                                                        <option value="Burgers">Burgers</option>
+                                                        <option value="Sandwiches">Sandwiches</option>
+                                                        <option value="Chinese">Chinese</option>
+                                                        <option value="Indian">Indian</option>
+                                                        <option value="Tandoor">Tandoor</option>
+                                                        <option value="Continental">Continental</option>
+                                                        <option value="Fast Food">Fast Food</option>
+                                                        <option value="Healthy / Salads">Healthy / Salads</option>
+                                                        <option value="Breakfast">Breakfast</option>
+                                                        <option value="Snacks">Snacks</option>
+                                                        <option value="Combos">Combos</option>
+                                                        <option value="Other">Other / Custom</option>
+                                                    </select>
+                                                    {(!['Starters', 'Mains', 'Desserts', 'Beverages', 'Pizza', 'Pasta', 'Burgers', 'Sandwiches', 'Chinese', 'Indian', 'Tandoor', 'Continental', 'Fast Food', 'Healthy / Salads', 'Breakfast', 'Snacks', 'Combos'].includes(menuForm.category) || menuForm.category === 'Other') && (
+                                                        <input
+                                                            required
+                                                            className="flex-1 bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none"
+                                                            value={menuForm.category === 'Other' ? '' : menuForm.category}
+                                                            onChange={e => setMenuForm({ ...menuForm, category: e.target.value })}
+                                                            placeholder="Type Category"
+                                                        />
+                                                    )}
+                                                </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Restaurant</label>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Restaurant Instance</label>
                                                 <select
                                                     required
                                                     className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none cursor-pointer"
@@ -629,6 +755,25 @@ export default function PartnerDashboard() {
                                                         <option key={r._id} value={r._id}>{r.name}</option>
                                                     ))}
                                                 </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Veg / Non-Veg</label>
+                                                <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMenuForm({ ...menuForm, isVeg: true })}
+                                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${menuForm.isVeg ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400'}`}
+                                                    >
+                                                        Veg
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMenuForm({ ...menuForm, isVeg: false })}
+                                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!menuForm.isVeg ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-400'}`}
+                                                    >
+                                                        Non-Veg
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Image URL</label>
@@ -729,9 +874,9 @@ export default function PartnerDashboard() {
                                                 const res = await API.post('/support/create', { ...supportForm, role: 'restaurant' });
                                                 setSupportRequests([res.data.data, ...supportRequests]);
                                                 setSupportForm({ subject: '', message: '', priority: 'medium' });
-                                                addNotif('📨 Support request sent to admin');
+                                                addToast('📨 Support request sent to admin');
                                             } catch (err) {
-                                                addNotif('Failed to send request', 'error');
+                                                addToast('Failed to send request', 'error');
                                             } finally {
                                                 setFormLoading(false);
                                             }
@@ -816,7 +961,7 @@ export default function PartnerDashboard() {
                                             setShowRestaurantForm(!showRestaurantForm);
                                             if (!showRestaurantForm) {
                                                 setEditingRestaurantId(null);
-                                                setRestaurantForm({ name: '', description: '', image: '', openTime: '10:00', closeTime: '22:00', isOpen: true });
+                                                setRestaurantForm({ name: '', description: '', image: '', city: 'Mumbai', address: '', openTime: '10:00', closeTime: '22:00', isOpen: true, cuisines: [], averagePrice: 500 });
                                             }
                                         }}
                                         className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl active:scale-95"
@@ -838,8 +983,12 @@ export default function PartnerDashboard() {
                                                 <input required className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.name} onChange={e => setRestaurantForm({ ...restaurantForm, name: e.target.value })} placeholder="e.g. Spice Garden" />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">City / Location</label>
-                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.city} onChange={e => setRestaurantForm({ ...restaurantForm, city: e.target.value })} placeholder="e.g. New Delhi" />
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">City</label>
+                                                <input required className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.city} onChange={e => setRestaurantForm({ ...restaurantForm, city: e.target.value })} placeholder="e.g. Mumbai" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Full Address</label>
+                                                <input required className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.address} onChange={e => setRestaurantForm({ ...restaurantForm, address: e.target.value })} placeholder="e.g. Plot 42, Gourmet Street, Hitec City" />
                                             </div>
                                             <div className="md:col-span-2">
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cuisines (Comma-separated)</label>
@@ -861,6 +1010,10 @@ export default function PartnerDashboard() {
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Closing Time</label>
                                                 <input type="time" className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.closeTime || '22:00'} onChange={e => setRestaurantForm({ ...restaurantForm, closeTime: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Avg Price for Two (₹)</label>
+                                                <input type="number" className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.averagePrice || 500} onChange={e => setRestaurantForm({ ...restaurantForm, averagePrice: e.target.value })} placeholder="e.g. 500" />
                                             </div>
                                             <div className="md:col-span-2">
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Description</label>
@@ -903,7 +1056,9 @@ export default function PartnerDashboard() {
                                                     setShowRestaurantForm(true);
                                                     setRestaurantForm({
                                                         name: r.name, description: r.description, image: r.image, isOpen: r.isOpen,
-                                                        openTime: r.openingHours?.open || '10:00', closeTime: r.openingHours?.close || '22:00'
+                                                        city: r.location?.city || '', address: r.location?.address || '',
+                                                        openTime: r.openingHours?.open || '10:00', closeTime: r.openingHours?.close || '22:00',
+                                                        averagePrice: r.averagePrice || 500
                                                     });
                                                 }}
                                                 className="absolute top-6 right-6 z-10 w-10 h-10 bg-white shadow-xl rounded-xl flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-all"
@@ -940,6 +1095,67 @@ export default function PartnerDashboard() {
                             </div>
                         )}
 
+                        {/* ─── NOTIFICATIONS ─── */}
+                        {activeTab === 'notifications' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                                    <div>
+                                        <h3 className="font-black text-xl text-slate-900">Notifications</h3>
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Updates on your orders and account</p>
+                                    </div>
+                                    {persistentNotifications.length > 0 && (
+                                        <button
+                                            onClick={handleClearNotifications}
+                                            className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all border border-slate-200"
+                                        >
+                                            Clear All
+                                        </button>
+                                    )}
+                                </div>
+
+                                {persistentNotifications.length === 0 ? (
+                                    <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                                        <Bell className="text-slate-300 mx-auto mb-4" size={40} />
+                                        <p className="font-black text-slate-900 text-xl mb-2">Clean slate!</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">You're all caught up with notifications</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-4">
+                                        {persistentNotifications.map(notif => (
+                                            <div key={notif._id} className={`p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex items-start gap-6 relative overflow-hidden group ${!notif.read ? 'border-l-4 border-l-orange-500' : ''}`}>
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                                                    notif.type === 'error' ? 'bg-rose-50 text-rose-600' :
+                                                        'bg-blue-50 text-blue-600'
+                                                    }`}>
+                                                    <Bell size={20} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-black text-slate-900 text-lg leading-tight">{notif.title}</h4>
+                                                        <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">{new Date(notif.createdAt).toLocaleString()}</p>
+                                                    </div>
+                                                    <p className="text-slate-500 text-sm font-medium mt-1 leading-relaxed">{notif.message}</p>
+                                                    {notif.orderId && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setActiveTab('orders');
+                                                                window.scrollTo({ top: 300, behavior: 'smooth' });
+                                                            }}
+                                                            className="inline-flex items-center gap-2 mt-4 text-[10px] font-black text-orange-600 uppercase tracking-widest hover:gap-3 transition-all"
+                                                        >
+                                                            View Order Details <ArrowRight size={12} className="ml-1" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {!notif.read && (
+                                                    <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

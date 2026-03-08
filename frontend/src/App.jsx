@@ -12,6 +12,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
 import QuickRoleSwitcher from "./components/QuickRoleSwitcher";
+import CartConflictModal from "./components/CartConflictModal";
 import { useAuthStore } from "./context/authStore";
 
 // ---------- Customer Pages ----------
@@ -196,6 +197,9 @@ function AppInner() {
 
         {/* Consumer Footer — hidden on all dashboard routes */}
         {!isDashboard && <Footer />}
+
+        {/* Global Modal for Cart Conflict Management */}
+        <CartConflictModal />
 
         {/* Floating Quick Role Switcher (Development/Demo Helper) */}
         <QuickRoleSwitcher />

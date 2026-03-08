@@ -94,6 +94,10 @@ export default function RestaurantCard({ restaurant, index = 0 }) {
                 <Bike size={14} className="text-emerald-500" />
                 {isFreeDelivery ? 'Free' : `₹${deliveryFee}`}
               </span>
+              <span className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                <span className="text-blue-500 font-black">₹</span>
+                {restaurant.averagePrice || 500} for two
+              </span>
             </div>
 
             <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">

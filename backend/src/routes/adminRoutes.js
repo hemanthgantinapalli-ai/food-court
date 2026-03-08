@@ -40,6 +40,41 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
   }
 });
 
+// Create new user (admin only)
+router.post('/users/create', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ success: false, message: 'Missing fields' });
+
+    console.log(`👤 [Admin Create User] Creating ${role}: ${email}`);
+
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) return res.status(400).json({ success: false, message: 'User already exists' });
+
+    const user = await User.create({ name, email, password, role });
+
+    // If rider, create profile
+    if (role === 'rider') {
+      await Rider.create({
+        user: user._id,
+        fullName: name,
+        status: 'APPROVED', // Admin created riders are pre-approved
+        isVerified: true
+      });
+      console.log(`✅ [Admin Create User] Rider profile auto-created & approved.`);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${role} account created successfully`,
+      data: { id: user._id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (error) {
+    console.error(`🔥 [Admin Create User] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Manage users
 router.get('/users', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
@@ -81,6 +116,21 @@ router.put('/users/:userId', authenticateUser, authorizeRole('admin'), async (re
   }
 });
 
+// Delete user (admin only)
+router.delete('/users/:userId', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await User.findByIdAndDelete(userId);
+    // Also delete associated rider/restaurant profile
+    await Rider.deleteOne({ user: userId });
+    await Restaurant.deleteMany({ owner: userId });
+
+    res.status(200).json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Manage restaurants
 router.get('/restaurants', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
@@ -104,6 +154,7 @@ router.put('/restaurants/:restaurantId/approve', authenticateUser, authorizeRole
       req.params.restaurantId,
       {
         isApproved: true,
+        isOpen: true,
         approvalDate: new Date(),
       },
       { new: true }
