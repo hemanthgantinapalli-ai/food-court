@@ -115,9 +115,13 @@ export const createOrder = async (req, res) => {
 
     // Real-time Opening Hours check (Timezone aware: IST)
     const now = new Date();
-    const istTime = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-    const istDate = new Date(istTime);
-    const currentTime = `${String(istDate.getHours()).padStart(2, '0')}:${String(istDate.getMinutes()).padStart(2, '0')}`;
+    const istOptions = {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    const currentTime = new Intl.DateTimeFormat('en-GB', istOptions).format(now);
 
     const { open, close } = targetRestaurant.openingHours || { open: '00:00', close: '23:59' };
 
@@ -128,133 +132,162 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: `"${targetRestaurant.name}" is currently closed. Operating hours: ${open} to ${close}` });
     }
 
+    // --- Wallet Deduction (Atomic-ish) ---
+    const isWallet = (paymentMethod || '').toLowerCase() === 'wallet';
+    let user = null;
+    let deductionSucceeded = false;
 
-    console.log(`✨ [Create Order API] Creating order in database...`);
-    const order = await Order.create(orderPayload);
-
-    // For demo, mark as pending for cash payments
-    if ((order.paymentMethod || '').toLowerCase() === 'cash') {
-      console.log(`💵 [Create Order API] Cash payment detected. Setting status to 'pending'.`);
-      order.paymentStatus = 'pending';
-    } else if ((order.paymentMethod || '').toLowerCase() === 'wallet') {
+    if (isWallet) {
       console.log(`💳 [Create Order API] Wallet payment detected. Processing debit...`);
-      const user = await User.findById(req.userId);
-      // Safely initialise wallet if it doesn't exist yet
-      user.wallet = user.wallet || { balance: 0 };
-      const walletBalance = user.wallet.balance || 0;
-      if (walletBalance < order.total) {
-        // Rollback order creation if balance insufficient
-        await Order.findByIdAndDelete(order._id);
-        return res.status(400).json({ success: false, message: `Insufficient wallet balance. Your balance is ₹${walletBalance}, but the order total is ₹${order.total}.` });
+      user = await User.findById(req.userId);
+      if (!user) return res.status(404).json({ success: false, message: "User not found for wallet debit" });
+
+      const walletBalance = user.wallet?.balance || 0;
+      const orderTotal = Number(orderPayload.total);
+
+      if (walletBalance < orderTotal) {
+        console.error(`❌ [Create Order API] Insufficient balance: ${walletBalance} < ${orderTotal}`);
+        return res.status(400).json({ success: false, message: `Insufficient wallet balance. Your balance is ₹${walletBalance}, but the order total is ₹${orderTotal}.` });
       }
 
-      user.wallet.balance -= order.total;
-      await user.save();
-
-      order.paymentStatus = 'paid';
-
-      // Create transaction record
-      await Transaction.create({
-        user: req.userId,
-        amount: order.total,
-        type: 'debit',
-        paymentMethod: 'wallet',
-        status: 'success',
-        description: `Paid for Order #${order.orderId || order._id.toString().slice(-6)}`,
-        order: order._id,
-        transactionId: `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-      });
-      console.log(`✅ [Create Order API] Wallet debited successfully.`);
+      try {
+        user.wallet.balance -= orderTotal;
+        await user.save();
+        deductionSucceeded = true;
+        console.log(`✅ [Create Order API] Wallet debited successfully. New balance: ${user.wallet.balance}`);
+      } catch (debitError) {
+        console.error(`🔥 [Create Order API] Wallet debit failed:`, debitError.message);
+        return res.status(500).json({ success: false, message: "Failed to process wallet deduction." });
+      }
     }
 
-    console.log(`💾 [Create Order API] Saving order updates...`);
-    // Define shares based on restaurant-specific commission
+    // --- Prepare Full Order Payload ---
     const commissionRate = (targetRestaurant.commissionPercentage || 10) / 100;
-    const PARTNER_SHARE = 1 - commissionRate;
-    const PLATFORM_SHARE = commissionRate;
+    const orderTotal = Number(orderPayload.total) || 0;
 
-    // Calculate and store real-time shares
-    order.partnerEarnings = Math.round(order.total * PARTNER_SHARE);
-    order.platformFee = Math.round(order.total * PLATFORM_SHARE);
-
-    await order.save();
-
-    console.log(`🧹 [Create Order API] Clearing user's cart...`);
-    // Clear cart (if exists)
-    await Cart.findOneAndUpdate(
-      { user: req.userId },
-      {
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        deliveryFee: 0,
-        discount: 0,
-        total: 0,
-      }
-    );
-
-    console.log(`✅ [Create Order API] Order created successfully: ${order._id}`);
-
-    // Notify Riders & Admin via Socket.io
-    const io = getIO();
-    const populatedOrder = await Order.findById(order._id)
-      .populate('customer', 'name phone')
-      .populate('restaurant', 'name location owner');
-
-    const orderPayloadForRider = {
-      _id: populatedOrder._id,
-      orderId: populatedOrder.orderId,
-      customerName: populatedOrder.customer?.name,
-      restaurantName: populatedOrder.restaurant?.name,
-      restaurantAddress: populatedOrder.restaurant?.location?.address,
-      deliveryAddress: populatedOrder.deliveryAddress,
-      total: populatedOrder.total,
-      deliveryFee: populatedOrder.deliveryFee,
-      orderStatus: populatedOrder.orderStatus,
-      items: populatedOrder.items,
+    // Add additional fields to payload before creation
+    const finalOrderPayload = {
+      ...orderPayload,
+      customer: req.userId,
+      // Status must match enum: ['pending', 'completed', 'failed', 'refunded']
+      paymentStatus: isWallet ? 'completed' : (orderPayload.paymentMethod === 'cash' ? 'pending' : 'pending'),
+      partnerEarnings: Math.round(orderTotal * (1 - (isNaN(commissionRate) ? 0.1 : commissionRate))),
+      platformFee: Math.round(orderTotal * (isNaN(commissionRate) ? 0.1 : commissionRate)),
     };
 
-    // Create Notification for Customer
-    await Notification.create({
-      user: req.userId,
-      title: 'Order Placed!',
-      message: `Your order #${order.orderId || order._id.toString().slice(-6)} has been placed successfully.`,
-      orderId: order._id,
-      type: 'info'
-    });
+    console.log(`✨ [Create Order API] Creating order in database...`);
+    let order;
+    try {
+      order = await Order.create(finalOrderPayload);
+      console.log(`✅ [Create Order API] Order created successfully: ${order._id}`);
+    } catch (createError) {
+      console.error(`🔥 [Create Order API] Order creation failed:`, createError.message);
 
-    // Create Notification for Restaurant Owner
-    if (populatedOrder.restaurant && populatedOrder.restaurant.owner) {
-      await Notification.create({
-        user: populatedOrder.restaurant.owner,
-        title: 'New Order Received! 🔔',
-        message: `New order #${order.orderId || order._id.toString().slice(-6)} from ${populatedOrder.customer?.name || 'Customer'}.`,
-        orderId: order._id,
-        type: 'info'
+      // Rollback wallet if it was deducted
+      if (deductionSucceeded && user) {
+        try {
+          user.wallet.balance += orderTotal;
+          await user.save();
+          console.log(`♻️ [Create Order API] Wallet refunded due to creation failure.`);
+        } catch (refundError) {
+          console.error(`🚨 [CRITICAL] Wallet refund failed! User charged but no order created.`, refundError.message);
+        }
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed to create order record.",
+        error: createError.message,
+        details: createError.errors ? Object.keys(createError.errors).map(k => createError.errors[k].message).join(', ') : createError.message
       });
     }
 
-    // Notify the specific restaurant owner that there is a new order
-    if (populatedOrder.restaurant && populatedOrder.restaurant.owner) {
-      io.to(populatedOrder.restaurant.owner.toString()).emit('new_restaurant_order', orderPayloadForRider);
-    }
-    // Also inform admin immediately
-    io.to('admins').emit('new_order', orderPayloadForRider);
+    // --- Post-Order tasks (Non-blocking / Background) ---
+    (async () => {
+      try {
+        console.log(`🧹 [Create Order API] Background tasks starting for order: ${order._id}`);
 
-    // Emit to customer for real-time update
-    io.to(req.userId).emit('order_status_update', {
-      orderId: order._id,
-      status: 'placed',
-      message: 'Your order has been placed successfully! 🍕'
-    });
+        // 1. Transaction Record for Wallet
+        if (isWallet) {
+          try {
+            await Transaction.create({
+              user: req.userId,
+              amount: orderTotal,
+              type: 'debit',
+              paymentMethod: 'wallet',
+              status: 'success',
+              description: `Paid for Order #${order.orderId || order._id.toString().slice(-6)}`,
+              order: order._id,
+              transactionId: `TXN-W-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+            });
+            console.log(`[Background] Transaction record created`);
+          } catch (tError) {
+            console.error(`[Background] Transaction creation failed:`, tError.message);
+          }
+        }
 
-    res.status(201).json({
+        // 2. Clear Cart
+        await Cart.findOneAndUpdate({ user: req.userId }, { items: [], subtotal: 0, tax: 0, deliveryFee: 0, discount: 0, total: 0 });
+        console.log(`[Background] Cart cleared`);
+
+        // 3. Notifications & Sockets
+        const io = getIO();
+        const populatedOrder = await Order.findById(order._id)
+          .populate('customer', 'name phone')
+          .populate('restaurant', 'name location owner');
+
+        if (populatedOrder) {
+          const orderIdShort = order.orderId || order._id.toString().slice(-6);
+
+          await Notification.create({
+            user: req.userId,
+            title: 'Order Placed!',
+            message: `Your order #${orderIdShort} has been placed successfully.`,
+            orderId: order._id,
+            type: 'info'
+          });
+
+          if (populatedOrder.restaurant?.owner) {
+            await Notification.create({
+              user: populatedOrder.restaurant.owner,
+              title: 'New Order Received! 🔔',
+              message: `New order #${orderIdShort} from ${populatedOrder.customer?.name || 'Customer'}.`,
+              orderId: order._id,
+              type: 'info'
+            });
+
+            const socketPayload = {
+              _id: populatedOrder._id,
+              orderId: populatedOrder.orderId,
+              customerName: populatedOrder.customer?.name,
+              restaurantName: populatedOrder.restaurant?.name,
+              total: populatedOrder.total,
+              orderStatus: populatedOrder.orderStatus,
+            };
+            io.to(populatedOrder.restaurant.owner.toString()).emit('new_restaurant_order', socketPayload);
+          }
+
+          io.to('admins').emit('new_order', populatedOrder);
+          io.to(req.userId).emit('order_status_update', {
+            orderId: order._id,
+            status: 'placed',
+            message: 'Your order has been placed successfully! 🍕'
+          });
+        }
+        console.log(`✅ [Background] All tasks finished for order: ${order._id}`);
+      } catch (bgError) {
+        console.error(`⚠️ [Background Tasks Error]:`, bgError.message);
+      }
+    })();
+
+    // --- Final Response ---
+    return res.status(201).json({
       success: true,
       message: 'Order created successfully. Waiting for restaurant approval.',
       data: order,
     });
   } catch (error) {
-    console.error('🔥 [Create Order API] Order Creation Failure:', error);
+    console.error('🔥 [Create Order API] Critical Unhandled Failure:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create order',
