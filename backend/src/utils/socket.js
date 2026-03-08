@@ -19,6 +19,24 @@ export const initSocket = (server) => {
             console.log(`👤 User ${userId} joined their personal room.`);
         });
 
+        // Join a specific order room for tracking
+        socket.on('join_order', (orderId) => {
+            socket.join(`order_${orderId}`);
+            console.log(`📦 Socket ${socket.id} joined tracking room for order: ${orderId}`);
+        });
+
+        // Live Tracking: Rider sends location, we broadcast to user
+        socket.on('update_location', (data) => {
+            const { orderId, location, riderId } = data;
+            console.log(`📍 Rider ${riderId} updated location for order ${orderId}:`, location);
+            // Only emit to people in the order room (customer)
+            io.to(`order_${orderId}`).emit('rider_location_updated', {
+                orderId,
+                location,
+                timestamp: new Date()
+            });
+        });
+
         // Join a role-based room: 'admins' or 'riders'
         socket.on('join_role', (role) => {
             socket.join(role);

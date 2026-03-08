@@ -143,12 +143,29 @@ export default function AdminDashboard() {
         fetchData();
       });
 
+      socket.on('platform_earnings_update', (data) => {
+        console.log('💰 Platform profit received:', data);
+        addToast(`📈 Commission Received: ₹${data.amount}`, 'delivered');
+        setStats(prev => prev ? {
+          ...prev,
+          totalCommission: (prev.totalCommission || 0) + data.amount
+        } : prev);
+
+        // Trigger a temporary glow effect on the profit card
+        const card = document.getElementById('admin-profit-card');
+        if (card) {
+          card.classList.add('ring-4', 'ring-emerald-400', 'animate-pulse');
+          setTimeout(() => card.classList.remove('ring-4', 'ring-emerald-400', 'animate-pulse'), 3000);
+        }
+      });
+
       return () => {
         socket.off('new_order');
         socket.off('order_claimed');
         socket.off('order_status_update');
         socket.off('order_needs_rider');
         socket.off('order_assigned');
+        socket.off('platform_earnings_update');
       };
     }
   }, [user]);
@@ -298,10 +315,10 @@ export default function AdminDashboard() {
   const activeOrders = ordersList.filter(o => !['delivered', 'cancelled'].includes(o.orderStatus));
 
   const statCards = [
-    { label: 'Total Revenue', value: `₹${stats?.totalRevenue?.toLocaleString() || 0}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Total Revenue', value: `₹${stats?.totalRevenue?.toLocaleString() || 0}`, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'admin-profit-card', label: 'Admin Profit', value: `₹${stats?.totalCommission?.toLocaleString() || 0}`, icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Live Orders', value: activeOrders.length || 0, icon: ShoppingCart, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Kitchens', value: stats?.totalRestaurants || 0, icon: Building, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   return (
@@ -352,7 +369,7 @@ export default function AdminDashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statCards.map((stat, i) => (
-            <div key={i} className="bg-white rounded-[2rem] p-8 border border-white shadow-sm hover:shadow-md transition-all group">
+            <div key={i} id={stat.id} className="bg-white rounded-[2rem] p-8 border border-white shadow-sm hover:shadow-md transition-all group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-2">{stat.label}</p>

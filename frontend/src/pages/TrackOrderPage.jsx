@@ -92,24 +92,31 @@ export default function TrackOrderPage() {
         // Socket logic for real-time tracking
         if (user) {
             connectSocket(user._id);
+
+            // Join the order room once we have an order loaded
+            if (order?._id) {
+                console.log(`📦 [Tracking] Joining order room: ${order._id}`);
+                socket.emit('join_order', order._id);
+            }
+
             socket.on('order_status_update', (data) => {
-                console.log('🔄 Live status update recieved:', data);
+                console.log('🔄 Live status update received:', data);
                 if (order && (data.orderId === order._id || data.orderId === order.orderId)) {
                     setOrder(prev => ({ ...prev, orderStatus: data.status }));
-                } else if (!order) {
-                    // If no order yet, maybe this update is for the latest one we are about to fetch
-                    handleExplicitTrack(data.orderId);
                 }
             });
 
-            socket.on('rider_location_update', (data) => {
-                console.log('📍 Live rider location received:', data);
-                if (order && (data.orderId === order._id || data.orderId === order.orderId)) {
+            socket.on('rider_location_updated', (data) => {
+                console.log('📍 Live rider moving:', data);
+                if (order && data.orderId === order._id) {
                     setOrder(prev => ({
                         ...prev,
                         rider: {
                             ...prev.rider,
-                            currentLocation: { latitude: data.latitude, longitude: data.longitude }
+                            currentLocation: {
+                                latitude: data.location.lat,
+                                longitude: data.location.lng
+                            }
                         }
                     }));
                 }
@@ -118,7 +125,7 @@ export default function TrackOrderPage() {
 
         return () => {
             socket.off('order_status_update');
-            socket.off('rider_location_update');
+            socket.off('rider_location_updated');
         };
     }, [user, searchParams, order?._id]);
 

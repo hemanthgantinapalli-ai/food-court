@@ -164,6 +164,12 @@ export const createOrder = async (req, res) => {
     // --- Prepare Full Order Payload ---
     const commissionRate = (targetRestaurant.commissionPercentage || 10) / 100;
     const orderTotal = Number(orderPayload.total) || 0;
+    const deliveryFee = Number(orderPayload.deliveryFee) || 0;
+    const orderSubtotal = Number(orderPayload.subtotal) || (orderTotal - deliveryFee);
+
+    // Calculate split for initial record
+    const platformFee = Math.round(orderSubtotal * (isNaN(commissionRate) ? 0.1 : commissionRate));
+    const partnerEarnings = orderSubtotal - platformFee;
 
     // Add additional fields to payload before creation
     const finalOrderPayload = {
@@ -171,8 +177,8 @@ export const createOrder = async (req, res) => {
       customer: req.userId,
       // Status must match enum: ['pending', 'completed', 'failed', 'refunded']
       paymentStatus: isWallet ? 'completed' : (orderPayload.paymentMethod === 'cash' ? 'pending' : 'pending'),
-      partnerEarnings: Math.round(orderTotal * (1 - (isNaN(commissionRate) ? 0.1 : commissionRate))),
-      platformFee: Math.round(orderTotal * (isNaN(commissionRate) ? 0.1 : commissionRate)),
+      partnerEarnings: partnerEarnings,
+      platformFee: platformFee,
     };
 
     console.log(`✨ [Create Order API] Creating order in database...`);
@@ -416,6 +422,7 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
+    const io = getIO();
     console.log(`📝 [Update Order Status API] Updating order ${orderId} to status: ${status}`);
 
     const order = await Order.findById(orderId);
@@ -450,24 +457,36 @@ export const updateOrderStatus = async (req, res) => {
       }
     }
 
-    console.log(`🔄 [Update Order Status API] Changing status from ${order.orderStatus} to ${status}`);
+    const previousStatus = order.orderStatus;
+    console.log(`🔄 [Update Order Status API] Changing status from ${previousStatus} to ${status}`);
+
+    // Update the basic order status info first
     order.orderStatus = status;
     order.statusHistory.push({
       status,
       timestamp: new Date(),
     });
 
-    if (status === 'delivered') {
+    // Only process financial earnings if the order is newly 'delivered'
+    if (status === 'delivered' && previousStatus !== 'delivered') {
       console.log(`🏠 [Update Order Status API] Order marked as delivered. Updating actualDeliveryTime.`);
       order.actualDeliveryTime = new Date();
 
-      // Wallet Earnings for Partner and Rider
+      // --- Revenue Distribution Hub ---
+      // 1. Fetch restaurant with specific commission percentage
       const restaurant = await Restaurant.findById(order.restaurant).populate('owner');
-      const commissionRate = (restaurant.commissionPercentage || 10) / 100;
-      const commissionAmount = order.total * commissionRate;
-      const partnerEarnings = order.total - commissionAmount - (order.deliveryFee || 0);
+      const commissionRate = (restaurant?.commissionPercentage ?? 10) / 100;
 
-      // 1. Credit Restaurant Partner Wallet
+      // Calculate split amounts
+      // Note: Commission is traditionally on the food subtotal, not the delivery fee
+      const subtotal = order.subtotal || (order.total - (order.deliveryFee || 0));
+      const commissionAmount = Math.round(subtotal * commissionRate);
+      const riderEarnings = order.deliveryFee || 40;
+      const partnerEarnings = subtotal - commissionAmount;
+
+      console.log(`💰 [Earnings] Total: ${order.total} | Subtotal: ${subtotal} | Commission (${restaurant?.commissionPercentage}%): ${commissionAmount}`);
+
+      // 2. Credit Restaurant Partner Wallet (Earnings for food)
       if (restaurant && restaurant.owner) {
         const owner = restaurant.owner;
         owner.wallet = owner.wallet || { balance: 0 };
@@ -486,11 +505,10 @@ export const updateOrderStatus = async (req, res) => {
         });
       }
 
-      // 2. Credit Rider Wallet
+      // 3. Credit Rider Wallet (Delivery Fee)
       if (order.rider) {
         const rider = await User.findById(order.rider);
         if (rider) {
-          const riderEarnings = (order.deliveryFee || 40); // Delivery fee or default 40
           rider.wallet = rider.wallet || { balance: 0 };
           rider.wallet.balance += riderEarnings;
           await rider.save();
@@ -507,6 +525,41 @@ export const updateOrderStatus = async (req, res) => {
           });
         }
       }
+
+      // 4. NEW: Credit Admin Wallet (Platform Profit)
+      try {
+        const adminUser = await User.findOne({ role: 'admin' });
+        if (adminUser) {
+          adminUser.wallet = adminUser.wallet || { balance: 0 };
+          adminUser.wallet.balance += commissionAmount;
+          await adminUser.save();
+
+          await Transaction.create({
+            user: adminUser._id,
+            amount: commissionAmount,
+            type: 'credit',
+            paymentMethod: 'system',
+            status: 'success',
+            description: `Platform Commission (${restaurant?.commissionPercentage}%) - Order #${order.orderId || order._id.toString().slice(-6)}`,
+            order: order._id,
+            transactionId: `COMM-A-${Date.now()}`
+          });
+
+          // Notify Admin of earnings
+          await Notification.create({
+            user: adminUser._id,
+            title: 'Commission Earned! 💰',
+            message: `You earned ₹${commissionAmount} commission from Order #${order.orderId || order._id.toString().slice(-6)}`,
+            orderId: order._id,
+            type: 'success'
+          });
+          io.to('admins').emit('platform_earnings_update', { amount: commissionAmount, balance: adminUser.wallet.balance });
+
+          console.log(`🏦 [Admin Earnings] Credited ₹${commissionAmount} to admin: ${adminUser.email}`);
+        }
+      } catch (adminErr) {
+        console.error('❌ Failed to credit admin commission:', adminErr.message);
+      }
     }
 
     console.log(`💾 [Update Order Status API] Saving updates...`);
@@ -515,8 +568,7 @@ export const updateOrderStatus = async (req, res) => {
 
     console.log(`✅ [Update Order Status API] Order status updated successfully.`);
 
-    // Notify Customer + Admin via Socket.io
-    const io = getIO();
+    // --- Notifications & Sockets ---
 
     if (status === 'confirmed') {
       const fullOrderForAdmin = await Order.findById(order._id)
@@ -988,7 +1040,7 @@ export const cancelOrder = async (req, res) => {
     await order.save();
 
     // If paid by wallet, we need to refund
-    if (order.paymentStatus === 'paid' && order.paymentMethod.toLowerCase() === 'wallet') {
+    if (order.paymentStatus === 'completed' && (order.paymentMethod || '').toLowerCase() === 'wallet') {
       console.log(`💸 [Cancel Order API] Refunding wallet for cancelled order...`);
       const user = await User.findById(order.customer);
       if (user) {

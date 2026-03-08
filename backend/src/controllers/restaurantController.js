@@ -4,24 +4,66 @@ import Order from '../models/Order.js';
 
 export const getRestaurants = async (req, res) => {
     try {
-        const { city } = req.query;
+        const { city, search, cuisine, rating, sort, priceRange } = req.query;
         let query = { isApproved: true };
-        const isCityFilter = city && city.trim() !== 'Select Location';
 
+        // 1. Location Filter
+        const isCityFilter = city && city.trim() !== 'Select Location' && city.trim() !== 'All Cities';
         if (isCityFilter) {
             query['location.city'] = { $regex: city.trim(), $options: 'i' };
         }
 
-        console.log(`🍽️ [Get Restaurants] Fetching restaurants. City filter: "${city || 'none'}"`);
-        let restaurants = await Restaurant.find(query)
-            .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+        // 2. Search Text Filter (Name or Cuisine)
+        if (search && search.trim()) {
+            query.$or = [
+                { name: { $regex: search.trim(), $options: 'i' } },
+                { cuisines: { $regex: search.trim(), $options: 'i' } }
+            ];
+        }
 
-        // SMART FALLBACK: If city filter returns 0, show all restaurants
-        // This prevents a blank screen when user has selected a city we don't serve yet
-        if (restaurants.length === 0 && isCityFilter) {
-            console.warn(`⚠️ [Get Restaurants] No restaurants in "${city}". Returning all restaurants as fallback.`);
-            restaurants = await Restaurant.find({ isApproved: true })
-                .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+        // 3. Cuisine Filter (Exact or multiple)
+        if (cuisine) {
+            const cuisineList = Array.isArray(cuisine) ? cuisine : cuisine.split(',');
+            query.cuisines = { $in: cuisineList.map(c => new RegExp(c.trim(), 'i')) };
+        }
+
+        // 4. Rating Filter
+        if (rating) {
+            query.rating = { $gte: parseFloat(rating) };
+        }
+
+        // 5. Price Range Filter
+        if (priceRange) {
+            const [min, max] = priceRange.split('-').map(Number);
+            query.averagePrice = { $gte: min || 0, $lte: max || 10000 };
+        }
+
+        // 6. Sorting
+        let sortQuery = { isOpen: -1 }; // Open restaurants always first
+        if (sort === 'rating') sortQuery.rating = -1;
+        else if (sort === 'deliveryTime') sortQuery.deliveryTime = 1;
+        else if (sort === 'priceLowToHigh') sortQuery.averagePrice = 1;
+        else if (sort === 'priceHighToLow') sortQuery.averagePrice = -1;
+        else sortQuery.createdAt = -1; // Default: Newest
+
+        console.log(`🍽️ [Get Restaurants] Filters: city=${city || 'none'}, search=${search || 'none'}, cuisine=${cuisine || 'none'}, rating=${rating || 'none'}`);
+
+        let restaurants = await Restaurant.find(query)
+            .select('name image cuisines rating location deliveryTime deliveryFee isOpen averagePrice')
+            .sort(sortQuery);
+
+        // SMART FALLBACK: If specific filters return 0 but they are not critical, 
+        // return more broad results (e.g. ignore searches but keep city if possible)
+        if (restaurants.length === 0 && (search || cuisine || rating)) {
+            console.warn(`⚠️ [Get Restaurants] No matches for strict filters. Softening query...`);
+            // Try removing search/cuisine but keeping city
+            const fallbackQuery = { isApproved: true };
+            if (isCityFilter) fallbackQuery['location.city'] = query['location.city'];
+
+            restaurants = await Restaurant.find(fallbackQuery)
+                .select('name image cuisines rating location deliveryTime deliveryFee isOpen averagePrice')
+                .limit(10)
+                .sort({ rating: -1 });
         }
 
         console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants.`);

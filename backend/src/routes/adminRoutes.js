@@ -20,12 +20,14 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
     const unapprovedRestaurants = await Restaurant.countDocuments({ isApproved: false });
     const totalRiders = await User.countDocuments({ role: 'rider' });
 
+    const revenueValue = totalRevenue[0]?.total || 0;
+
     res.status(200).json({
       success: true,
       data: {
         totalUsers,
         totalOrders,
-        totalRevenue: totalRevenue[0]?.total || 0,
+        totalRevenue: Math.round(revenueValue * 100) / 100, // Round to 2 decimals
         totalRestaurants,
         unapprovedRestaurants,
         totalRiders,

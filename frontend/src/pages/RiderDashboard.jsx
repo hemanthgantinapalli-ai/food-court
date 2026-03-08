@@ -122,25 +122,62 @@ export default function RiderDashboard() {
     };
   }, [isOnline, user]);
 
-  // Live location tracking
+  // Live location tracking (Dual-layer: DB Sync + Real-time Socket)
   React.useEffect(() => {
-    let interval;
+    let dbInterval;
+    let socketInterval;
+
+    const activeTrackingOrder = assignedOrders.find(o => o.orderStatus === 'on_the_way' || o.orderStatus === 'picked_up');
+
     if (isOnline && user?.role === 'rider') {
-      interval = setInterval(() => {
+      // 1. Database Sync (Every 30s) - Updates general "Online" status
+      dbInterval = setInterval(() => {
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
             try {
               await API.post('/riders/update-location', { latitude, longitude });
-            } catch (err) {
-              console.error('Failed to update live location:', err);
-            }
+            } catch (err) { console.error('DB Location Sync Fail:', err); }
           });
         }
       }, 30000);
+
+      // 2. Real-time Socket Broadcast (Every 5s) - ONLY when actively delivering
+      if (activeTrackingOrder) {
+        console.log(`📡 [Rider] Active delivery detected for #${activeTrackingOrder._id.slice(-6)}. Starting high-freq tracking.`);
+
+        // Join the order room to ensure we are connected to the customer
+        socket.emit('join_order', activeTrackingOrder._id);
+
+        socketInterval = setInterval(() => {
+          if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition((position) => {
+              const { latitude, longitude, heading, speed } = position.coords;
+
+              socket.emit('update_location', {
+                orderId: activeTrackingOrder._id,
+                riderId: user._id,
+                location: {
+                  lat: latitude,
+                  lng: longitude,
+                  heading: heading || 0,
+                  speed: speed || 0
+                }
+              });
+
+              console.log(`📍 [Rider] Socket broadcast for order ${activeTrackingOrder._id.slice(-6)}:`, { latitude, longitude });
+            }, (err) => console.error('GPS Error:', err.message),
+              { enableHighAccuracy: true });
+          }
+        }, 5000); // 5 seconds for smooth movement
+      }
     }
-    return () => interval && clearInterval(interval);
-  }, [isOnline, user]);
+
+    return () => {
+      if (dbInterval) clearInterval(dbInterval);
+      if (socketInterval) clearInterval(socketInterval);
+    };
+  }, [isOnline, user, assignedOrders]);
 
   const handleToggleOnline = async () => {
     try {

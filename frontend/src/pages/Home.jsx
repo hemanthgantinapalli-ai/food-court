@@ -224,11 +224,16 @@ const Home = () => {
     if (sortBy === 'rating') return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
     if (sortBy === 'deliveryTime') return (a.deliveryTime || 30) - (b.deliveryTime || 30);
     if (sortBy === 'priceLowHigh') return (a.averagePrice || 0) - (b.averagePrice || 0);
-    // Actually, sorting by restaurant name if price is not available.
     return 0;
   });
 
   if (loading) return <Loader_Component message="Curating the best kitchens..." />;
+
+  const cuisineEmojis = {
+    'Pizza': '🍕', 'Sushi': '🍣', 'Burgers': '🍔', 'Indian': '🍛', 'Chinese': '🥡',
+    'Healthy': '🥗', 'Italian': '🍝', 'Japanese': '🍱', 'American': '🍟', 'BBQ': '🍗',
+    'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐', 'South Indian': '🍱'
+  };
 
   return (
     <div className="bg-white min-h-screen">
@@ -236,233 +241,157 @@ const Home = () => {
       <Hero onFilterChange={handleHeroFilter} />
 
       {/* Feature Highlights */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 py-5">
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-center gap-8 md:gap-16">
-          {[
-            { icon: '🚴', text: 'Free delivery on first 3 orders' },
-            { icon: '⚡', text: 'Lightning fast 20-min delivery' },
-            { icon: '🛡️', text: '100% secure payments' },
-            { icon: '🔄', text: 'Easy returns & refunds' },
-          ].map(({ icon, text }) => (
-            <div key={text} className="flex items-center gap-2 text-white font-bold text-sm">
-              <span className="text-xl">{icon}</span>
-              {text}
-            </div>
-          ))}
+      <div className="bg-slate-900 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-full bg-orange-500/10 skew-x-12 blur-3xl" />
+        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+          <div className="flex items-center gap-8">
+            {[
+              { icon: '🚴', text: 'Free delivery', sub: 'on orders ₹299+' },
+              { icon: '⚡', text: 'Fast delivery', sub: 'in 30 mins' },
+              { icon: '💎', text: 'Premium stores', sub: 'top rated only' },
+            ].map(({ icon, text, sub }) => (
+              <div key={text} className="flex items-center gap-3">
+                <span className="text-2xl">{icon}</span>
+                <div className="flex flex-col">
+                  <span className="text-white font-black text-xs uppercase tracking-widest">{text}</span>
+                  <span className="text-slate-500 text-[10px] font-bold">{sub}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-full px-4 py-1.5 flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className="text-white/60 text-[10px] font-black uppercase tracking-widest">150+ Stores Online</span>
+          </div>
         </div>
       </div>
 
-      {/* AI Recommendations Section */}
-      {!loading && recommendations.length > 0 && !searchQuery && activeFilter === 'All' && (
-        <div className="bg-orange-50/50 py-16 overflow-hidden border-b border-orange-100/50">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block animate-pulse">
-                  Based on your history
-                </span>
-                <h2 className="text-3xl font-black tracking-tight text-slate-900">
-                  Recommended <span className="text-orange-500">For You</span>
-                </h2>
-              </div>
+      {/* Discovery Feed Section */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* Sticky Filters Header */}
+        <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-md pt-4 pb-6 -mx-6 px-6 mb-8 border-b border-slate-100/50 flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div id="restaurant-section">
+              <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block">
+                {activeFilter === 'All' ? 'What are you craving?' : `Specializing in ${activeFilter}`}
+              </span>
+              <h2 className="text-3xl font-black tracking-tighter text-slate-900">
+                Order <span className="text-orange-500">{activeFilter === 'All' ? 'Everything' : activeFilter}</span> Online
+              </h2>
             </div>
-            <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-none snap-x transition-all">
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setFastDelivery(!fastDelivery)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${fastDelivery ? 'bg-orange-500 text-white shadow-xl shadow-orange-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200'}`}
+              >
+                ⚡ Fast
+              </button>
+              <button
+                onClick={() => setHighRating(!highRating)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${highRating ? 'bg-orange-500 text-white shadow-xl shadow-orange-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200'}`}
+              >
+                ⭐ 4.5+
+              </button>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 outline-none cursor-pointer hover:bg-slate-100"
+              >
+                <option value="none">SORT BY</option>
+                <option value="rating">Top Rated</option>
+                <option value="deliveryTime">Fastest first</option>
+                <option value="priceLowHigh">Value for money</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Icon Based Categories Bar */}
+          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none">
+            {['All', ...Array.from(new Set(restaurants.flatMap(r => r.cuisines || [])))].sort().map((cuisine) => (
+              <button
+                key={cuisine}
+                onClick={() => applyFilter(cuisine)}
+                className={`group flex items-center gap-3 px-6 py-3.5 rounded-2xl transition-all duration-300 ${activeFilter === cuisine
+                    ? 'bg-orange-500 text-white shadow-xl shadow-orange-100 translate-y-[-2px]'
+                    : 'bg-white border border-slate-100 text-slate-600 hover:border-orange-500 hover:bg-orange-50/50'
+                  }`}
+              >
+                <span className={`text-xl transition-transform group-hover:scale-125 ${activeFilter === cuisine ? 'scale-110' : ''}`}>
+                  {cuisine === 'All' ? '🌎' : (cuisineEmojis[cuisine] || '🍽️')}
+                </span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-inherit whitespace-nowrap">
+                  {cuisine}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Dynamic Section Message */}
+        {searchQuery && (
+          <div className="flex items-center gap-4 mb-8 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+            <div className="p-2 bg-orange-500 text-white rounded-lg">
+              <Flame size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-900">Searching for &quot;{searchQuery}&quot;</p>
+              <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">{filtered.length} matching restaurants found</p>
+            </div>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="ml-auto text-orange-500 hover:text-orange-700 p-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* AI Recommendations Section (Only on main view) */}
+        {!loading && recommendations.length > 0 && !searchQuery && activeFilter === 'All' && (
+          <div className="mb-16">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase">Recommended <span className="text-orange-500">For You</span></h3>
+              <div className="h-px bg-slate-100 flex-1 ml-6 hidden md:block" />
+            </div>
+            <div className="flex gap-8 overflow-x-auto pb-8 scrollbar-none snap-x transition-all">
               {recommendations.map((res, i) => (
-                <div key={res._id} className="min-w-[300px] md:min-w-[350px] snap-start">
-                  <RestaurantCard restaurant={res} index={i + 4} />
+                <div key={res._id} className="min-w-[320px] md:min-w-[380px] snap-start">
+                  <RestaurantCard restaurant={res} index={i + 10} />
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Trending Now Horizontal Section */}
-      <div className="bg-slate-50/50 py-16 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block animate-pulse">
-                Hot & Fast
-              </span>
-              <h2 className="text-3xl font-black tracking-tight text-slate-900">
-                Trending <span className="text-orange-500">Now</span>
-              </h2>
-            </div>
-            <div className="hidden md:flex gap-2">
-              <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 cursor-pointer hover:bg-white transition-all">←</div>
-              <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 cursor-pointer hover:bg-white transition-all">→</div>
-            </div>
-          </div>
-
-          <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-none snap-x transition-all">
-            {restaurants.filter(r => r.rating >= 4.0).slice(0, 10).map((res, i) => (
-              <div key={res._id} className="min-w-[300px] md:min-w-[350px] snap-start">
-                <RestaurantCard restaurant={res} index={i} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Trending Categories */}
-      <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block">
-              What are you craving?
-            </span>
-            <h2 className="text-4xl font-black tracking-tighter text-slate-900">
-              Browse by <span className="text-orange-500">Category</span>
-            </h2>
-          </div>
-        </div>
-
-        {/* Category Cards */}
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none mb-16 px-1">
-          {dynamicCategories.length > 0 ? (
-            dynamicCategories.slice(0, 10).map(({ label, emoji, color }) => (
-              <button
-                key={label}
-                onClick={() => {
-                  applyFilter(activeFilter === label ? 'All' : label);
-                  document.getElementById('restaurant-section')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className={`group shrink-0 w-32 flex flex-col items-center gap-3 p-6 rounded-3xl bg-white border border-slate-100 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-orange-100 ${activeFilter === label ? 'ring-2 ring-orange-500 shadow-xl shadow-orange-100 bg-orange-50/30' : ''}`}
-              >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-all ${activeFilter === label ? 'bg-orange-500/20' : 'bg-slate-50'}`}>
-                  {emoji}
-                </div>
-                <span className="text-[10px] font-black text-slate-800 tracking-widest uppercase">{label}</span>
-              </button>
-            ))
-          ) : (
-            // Fallback while loading
-            [1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="w-32 h-32 bg-slate-50 rounded-3xl animate-pulse" />
-            ))
-          )}
-        </div>
-
-        {/* Filters Row */}
-        <div className="flex items-center gap-3 mb-10 overflow-x-auto pb-2 scrollbar-none">
-          {['All', ...dynamicCategories.map(c => c.label)].map((filter) => (
-            <button
-              key={filter}
-              onClick={() => applyFilter(filter)}
-              className={`shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${activeFilter === filter
-                ? 'bg-slate-900 text-white shadow-lg'
-                : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
-                }`}
-            >
-              {filter}
-            </button>
-          ))}
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm bg-orange-500 text-white"
-            >
-              "{searchQuery}" ✕
-            </button>
-          )}
-
-          {/* Vertical Divider */}
-          <div className="w-px h-8 bg-slate-200 shrink-0 mx-2 hidden md:block" />
-
-          {/* Quick Filters */}
-          <button
-            onClick={() => setFastDelivery(!fastDelivery)}
-            className={`shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${fastDelivery ? 'bg-orange-500 text-white border-orange-400 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
-          >
-            ⚡ Fast Delivery
-          </button>
-          <button
-            onClick={() => setHighRating(!highRating)}
-            className={`shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${highRating ? 'bg-orange-500 text-white border-orange-400 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
-          >
-            ⭐ 4.5+ Rated
-          </button>
-
-          {/* Sort Dropdown */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="shrink-0 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border bg-white text-slate-500 border-slate-100 hover:bg-slate-50 outline-none cursor-pointer"
-          >
-            <option value="none">SORT BY</option>
-            <option value="rating">Rating: High to Low</option>
-            <option value="deliveryTime">Delivery: Fast to Slow</option>
-            <option value="priceLowHigh">Cost: Low to High</option>
-          </select>
-        </div>
-
-        {/* Section Header — anchored so Hero scroll works */}
-        <div id="restaurant-section" className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Flame className="text-orange-500" size={20} />
-              <span className="text-[10px] font-black tracking-[0.2em] text-orange-500 uppercase">
-                {searchQuery ? `Results for "${searchQuery}"` : activeFilter === 'All' ? 'Trending Now' : activeFilter}
-              </span>
-            </div>
-            <h2 className="text-4xl font-black tracking-tighter text-slate-900">
-              {searchQuery ? 'Search' : activeFilter === 'All' ? 'Discover' : activeFilter}{' '}
-              <span className="text-slate-400">Near You</span>
-              <span className="ml-3 text-sm font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-full uppercase tracking-widest align-middle">
-                {filtered.length} stores
-              </span>
-            </h2>
-            {selectedCity && (
-              <p className="text-sm text-slate-400 font-medium mt-1">
-                Showing results in <span className="font-bold text-slate-700">{selectedCity}</span>
-                {' · '}
-                <button onClick={() => { localStorage.setItem('userLocation', 'Select Location'); window.dispatchEvent(new Event('locationChanged')); }} className="text-orange-500 font-bold hover:underline">
-                  View all cities
-                </button>
-              </p>
-            )}
-          </div>
-
-          <div
-            className="flex items-center gap-2 text-orange-600 font-bold text-sm cursor-pointer hover:gap-3 transition-all"
-            onClick={() => applyFilter('All')}
-          >
-            View All Restaurants <ChevronRight size={16} />
-          </div>
-        </div>
-
-        {/* Restaurant Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Store Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-x-10 md:gap-y-12">
           {filtered.length > 0 ? (
             filtered.map((res, i) => (
               <RestaurantCard key={res._id} restaurant={res} index={i} />
             ))
-          ) : restaurants.length > 0 ? (
-            // Restaurants exist but don't match the filter
-            <div className="col-span-3 py-20 text-center text-slate-400">
-              <span className="text-5xl block mb-4">🔍</span>
-              <p className="font-black text-xl mb-2">
-                No restaurants match &quot;{searchQuery || activeFilter}&quot;
+          ) : (
+            <div className="col-span-full py-24 flex flex-col items-center text-center">
+              <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-4xl mb-6 grayscale opacity-50">
+                🍜
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">No matching stores found</h3>
+              <p className="text-slate-500 font-medium mb-8 max-w-sm">
+                We couldn't find &quot;{searchQuery || activeFilter}&quot; in your current filters. Try relaxing your search for better results.
               </p>
               <button
-                onClick={() => applyFilter('All')}
-                className="mt-2 px-6 py-3 bg-orange-500 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-orange-600 transition-all"
+                onClick={() => {
+                  applyFilter('All');
+                  setSearchQuery('');
+                  setFastDelivery(false);
+                  setHighRating(false);
+                }}
+                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-orange-500 transition-all shadow-xl shadow-slate-200"
               >
-                Show All Restaurants
-              </button>
-            </div>
-          ) : (
-            // No restaurants at all — shouldn't happen thanks to backend fallback
-            <div className="col-span-3 py-20 text-center text-slate-400">
-              <span className="text-5xl block mb-4">🏗️</span>
-              <p className="font-black text-xl mb-2">No restaurants available yet</p>
-              <p className="text-sm font-medium mb-4">New stores are being added to your area soon!</p>
-              <button
-                onClick={() => { localStorage.setItem('userLocation', 'Select Location'); window.dispatchEvent(new Event('locationChanged')); }}
-                className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-all"
-              >
-                Browse All Cities
+                Clear All Filters
               </button>
             </div>
           )}
