@@ -8,42 +8,32 @@ import {
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 
-function ImageUploadField({ label, fieldKey, value, onChange, icon: Icon, required = false, hint = '' }) {
-    const handleFile = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => onChange(fieldKey, ev.target.result);
-        reader.readAsDataURL(file);
-    };
-    const id = `doc-${fieldKey}`;
+function UrlInputField({ label, fieldKey, value, onChange, icon: Icon, required = false, hint = '' }) {
+    const id = `url-${fieldKey}`;
     return (
         <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                 {label}{required && <span className="text-rose-500 ml-1">*</span>}
             </label>
-            <label htmlFor={id} className="flex items-center gap-3 cursor-pointer group">
-                <div className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed transition-all ${value ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/50'
-                    }`}>
-                    <Icon size={16} className={value ? 'text-emerald-600' : 'text-slate-400'} />
-                    <span className={`text-sm font-bold flex-1 ${value ? 'text-emerald-700' : 'text-slate-400'}`}>
-                        {value ? '✓ Image uploaded' : 'Click to upload image'}
-                    </span>
-                    <Upload size={14} className={value ? 'text-emerald-500' : 'text-slate-300 group-hover:text-emerald-400'} />
-                    <input id={id} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+            <div className="relative group">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors pointer-events-none">
+                    <Icon size={18} />
                 </div>
-                {value && (
-                    <button type="button" onClick={() => onChange(fieldKey, '')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 transition-all shrink-0">
-                        <X size={16} />
-                    </button>
-                )}
-            </label>
-            {hint && !value && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
+                <input
+                    id={id}
+                    type="text"
+                    value={value}
+                    onChange={(e) => onChange(fieldKey, e.target.value)}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm"
+                />
+            </div>
             {value && (
-                <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-200">
-                    <img src={value} alt="preview" className="w-full h-full object-cover" />
+                <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-100 shadow-inner mt-2">
+                    <img src={value} alt="preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                 </div>
             )}
+            {hint && !value && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
         </div>
     );
 }
@@ -473,13 +463,13 @@ export default function RestaurantSignUp() {
                                 </div>
 
                                 {/* Restaurant Banner Photo */}
-                                <ImageUploadField
-                                    label="Restaurant Banner / Cover Photo"
+                                <UrlInputField
+                                    label="Restaurant Banner / Cover Image (URL)"
                                     fieldKey="restaurantBanner"
                                     value={form.restaurantBanner}
                                     onChange={handleImageChange}
                                     icon={Image}
-                                    hint="Upload a high-quality photo of your restaurant or signature dish"
+                                    hint="Paste a high-quality URL of your restaurant"
                                 />
                             </div>
                         )}
@@ -504,14 +494,14 @@ export default function RestaurantSignUp() {
                                         placeholder="14-digit FSSAI License Number"
                                         className="w-full px-4 py-3.5 rounded-xl bg-white border border-amber-200 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm"
                                     />
-                                    <ImageUploadField
-                                        label="Upload FSSAI Certificate"
+                                    <UrlInputField
+                                        label="FSSAI Certificate Image (URL)"
                                         fieldKey="fssaiImage"
                                         value={form.fssaiImage}
                                         onChange={handleImageChange}
                                         icon={Shield}
                                         required
-                                        hint="Upload a clear scan or photo of your FSSAI certificate"
+                                        hint="Paste the URL of your FSSAI certificate image"
                                     />
                                     <a href="https://foscos.fssai.gov.in" target="_blank" rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 mt-3 text-[9px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 transition-colors">
@@ -559,13 +549,13 @@ export default function RestaurantSignUp() {
                                         maxLength={10}
                                         className="w-full px-4 py-3.5 rounded-xl bg-white border border-purple-200 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm uppercase"
                                     />
-                                    <ImageUploadField
-                                        label="Upload PAN Card Image"
+                                    <UrlInputField
+                                        label="PAN Card Image (URL)"
                                         fieldKey="panImage"
                                         value={form.panImage}
                                         onChange={handleImageChange}
                                         icon={CreditCard}
-                                        hint="Upload a clear photo of your PAN card (optional)"
+                                        hint="Paste the URL of your PAN card image (optional)"
                                     />
                                 </div>
 

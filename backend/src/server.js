@@ -16,6 +16,7 @@ import supportRoutes from './routes/supportRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import partnerRoutes from './routes/partnerRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import { createServer } from 'http';
 import { initSocket } from './utils/socket.js';
@@ -56,6 +57,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/partner', partnerRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/analytics', analyticsRoutes);
 // Keep webhook route at /webhook for Stripe
 
 // --- SERVE FRONTEND IN PRODUCTION ---

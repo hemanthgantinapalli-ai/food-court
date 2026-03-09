@@ -5,6 +5,7 @@ import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 import { socket, connectSocket } from '../api/socket';
+import PartnerBI from '../components/PartnerBI';
 
 const STATUS_COLORS = {
     placed: 'bg-yellow-100 text-yellow-700',
@@ -304,6 +305,7 @@ export default function PartnerDashboard() {
                     <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50 overflow-x-auto">
                         {[
                             { id: 'overview', label: 'Overview' },
+                            { id: 'insights', label: 'Insights 📈' },
                             { id: 'orders', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
                             { id: 'menu', label: 'Menu Items' },
                             { id: 'restaurants', label: 'My Restaurants' },
@@ -548,6 +550,9 @@ export default function PartnerDashboard() {
                             </div>
                         )}
 
+                        {/* ─── INSIGHTS ─── */}
+                        {activeTab === 'insights' && <PartnerBI />}
+
                         {/* ─── LIVE ORDERS ─── */}
                         {activeTab === 'orders' && (
                             <div className="space-y-4">
@@ -775,9 +780,9 @@ export default function PartnerDashboard() {
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Image URL</label>
-                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.image} onChange={e => setMenuForm({ ...menuForm, image: e.target.value })} placeholder="https://..." />
+                                            <div className="md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Dish Media (URL)</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.image} onChange={e => setMenuForm({ ...menuForm, image: e.target.value })} placeholder="https://images.unsplash.com/photo..." />
                                                 {menuForm.image && (
                                                     <div className="mt-4 rounded-xl overflow-hidden h-32 bg-slate-100 border border-slate-100 shadow-inner">
                                                         <img src={menuForm.image} alt="Menu Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} onLoad={(e) => { e.target.style.display = 'block'; }} />
@@ -994,9 +999,9 @@ export default function PartnerDashboard() {
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cuisines (Comma-separated)</label>
                                                 <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={Array.isArray(restaurantForm.cuisines) ? restaurantForm.cuisines.join(', ') : restaurantForm.cuisines || ''} onChange={e => setRestaurantForm({ ...restaurantForm, cuisines: e.target.value.split(',').map(c => c.trim()) })} placeholder="e.g. Pizza, Italian, Pasta" />
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cover Image URL</label>
-                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.image} onChange={e => setRestaurantForm({ ...restaurantForm, image: e.target.value })} />
+                                            <div className="md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cover Image (URL)</label>
+                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.image} onChange={e => setRestaurantForm({ ...restaurantForm, image: e.target.value })} placeholder="https://images.unsplash.com/photo..." />
                                                 {restaurantForm.image && (
                                                     <div className="mt-4 rounded-xl overflow-hidden h-32 bg-slate-100 border border-slate-100 shadow-inner">
                                                         <img src={restaurantForm.image} alt="Restaurant Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} onLoad={(e) => { e.target.style.display = 'block'; }} />

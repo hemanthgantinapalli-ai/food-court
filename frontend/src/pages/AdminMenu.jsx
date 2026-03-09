@@ -238,7 +238,7 @@ export default function AdminMenu() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Recipe Picture URL</label>
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Dish Media (URL)</label>
                   <div className="relative">
                     <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input

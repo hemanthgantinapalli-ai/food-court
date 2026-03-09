@@ -6,6 +6,7 @@ import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
 import { socket, connectSocket } from '../api/socket.js';
+import AdminBI from '../components/AdminBI';
 
 const STATUS_COLORS = {
   placed: 'bg-yellow-100 text-yellow-700',
@@ -388,6 +389,7 @@ export default function AdminDashboard() {
           <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50 overflow-x-auto">
             {[
               { id: 'overview', label: 'Overview' },
+              { id: 'intelligence', label: 'Intelligence 📊' },
               { id: 'live', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
               { id: 'orders', label: 'All Orders' },
               { id: 'approvals', label: `Approvals ${(restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length})` : ''}` },
@@ -546,6 +548,9 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
+
+            {/* ─── INTELLIGENCE ─── */}
+            {activeTab === 'intelligence' && <AdminBI />}
 
             {/* ─── LIVE ORDERS ─── */}
             {activeTab === 'live' && (
@@ -1078,7 +1083,7 @@ export default function AdminDashboard() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Image URL</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Image (URL)</label>
                           <input
                             required
                             className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
@@ -1086,15 +1091,15 @@ export default function AdminDashboard() {
                             value={newRestaurantForm.image}
                             onChange={e => setNewRestaurantForm({ ...newRestaurantForm, image: e.target.value })}
                           />
-                        </div>
-                        {newRestaurantForm.image && (
-                          <div className="animate-in fade-in zoom-in duration-300">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Preview</label>
-                            <div className="w-full h-32 rounded-2xl overflow-hidden border-2 border-orange-100 shadow-inner">
-                              <img src={newRestaurantForm.image} alt="Preview" className="w-full h-full object-cover" />
+                          {newRestaurantForm.image && (
+                            <div className="mt-4 animate-in fade-in zoom-in duration-300">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Preview</label>
+                              <div className="w-full h-32 rounded-2xl overflow-hidden border-2 border-orange-100 shadow-inner">
+                                <img src={newRestaurantForm.image} alt="Preview" className="w-full h-full object-cover" />
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Cuisines (comma separated)</label>
                           <input
