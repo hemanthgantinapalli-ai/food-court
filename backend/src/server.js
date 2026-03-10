@@ -18,6 +18,7 @@ import partnerRoutes from './routes/partnerRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 import { createServer } from 'http';
 import { initSocket } from './utils/socket.js';
 import path from 'path';
@@ -44,6 +45,9 @@ app.use('/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
 
 app.use(express.json());
 
+// Serve static files from public/uploads
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/cart", cartRoutes);
@@ -58,6 +62,7 @@ app.use('/api/partner', partnerRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/upload', uploadRoutes);
 // Keep webhook route at /webhook for Stripe
 
 // --- SERVE FRONTEND IN PRODUCTION ---

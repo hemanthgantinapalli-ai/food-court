@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Store, ShoppingCart, TrendingUp, UtensilsCrossed, ArrowUpRight, Bell, Plus, Trash2, Edit3, X, CheckCircle, Clock, Package, ArrowRight } from 'lucide-react';
+import { Store, ShoppingCart, TrendingUp, UtensilsCrossed, ArrowUpRight, Bell, Plus, Trash2, Edit3, X, CheckCircle, Clock, Package, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
+import ImageUploadField from '../components/ImageUploadField';
 import { socket, connectSocket } from '../api/socket';
 import PartnerBI from '../components/PartnerBI';
 
@@ -781,13 +782,14 @@ export default function PartnerDashboard() {
                                                 </div>
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Dish Media (URL)</label>
-                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={menuForm.image} onChange={e => setMenuForm({ ...menuForm, image: e.target.value })} placeholder="https://images.unsplash.com/photo..." />
-                                                {menuForm.image && (
-                                                    <div className="mt-4 rounded-xl overflow-hidden h-32 bg-slate-100 border border-slate-100 shadow-inner">
-                                                        <img src={menuForm.image} alt="Menu Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} onLoad={(e) => { e.target.style.display = 'block'; }} />
-                                                    </div>
-                                                )}
+                                                <ImageUploadField
+                                                    label="Dish Media"
+                                                    value={menuForm.image}
+                                                    onChange={(url) => setMenuForm({ ...menuForm, image: url })}
+                                                    icon={ImageIcon}
+                                                    required
+                                                    hint="Upload a photo of your dish"
+                                                />
                                             </div>
                                             <div className="md:col-span-2">
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Description</label>
@@ -1000,13 +1002,14 @@ export default function PartnerDashboard() {
                                                 <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={Array.isArray(restaurantForm.cuisines) ? restaurantForm.cuisines.join(', ') : restaurantForm.cuisines || ''} onChange={e => setRestaurantForm({ ...restaurantForm, cuisines: e.target.value.split(',').map(c => c.trim()) })} placeholder="e.g. Pizza, Italian, Pasta" />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cover Image (URL)</label>
-                                                <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.image} onChange={e => setRestaurantForm({ ...restaurantForm, image: e.target.value })} placeholder="https://images.unsplash.com/photo..." />
-                                                {restaurantForm.image && (
-                                                    <div className="mt-4 rounded-xl overflow-hidden h-32 bg-slate-100 border border-slate-100 shadow-inner">
-                                                        <img src={restaurantForm.image} alt="Restaurant Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} onLoad={(e) => { e.target.style.display = 'block'; }} />
-                                                    </div>
-                                                )}
+                                                <ImageUploadField
+                                                    label="Restaurant Profile Image"
+                                                    value={restaurantForm.image}
+                                                    onChange={(url) => setRestaurantForm({ ...restaurantForm, image: url })}
+                                                    icon={Store}
+                                                    required
+                                                    hint="Upload your restaurant's profile photo"
+                                                />
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Opening Time</label>

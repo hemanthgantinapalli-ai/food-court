@@ -46,3 +46,7 @@ coverage/
 .env.test
 *.bak
 *.tmp
+
+# Uploads
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Tag, DollarSign, AlignLeft, Info, Building, Loader2, Image as ImageIcon, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, DollarSign, AlignLeft, Info, Building, Loader2, Image as ImageIcon, BookOpen, CheckCircle, XCircle, Search, Save } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
+import ImageUploadField from '../components/ImageUploadField';
 
 export default function AdminMenu() {
   const { user } = useAuthStore();
@@ -90,7 +91,7 @@ export default function AdminMenu() {
       };
 
       if (editingId) {
-        const response = await API.put(`/menu/${editingId}`, payload);
+        const response = await API.put(`/ menu / ${editingId} `, payload);
         setItems(items.map(i => i._id === editingId ? response.data.data : i));
       } else {
         const response = await API.post('/menu', payload);
@@ -119,7 +120,7 @@ export default function AdminMenu() {
 
   const toggleBlockStatus = async (item) => {
     try {
-      const response = await API.put(`/menu/${item._id}`, { isBlocked: !item.isBlocked });
+      const response = await API.put(`/ menu / ${item._id} `, { isBlocked: !item.isBlocked });
       setItems(items.map(i => i._id === item._id ? { ...i, isBlocked: response.data.data.isBlocked } : i));
     } catch (error) {
       alert('Failed to update status');
@@ -129,7 +130,7 @@ export default function AdminMenu() {
   const deleteItem = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
-      await API.delete(`/menu/${id}`);
+      await API.delete(`/ menu / ${id} `);
       setItems(items.filter(i => i._id !== id));
     } catch (error) {
       console.error('Failed to delete item:', error);
@@ -237,24 +238,15 @@ export default function AdminMenu() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Dish Media (URL)</label>
-                  <div className="relative">
-                    <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500/50 font-medium text-slate-800 shadow-inner"
-                      placeholder="https://image-url.com/dish.jpg"
-                      value={form.image}
-                      onChange={e => setForm({ ...form, image: e.target.value })}
-                    />
-                  </div>
-                  {form.image && (
-                    <div className="mt-3 animate-in fade-in zoom-in duration-300">
-                      <div className="w-full h-32 rounded-2xl overflow-hidden border-2 border-orange-100 shadow-md">
-                        <img src={form.image} alt="Dish Preview" className="w-full h-full object-cover" />
-                      </div>
-                    </div>
-                  )}
+                <div className="md:col-span-2">
+                  <ImageUploadField
+                    label="Dish Media"
+                    value={form.image}
+                    onChange={(url) => setForm({ ...form, image: url })}
+                    icon={ImageIcon}
+                    required
+                    hint="Upload a photo of your dish"
+                  />
                 </div>
 
                 <div>
@@ -356,7 +348,7 @@ export default function AdminMenu() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => toggleBlockStatus(item)}
-                            className={`p-3.5 rounded-2xl border transition-all shadow-sm ${item.isBlocked ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100'}`}
+                            className={`p - 3.5 rounded - 2xl border transition - all shadow - sm ${item.isBlocked ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100'} `}
                             title={item.isBlocked ? 'Unblock Item' : 'Block Item'}
                           >
                             <Info size={20} />

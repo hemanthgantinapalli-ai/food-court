@@ -7,36 +7,9 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
+import ImageUploadField from '../components/ImageUploadField';
 
-function UrlInputField({ label, fieldKey, value, onChange, icon: Icon, required = false, hint = '' }) {
-    const id = `url-${fieldKey}`;
-    return (
-        <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
-                {label}{required && <span className="text-rose-500 ml-1">*</span>}
-            </label>
-            <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors pointer-events-none">
-                    <Icon size={18} />
-                </div>
-                <input
-                    id={id}
-                    type="text"
-                    value={value}
-                    onChange={(e) => onChange(fieldKey, e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm"
-                />
-            </div>
-            {value && (
-                <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-100 shadow-inner mt-2">
-                    <img src={value} alt="preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-                </div>
-            )}
-            {hint && !value && <p className="text-[10px] text-slate-400 font-medium">{hint}</p>}
-        </div>
-    );
-}
+// Removed UrlInputField in favor of shared ImageUploadField component from ../components/ImageUploadField
 
 const STEPS = [
     { id: 1, title: 'Account', subtitle: 'Your login credentials' },
@@ -462,14 +435,13 @@ export default function RestaurantSignUp() {
                                     />
                                 </div>
 
-                                {/* Restaurant Banner Photo */}
-                                <UrlInputField
-                                    label="Restaurant Banner / Cover Image (URL)"
-                                    fieldKey="restaurantBanner"
+                                <ImageUploadField
+                                    label="Restaurant Banner Image"
                                     value={form.restaurantBanner}
-                                    onChange={handleImageChange}
-                                    icon={Image}
-                                    hint="Paste a high-quality URL of your restaurant"
+                                    onChange={(url) => update('restaurantBanner', url)}
+                                    icon={Store}
+                                    required
+                                    hint="Upload a high-quality banner of your restaurant"
                                 />
                             </div>
                         )}
@@ -494,14 +466,13 @@ export default function RestaurantSignUp() {
                                         placeholder="14-digit FSSAI License Number"
                                         className="w-full px-4 py-3.5 rounded-xl bg-white border border-amber-200 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm"
                                     />
-                                    <UrlInputField
-                                        label="FSSAI Certificate Image (URL)"
-                                        fieldKey="fssaiImage"
+                                    <ImageUploadField
+                                        label="FSSAI License Image"
                                         value={form.fssaiImage}
-                                        onChange={handleImageChange}
+                                        onChange={(url) => update('fssaiImage', url)}
                                         icon={Shield}
                                         required
-                                        hint="Paste the URL of your FSSAI certificate image"
+                                        hint="Clear photo of FSSAI Certificate"
                                     />
                                     <a href="https://foscos.fssai.gov.in" target="_blank" rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 mt-3 text-[9px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 transition-colors">
@@ -549,13 +520,13 @@ export default function RestaurantSignUp() {
                                         maxLength={10}
                                         className="w-full px-4 py-3.5 rounded-xl bg-white border border-purple-200 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300 text-sm uppercase"
                                     />
-                                    <UrlInputField
-                                        label="PAN Card Image (URL)"
-                                        fieldKey="panImage"
+                                    <ImageUploadField
+                                        label="PAN Card Image"
                                         value={form.panImage}
-                                        onChange={handleImageChange}
+                                        onChange={(url) => update('panImage', url)}
                                         icon={CreditCard}
-                                        hint="Paste the URL of your PAN card image (optional)"
+                                        required
+                                        hint="Clear photo of Business/Owner PAN"
                                     />
                                 </div>
 

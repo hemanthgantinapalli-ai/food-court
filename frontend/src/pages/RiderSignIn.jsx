@@ -6,42 +6,9 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
+import ImageUploadField from '../components/ImageUploadField';
 
-function ImageUploadField({ label, fieldKey, value, onChange, icon: Icon, required = false, accept = 'image/*', previewCircle = false }) {
-    const handleFile = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => onChange(fieldKey, ev.target.result);
-        reader.readAsDataURL(file);
-    };
-    const inputId = `upload-${fieldKey}`;
-    return (
-        <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-indigo-400">{label}{required && <span className="text-rose-400 ml-1">*</span>}</label>
-            <label htmlFor={inputId} className="flex items-center gap-3 cursor-pointer group">
-                <div className={`relative flex-1 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/80 border ${value ? 'border-indigo-500/60' : 'border-white/10'} hover:border-indigo-500/40 transition-all`}>
-                    <Icon size={16} className="text-slate-500 shrink-0" />
-                    <span className={`text-sm font-bold truncate ${value ? 'text-indigo-400' : 'text-slate-500'}`}>
-                        {value ? '✓ Image uploaded' : 'Click to upload image'}
-                    </span>
-                    <Upload size={14} className="ml-auto text-slate-600 group-hover:text-indigo-400 transition-colors" />
-                    <input id={inputId} type="file" accept={accept} onChange={handleFile} className="hidden" />
-                </div>
-                {value && (
-                    <button type="button" onClick={() => onChange(fieldKey, '')} className="w-10 h-10 flex items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all shrink-0">
-                        <X size={16} />
-                    </button>
-                )}
-            </label>
-            {value && (
-                <div className={`overflow-hidden border-2 border-indigo-500/30 ${previewCircle ? 'w-20 h-20 rounded-full mx-auto' : 'w-full h-36 rounded-xl'}`}>
-                    <img src={value} alt="preview" className="w-full h-full object-cover" />
-                </div>
-            )}
-        </div>
-    );
-}
+// Removed local ImageUploadField in favor of shared component from ../components/ImageUploadField
 
 export default function RiderSignIn() {
     const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'pending'
@@ -263,15 +230,6 @@ export default function RiderSignIn() {
                                         placeholder="Phone Number (10 Digits)" maxLength={10}
                                     />
                                 </div>
-                                {/* Profile Photo Upload */}
-                                <ImageUploadField
-                                    label="Profile Photo (Optional)"
-                                    fieldKey="profilePhoto"
-                                    value={formData.profilePhoto}
-                                    onChange={handleImageChange}
-                                    icon={Camera}
-                                    previewCircle
-                                />
                             </div>
 
                             {/* Vehicle Details */}
@@ -321,22 +279,32 @@ export default function RiderSignIn() {
                             <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-5">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">📄 Document Uploads</p>
                                 <p className="text-[10px] text-slate-500 font-bold -mt-2">Clear photos required — ensure text is readable</p>
-                                <ImageUploadField
-                                    label="Aadhaar Card Photo"
-                                    fieldKey="aadhaarImage"
-                                    value={formData.aadhaarImage}
-                                    onChange={handleImageChange}
-                                    icon={ShieldCheck}
-                                    required
-                                />
-                                <ImageUploadField
-                                    label="Driving License Photo"
-                                    fieldKey="licenseImage"
-                                    value={formData.licenseImage}
-                                    onChange={handleImageChange}
-                                    icon={FileText}
-                                    required
-                                />
+                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <ImageUploadField
+                                        label="Profile Photo"
+                                        value={formData.profilePhoto}
+                                        onChange={(url) => handleImageChange('profilePhoto', url)}
+                                        icon={Camera}
+                                        required
+                                        previewCircle
+                                    />
+
+                                    <ImageUploadField
+                                        label="Aadhaar Front/Back"
+                                        value={formData.aadhaarImage}
+                                        onChange={(url) => handleImageChange('aadhaarImage', url)}
+                                        icon={FileText}
+                                        required
+                                    />
+
+                                    <ImageUploadField
+                                        label="Driving License"
+                                        value={formData.licenseImage}
+                                        onChange={(url) => handleImageChange('licenseImage', url)}
+                                        icon={ShieldCheck}
+                                        required
+                                    />
+                                </div>
                             </div>
 
                             <button
@@ -354,8 +322,8 @@ export default function RiderSignIn() {
                             </button>
                         </p>
                     </div>
-                </div>
-            </div>
+                </div >
+            </div >
         );
     }
 

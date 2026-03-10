@@ -7,6 +7,7 @@ import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
 import { socket, connectSocket } from '../api/socket.js';
 import AdminBI from '../components/AdminBI';
+import ImageUploadField from '../components/ImageUploadField';
 
 const STATUS_COLORS = {
   placed: 'bg-yellow-100 text-yellow-700',
@@ -1083,22 +1084,14 @@ export default function AdminDashboard() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Image (URL)</label>
-                          <input
-                            required
-                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
-                            placeholder="https://images.unsplash.com/..."
+                          <ImageUploadField
+                            label="Restaurant Banner"
                             value={newRestaurantForm.image}
-                            onChange={e => setNewRestaurantForm({ ...newRestaurantForm, image: e.target.value })}
+                            onChange={(url) => setNewRestaurantForm({ ...newRestaurantForm, image: url })}
+                            icon={Building}
+                            required
+                            hint="Upload a photo for the restaurant banner"
                           />
-                          {newRestaurantForm.image && (
-                            <div className="mt-4 animate-in fade-in zoom-in duration-300">
-                              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Banner Preview</label>
-                              <div className="w-full h-32 rounded-2xl overflow-hidden border-2 border-orange-100 shadow-inner">
-                                <img src={newRestaurantForm.image} alt="Preview" className="w-full h-full object-cover" />
-                              </div>
-                            </div>
-                          )}
                         </div>
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Cuisines (comma separated)</label>
