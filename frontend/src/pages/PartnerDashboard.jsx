@@ -32,6 +32,10 @@ export default function PartnerDashboard() {
     const [supportRequests, setSupportRequests] = useState([]);
     const [supportForm, setSupportForm] = useState({ subject: '', message: '', priority: 'medium' });
     const [transactions, setTransactions] = useState([]);
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [incomingOrderAlert, setIncomingOrderAlert] = useState(null);
+    const [audioRef] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+
 
     const [formLoading, setFormLoading] = useState(false);
     const [showMenuForm, setShowMenuForm] = useState(false);
@@ -40,7 +44,7 @@ export default function PartnerDashboard() {
 
     const [editingRestaurantId, setEditingRestaurantId] = useState(null);
     const [showRestaurantForm, setShowRestaurantForm] = useState(false);
-    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', city: 'Mumbai', address: '', cuisines: [], isOpen: true, openTime: '10:00', closeTime: '22:00', averagePrice: 500 });
+    const [restaurantForm, setRestaurantForm] = useState({ name: '', description: '', image: '', city: 'Mumbai', address: '', cuisines: [], isOpen: true, openTime: '10:00', closeTime: '22:00', averagePrice: 500, fssaiLicense: '', gstin: '', panNumber: '' });
 
     const addToast = (msg, type = 'info') => {
         const id = Date.now();
@@ -60,10 +64,11 @@ export default function PartnerDashboard() {
                 });
                 addToast(`🔔 New Order Received! #${(newOrder.orderId || newOrder._id)?.slice(-8)}`, 'info');
                 fetchNotifications();
-                try {
-                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                    audio.play().catch(e => console.log("Audio play blocked", e));
-                } catch (e) { }
+                
+                // Show the persistent alert popup and loop the alarm
+                setIncomingOrderAlert(newOrder);
+                audioRef.loop = true;
+                audioRef.play().catch(e => console.log("Audio play blocked", e));
             };
 
             socket.on('new_restaurant_order', handleNewOrder);
@@ -133,9 +138,16 @@ export default function PartnerDashboard() {
             setOrdersList(prev => prev.map(o => o._id === orderId ? { ...o, orderStatus: status } : o));
             addToast(`✅ Order status updated to ${status}`, 'info');
             fetchNotifications();
+            if (incomingOrderAlert?._id === orderId) dismissIncomingAlert();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to update');
         }
+    };
+
+    const dismissIncomingAlert = () => {
+       setIncomingOrderAlert(null);
+       audioRef.pause();
+       audioRef.currentTime = 0;
     };
 
     const handleMenuSubmit = async (e) => {
@@ -259,26 +271,72 @@ export default function PartnerDashboard() {
                 ))}
             </div>
 
+            {/* 🔥 Persistent New Order Alert Overlay */}
+            {incomingOrderAlert && (
+                <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl border-4 border-orange-500 animate-in zoom-in-95 fade-in duration-300 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-orange-500 animate-pulse" />
+                        <div className="text-center">
+                            <div className="w-24 h-24 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner animate-bounce">
+                                <Bell size={48} />
+                            </div>
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">New Order!</h2>
+                            <p className="text-slate-500 font-bold mb-1">
+                                Order #{incomingOrderAlert.orderId?.slice(-8) || incomingOrderAlert._id.slice(-8)}
+                            </p>
+                            <p className="text-2xl font-black text-orange-600 mb-8">₹{incomingOrderAlert.total?.toFixed(0)}</p>
+                            
+                            <div className="space-y-3">
+                                <button 
+                                    onClick={() => handleStatusUpdate(incomingOrderAlert._id, 'confirmed')}
+                                    className="w-full bg-emerald-500 text-white font-black text-sm uppercase tracking-widest py-4 rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-600 active:scale-95 transition-all"
+                                >
+                                    Accept Order
+                                </button>
+                                <button 
+                                    onClick={dismissIncomingAlert}
+                                    className="w-full bg-slate-100 text-slate-500 font-black text-sm uppercase tracking-widest py-4 rounded-2xl hover:bg-slate-200 active:scale-95 transition-all"
+                                >
+                                    Dismiss Alert
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 {/* Header */}
-                <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div>
-                        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">Partner <span className="text-emerald-600">Dashboard</span></h1>
-                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2">Manage your restaurant business</p>
+                <div className="bg-white rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-8 bg-gradient-to-br from-white to-slate-50/50">
+                    <div className="flex items-center gap-6">
+                        <div className="w-20 h-20 bg-slate-100 rounded-3xl overflow-hidden border-2 border-white shadow-xl flex items-center justify-center font-black text-2xl text-slate-800 group hover:scale-105 transition-all">
+                            {restaurants[0]?.image ? <img src={restaurants[0].image} className="w-full h-full object-cover" /> : <Store size={36} className="text-slate-300" />}
+                        </div>
+                        <div>
+                            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">{restaurants[0]?.name || 'Partner Dashboard'}</h1>
+                            <div className="flex items-center gap-3 mt-2">
+                                <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${restaurants[0]?.isOpen ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${restaurants[0]?.isOpen ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
+                                    <span className="font-black text-[9px] uppercase tracking-widest">{restaurants[0]?.isOpen ? 'Store Live' : 'Paused'}</span>
+                                </div>
+                                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-[0.2em]">{restaurants[0]?.cuisines?.slice(0, 2).join(', ') || 'Multi-cuisine'}</span>
+                            </div>
+                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                         {activeOrders.length > 0 && (
-                            <div className="relative flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-2 rounded-2xl">
-                                <Bell className="text-orange-500 animate-bounce" size={18} />
-                                <span className="font-black text-orange-700 text-xs uppercase tracking-widest">{activeOrders.length} Active</span>
+                            <div className="relative flex items-center gap-3 bg-orange-600 text-white px-5 py-3 rounded-2xl shadow-lg shadow-orange-100">
+                                <Bell className="animate-bounce" size={18} />
+                                <span className="font-black text-xs uppercase tracking-widest">{activeOrders.length} New Task</span>
                             </div>
                         )}
                         <button
                             onClick={() => { logout(); window.location.href = '/restaurant/login'; }}
-                            className="px-5 py-2.5 bg-slate-100 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                            className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-rose-600 transition-all shadow-xl active:scale-95"
+                            title="Sign Out"
                         >
-                            Sign Out
+                            <X size={24} />
                         </button>
                     </div>
                 </div>
@@ -594,6 +652,12 @@ export default function PartnerDashboard() {
                                                 </div>
 
                                                 <div className="flex items-center gap-3 flex-wrap">
+                                                    <button
+                                                        onClick={() => setSelectedOrder(order)}
+                                                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                                    >
+                                                        View Details
+                                                    </button>
                                                     <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${STATUS_COLORS[order.orderStatus] || 'bg-slate-100 text-slate-600'}`}>
                                                         {order.orderStatus?.replace('_', ' ')}
                                                     </span>
@@ -660,7 +724,10 @@ export default function PartnerDashboard() {
                                                                     {o.orderStatus}
                                                                 </span>
                                                             </td>
-                                                            <td className="py-4 text-sm text-slate-500 font-bold">{o.customer?.name || 'N/A'}</td>
+                                                            <td className="py-4 text-sm text-slate-500 font-bold flex items-center justify-between">
+                                                                <span>{o.customer?.name || 'N/A'}</span>
+                                                                <button onClick={() => setSelectedOrder(o)} className="ml-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all">View</button>
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1040,6 +1107,25 @@ export default function PartnerDashboard() {
                                                     {restaurantForm.isOpen ? 'Currently Open' : 'Currently Closed'}
                                                 </button>
                                             </div>
+
+                                            {/* Compliance Section */}
+                                            <div className="md:col-span-2 pt-4 mt-4 border-t border-slate-100">
+                                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Compliance & Business Identity</p>
+                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                     <div>
+                                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">FSSAI License</label>
+                                                         <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.fssaiLicense || ''} onChange={e => setRestaurantForm({ ...restaurantForm, fssaiLicense: e.target.value })} placeholder="14-digit number" />
+                                                     </div>
+                                                     <div>
+                                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">GSTIN</label>
+                                                         <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.gstin || ''} onChange={e => setRestaurantForm({ ...restaurantForm, gstin: e.target.value })} placeholder="15-character ID" />
+                                                     </div>
+                                                     <div>
+                                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Business PAN</label>
+                                                         <input className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold focus:ring-2 focus:ring-emerald-100 outline-none" value={restaurantForm.panNumber || ''} onChange={e => setRestaurantForm({ ...restaurantForm, panNumber: e.target.value })} placeholder="10-digit PAN" />
+                                                     </div>
+                                                 </div>
+                                            </div>
                                         </div>
                                         <div className="mt-8">
                                             <button type="submit" disabled={formLoading} className="py-4 px-8 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-emerald-700 active:scale-95 transition-all w-full md:w-auto">
@@ -1063,10 +1149,19 @@ export default function PartnerDashboard() {
                                                     setEditingRestaurantId(r._id);
                                                     setShowRestaurantForm(true);
                                                     setRestaurantForm({
-                                                        name: r.name, description: r.description, image: r.image, isOpen: r.isOpen,
-                                                        city: r.location?.city || '', address: r.location?.address || '',
-                                                        openTime: r.openingHours?.open || '10:00', closeTime: r.openingHours?.close || '22:00',
-                                                        averagePrice: r.averagePrice || 500
+                                                        name: r.name, 
+                                                        description: r.description, 
+                                                        image: r.image, 
+                                                        isOpen: r.isOpen,
+                                                        city: r.location?.city || '', 
+                                                        address: r.location?.address || '',
+                                                        openTime: r.openingHours?.open || '10:00', 
+                                                        closeTime: r.openingHours?.close || '22:00',
+                                                        cuisines: r.cuisines || [],
+                                                        averagePrice: r.averagePrice || 500,
+                                                        fssaiLicense: r.fssaiLicense || '',
+                                                        gstin: r.gstin || '',
+                                                        panNumber: r.panNumber || ''
                                                     });
                                                 }}
                                                 className="absolute top-6 right-6 z-10 w-10 h-10 bg-white shadow-xl rounded-xl flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-all"
@@ -1167,6 +1262,138 @@ export default function PartnerDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Order Details Modal */}
+            {selectedOrder && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in transition-all">
+                    <div className="bg-white max-w-2xl w-full rounded-[2.5rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <button
+                            onClick={() => setSelectedOrder(null)}
+                            className="absolute top-6 right-6 w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-all"
+                        >
+                            <X size={18} />
+                        </button>
+                        
+                        <div className="flex items-center gap-4 mb-8 pr-12">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black shrink-0 ${selectedOrder.orderStatus === 'ready' ? 'bg-teal-500' :
+                                selectedOrder.orderStatus === 'preparing' ? 'bg-orange-500 animate-pulse' :
+                                selectedOrder.orderStatus === 'confirmed' ? 'bg-blue-500' : 'bg-yellow-500'
+                            }`}>
+                                <Package size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 break-all">Order #{(selectedOrder.orderId || selectedOrder._id)?.slice(-8)}</h2>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2 mt-1">
+                                    <span className={`px-2 py-1 rounded-md text-[9px] font-black text-white ${STATUS_COLORS[selectedOrder.orderStatus] || 'bg-slate-400'}`}>
+                                        {selectedOrder.orderStatus?.replace('_', ' ')}
+                                    </span>
+                                    • {new Date(selectedOrder.createdAt).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 flex items-center gap-2">
+                                    Customer Details
+                                </h3>
+                                <p className="font-black text-slate-900 text-lg">{selectedOrder.customer?.name || 'N/A'}</p>
+                                <p className="text-sm font-bold text-slate-500 mt-1">{selectedOrder.customer?.phone || 'No phone provided'}</p>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 flex items-center gap-2">
+                                    Delivery Address
+                                </h3>
+                                <p className="text-sm font-bold text-slate-700 leading-relaxed">
+                                    {selectedOrder.deliveryAddress?.street || 'No street provided'}, {selectedOrder.deliveryAddress?.city || 'No city'}
+                                    {selectedOrder.deliveryAddress?.zipCode ? ` - ${selectedOrder.deliveryAddress?.zipCode}` : ''}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mb-8">
+                            <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-4">Order Items</h3>
+                            <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+                                <div className="divide-y divide-slate-50">
+                                    {selectedOrder.items?.map((item, idx) => (
+                                        <div key={idx} className="p-4 flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black text-xs shrink-0">
+                                                    {item.quantity}x
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-slate-900 text-sm">{item.name}</p>
+                                                    {item.addOns?.length > 0 && (
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5 max-w-[200px] truncate">
+                                                            + {item.addOns.map(a => a.name).join(', ')}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="font-black text-emerald-600 whitespace-nowrap ml-4">₹{item.price * item.quantity}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-between items-center">
+                                    <span className="font-black text-xs uppercase tracking-widest text-slate-500">Total Bill</span>
+                                    <span className="font-black text-xl text-slate-900">₹{selectedOrder.total?.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {selectedOrder.specialInstructions && (
+                            <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100 mb-8">
+                                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-yellow-700 mb-2">Special Instructions</h3>
+                                <p className="text-sm font-bold text-yellow-800 italic">"{selectedOrder.specialInstructions}"</p>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
+                            {selectedOrder.orderStatus === 'placed' && (
+                                <>
+                                    <button
+                                        onClick={() => { handleStatusUpdate(selectedOrder._id, 'cancelled'); setSelectedOrder(null); }}
+                                        className="px-6 py-3 bg-rose-100 text-rose-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-200 transition-all"
+                                    >
+                                        Reject Order
+                                    </button>
+                                    <button
+                                        onClick={() => { handleStatusUpdate(selectedOrder._id, 'confirmed'); setSelectedOrder({...selectedOrder, orderStatus: 'confirmed'}); }}
+                                        className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                                    >
+                                        Accept Order
+                                    </button>
+                                </>
+                            )}
+                            {selectedOrder.orderStatus === 'confirmed' && (
+                                <button
+                                    onClick={() => { handleStatusUpdate(selectedOrder._id, 'preparing'); setSelectedOrder({...selectedOrder, orderStatus: 'preparing'}); }}
+                                    className="px-6 py-3 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
+                                >
+                                    Start Preparing
+                                </button>
+                            )}
+                            {selectedOrder.orderStatus === 'preparing' && (
+                                <button
+                                    onClick={() => { handleStatusUpdate(selectedOrder._id, 'ready'); setSelectedOrder({...selectedOrder, orderStatus: 'ready'}); }}
+                                    className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                                >
+                                    Mark Ready
+                                </button>
+                            )}
+                            {['ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].includes(selectedOrder.orderStatus) && (
+                                <button
+                                    onClick={() => setSelectedOrder(null)}
+                                    className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg"
+                                >
+                                    Close Details
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

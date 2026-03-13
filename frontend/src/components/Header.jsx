@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown, LayoutDashboard, Bike, FileText, MapPin, Bell } from 'lucide-react';
+import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown, LayoutDashboard, Bike, FileText, MapPin, Bell, Moon, Sun, Store, Utensils } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
+import { useDarkMode } from '../hooks/useDarkMode';
 import API from '../api/axios';
 
 export default function Header() {
@@ -11,12 +12,17 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState({ restaurants: [], items: [] });
+  const [isSearching, setIsSearching] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
 
   const items = useCartStore((state) => state.items);
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
+  const [isDark, toggleDark] = useDarkMode();
   const { user, logout } = useAuthStore();
 
   const [userLocation, setUserLocation] = useState(localStorage.getItem('userLocation') || 'Select Location');
@@ -59,6 +65,28 @@ export default function Header() {
       return () => clearInterval(interval);
     }
   }, [location, user]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchSuggestions({ restaurants: [], items: [] });
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await API.get(`/restaurants/search/global?q=${encodeURIComponent(searchQuery)}`);
+        setSearchSuggestions(res.data);
+      } catch (err) {
+        console.error('Search error', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const isHomePage = location.pathname === '/';
 
@@ -168,6 +196,20 @@ export default function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
+
+          {/* Dark Mode Toggle */}
+          <button
+            id="dark-mode-toggle-btn"
+            onClick={toggleDark}
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className={`p-2.5 rounded-xl transition-all ${
+              isScrolled || !isHomePage
+                ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
 
           {/* Search Toggle */}
           <button
@@ -298,19 +340,22 @@ export default function Header() {
 
       {/* Search Expanded */}
       {searchOpen && (
-        <div className="max-w-7xl mx-auto mt-3 px-0 animate-fade-up">
-          <div className="relative">
+        <div className="max-w-7xl mx-auto mt-3 px-0 animate-fade-up relative z-[200]">
+          <div className="relative z-20">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               id="global-search-input"
               type="text"
               placeholder="Search restaurants, cuisines, dishes..."
               autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-orange-200 bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-400/30 font-medium text-slate-900"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const val = e.target.value;
+                if (e.key === 'Enter' && searchQuery.trim()) {
+                  const val = searchQuery.trim();
                   setSearchOpen(false);
+                  setSearchQuery('');
                   navigate(`/?q=${encodeURIComponent(val)}`);
                   if (location.pathname === '/') {
                     window.location.reload();
@@ -318,7 +363,67 @@ export default function Header() {
                 }
               }}
             />
+            {isSearching && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
           </div>
+
+          {/* Predictive Search Suggestions Dropdown */}
+          {searchQuery.trim().length > 0 && (searchSuggestions.restaurants?.length > 0 || searchSuggestions.items?.length > 0) && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[200] max-h-[70vh] overflow-y-auto animate-in fade-in slide-in-from-top-4">
+              
+              {searchSuggestions.restaurants?.length > 0 && (
+                <div className="p-4 border-b border-slate-50">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 px-2">Restaurants</h4>
+                  <div className="space-y-1">
+                    {searchSuggestions.restaurants.map(rest => (
+                      <Link 
+                        key={rest._id} 
+                        to={`/restaurant/${rest._id}`}
+                        onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+                        className="flex items-center gap-4 p-2 hover:bg-slate-50 rounded-xl transition-all group"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                          <Store size={18} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-slate-900 group-hover:text-orange-600 transition-colors">{rest.name}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{rest.cuisines?.slice(0, 3).join(', ')} • {rest.location?.city || 'Local'}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {searchSuggestions.items?.length > 0 && (
+                <div className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 px-2">Dishes</h4>
+                  <div className="space-y-1">
+                    {searchSuggestions.items.map(item => (
+                      <Link 
+                        key={item._id} 
+                        to={`/restaurant/${item.restaurant?._id || item.restaurant}`}
+                        onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+                        className="flex items-center gap-4 p-2 hover:bg-slate-50 rounded-xl transition-all group"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                          <Utensils size={18} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-slate-900 group-hover:text-emerald-600 transition-colors">{item.name}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">₹{item.price} • {item.restaurant?.name || 'View Menu'}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
         </div>
       )}
 

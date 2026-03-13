@@ -18,7 +18,60 @@ body {
   margin: 0;
   @apply bg-[#F8F9FB] text-slate-900 antialiased;
   font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* ── Dark Mode Base ──────────────────────────────────────── */
+html.dark body {
+  @apply bg-[#0d1117] text-slate-100;
+}
+
+html.dark .bg-white {
+  @apply bg-[#161b22] !important;
+}
+
+html.dark .bg-\[#F8F9FB\] {
+  @apply bg-[#0d1117] !important;
+}
+
+html.dark .bg-white\/70,
+html.dark .bg-white\/80 {
+  background-color: rgba(22, 27, 34, 0.8) !important;
+}
+
+html.dark .border-white,
+html.dark .border-slate-100 {
+  @apply border-slate-700 !important;
+}
+
+html.dark .text-slate-900 {
+  @apply text-slate-100 !important;
+}
+
+html.dark .text-slate-700 {
+  @apply text-slate-300 !important;
+}
+
+html.dark .text-slate-500 {
+  @apply text-slate-400 !important;
+}
+
+html.dark .bg-slate-50 {
+  @apply bg-slate-800 !important;
+}
+
+html.dark .bg-slate-100 {
+  @apply bg-slate-700 !important;
+}
+
+html.dark .border-slate-200 {
+  @apply border-slate-600 !important;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  @apply bg-slate-600;
+}
+/* ─────────────────────────────────────────────────────────── */
 
 /* Custom smooth scrollbar */
 ::-webkit-scrollbar {
@@ -73,12 +126,25 @@ body {
   }
 }
 
+@keyframes slowZoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.1);
+  }
+}
+
 .animate-fade-up {
   animation: fadeInUp 0.6s ease-out both;
 }
 
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+.animate-slow-zoom {
+  animation: slowZoom 20s ease-in-out infinite alternate;
 }
 
 .animate-shimmer {
@@ -173,4 +239,9 @@ body {
   .journey-tracker-label {
     display: block !important;
   }
+}
+
+/* Smooth Map Marker Movement */
+.leaflet-marker-icon {
+  transition: transform 0.8s linear;
 }

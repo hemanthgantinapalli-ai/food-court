@@ -12,22 +12,38 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
   try {
     const totalUsers = await User.countDocuments();
     const totalOrders = await Order.countDocuments();
-    const totalRevenue = await Order.aggregate([
-      { $match: { paymentStatus: { $in: ['completed', 'pending'] } } },
-      { $group: { _id: null, total: { $sum: '$total' } } },
+    const totalSummary = await Order.aggregate([
+      { 
+        $match: { 
+          paymentStatus: { $in: ['completed', 'pending'] },
+          orderStatus: { $ne: 'cancelled' }
+        } 
+      },
+      { 
+        $group: { 
+          _id: null, 
+          revenue: { $sum: '$total' },
+          restaurantCommission: { $sum: '$platformFee' },
+          logisticsCommission: { $sum: '$platformCommission' }
+        } 
+      },
     ]);
+
     const totalRestaurants = await Restaurant.countDocuments();
     const unapprovedRestaurants = await Restaurant.countDocuments({ isApproved: false });
     const totalRiders = await User.countDocuments({ role: 'rider' });
 
-    const revenueValue = totalRevenue[0]?.total || 0;
+    const statsData = totalSummary[0] || { revenue: 0, restaurantCommission: 0, logisticsCommission: 0 };
+    const totalRevenue = statsData.revenue;
+    const totalCommission = (statsData.restaurantCommission || 0) + (statsData.logisticsCommission || 0);
 
     res.status(200).json({
       success: true,
       data: {
         totalUsers,
         totalOrders,
-        totalRevenue: Math.round(revenueValue * 100) / 100, // Round to 2 decimals
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalCommission: Math.round(totalCommission * 100) / 100,
         totalRestaurants,
         unapprovedRestaurants,
         totalRiders,

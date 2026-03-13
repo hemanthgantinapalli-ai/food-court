@@ -36,6 +36,7 @@ const orderSchema = new mongoose.Schema(
     ],
     deliveryAddress: {
       street: String,
+      area: String,
       city: String,
       state: String,
       zipCode: String,
@@ -114,7 +115,7 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    // Revenue sharing
+    // Revenue sharing & Logistics
     partnerEarnings: {
       type: Number,
       default: 0,
@@ -123,6 +124,25 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    riderEarnings: {
+      type: Number,
+      default: 0,
+    },
+    platformCommission: {
+      type: Number,
+      default: 0,
+    },
+    distance: {
+      type: Number,
+      default: 0,
+    },
+    liveTracking: {
+      lastLatitude: Number,
+      lastLongitude: Number,
+      currentSpeed: Number,
+      etaMinutes: Number,
+      bearing: Number
+    }
   },
   {
     timestamps: true,

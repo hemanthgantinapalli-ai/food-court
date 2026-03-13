@@ -6,7 +6,7 @@ import {
     Clock, ShieldCheck, Wallet, ArrowRight,
     TrendingUp, Star, Search, MessageSquare,
     Gift, Bell, ExternalLink, Truck, ArrowUpRight,
-    Plus, Minus, X, Bike
+    Plus, Minus, X, Bike, RotateCcw
 } from 'lucide-react';
 import { socket, connectSocket, disconnectSocket, joinRoleRoom } from '../api/socket.js';
 import { useAuthStore } from '../context/authStore';
@@ -33,7 +33,7 @@ export default function CustomerDashboard() {
     const { fetchOrders: fetchOrdersFromStore } = useOrderStore(); // Renamed to avoid conflict
 
     // cart helpers needed for quick reorder buttons
-    const { items: cartItems, addToCart, removeFromCart } = useCartStore();
+    const { items: cartItems, addToCart, removeFromCart, clearCart } = useCartStore();
 
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -260,6 +260,35 @@ export default function CustomerDashboard() {
             setIsSubmittingReview(false);
         }
     };
+
+    // ── Order Again ──────────────────────────────────────────────
+    const [reorderingId, setReorderingId] = useState(null);
+    const handleOrderAgain = (order) => {
+        if (!order.items?.length) {
+            addToast('No items found in this order.', 'error');
+            return;
+        }
+        setReorderingId(order._id);
+        clearCart();
+        const restaurantRef = order.restaurant?._id || order.restaurant;
+        order.items.forEach(item => {
+            const product = {
+                _id: item.menuItem?._id || item.menuItem || item._id,
+                name: item.name,
+                price: item.price,
+                image: item.menuItem?.image || item.image || '',
+                restaurant: restaurantRef,
+                quantity: 1,
+            };
+            addToCart(product);
+        });
+        addToast('🛒 Items added to your cart! Redirecting…', 'success');
+        setTimeout(() => {
+            setReorderingId(null);
+            navigate('/checkout');
+        }, 1200);
+    };
+    // ─────────────────────────────────────────────────────────────
 
     const handleSaveInfo = async () => {
         try {
@@ -671,6 +700,16 @@ export default function CustomerDashboard() {
                                                             Rate Order
                                                         </button>
                                                     )}
+                                                    {['delivered', 'cancelled'].includes(order.orderStatus) && (
+                                                        <button
+                                                            onClick={() => handleOrderAgain(order)}
+                                                            disabled={reorderingId === order._id}
+                                                            className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-60"
+                                                        >
+                                                            <RotateCcw size={13} className={reorderingId === order._id ? 'animate-spin' : ''} />
+                                                            {reorderingId === order._id ? 'Adding…' : 'Order Again'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -718,7 +757,7 @@ export default function CustomerDashboard() {
                                         {/* Foods Section */}
                                         {favoriteFoods.length > 0 && (
                                             <div>
-                                                <h4 className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-6 px-2 text-rose-500">Loved Foods</h4>
+                                                <h4 className="font-bold text-xs uppercase tracking-widest mb-6 px-2 text-rose-500">Loved Foods</h4>
                                                 <div className="grid md:grid-cols-2 gap-8">
                                                     {favoriteFoods.map(food => (
                                                         <div key={food._id} className="bg-white rounded-[2rem] p-5 border border-white shadow-sm hover:shadow-xl transition-all flex items-center gap-5">

@@ -14,7 +14,8 @@ export default function CartPage() {
   const [couponMessage, setCouponMessage] = useState('');
 
   const subtotal = getTotal();
-  const deliveryFee = subtotal > 0 ? 49 : 0;
+  // Show base fee as placeholder
+  const deliveryFee = subtotal > 0 ? 30 : 0; 
   const tax = Math.round(subtotal * 0.05);
   const total = subtotal + deliveryFee + tax - (discount || 0);
 
@@ -148,9 +149,12 @@ export default function CartPage() {
                     <span className="text-white font-black">₹{subtotal.toFixed(0)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400 font-bold text-sm uppercase tracking-wider">Delivery</span>
-                    <span className="text-white font-black">₹{deliveryFee}</span>
+                    <span className="text-slate-400 font-bold text-sm uppercase tracking-wider">Estimated Delivery</span>
+                    <span className="text-white font-black">₹{deliveryFee}{subtotal > 0 ? '+' : ''}</span>
                   </div>
+                  {subtotal > 0 && (
+                    <p className="text-[10px] text-slate-500 font-bold -mt-2 mb-2 italic">Standard base fee. Final fee calculated at checkout.</p>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-400 font-bold text-sm uppercase tracking-wider">Taxes (5%)</span>
                     <span className="text-white font-black">₹{tax}</span>

@@ -68,6 +68,19 @@ export const useOrderStore = create((set, get) => ({
             console.error('Failed to accept order:', error);
             throw error;
         }
+    },
+    rateOrder: async (orderId, score, review) => {
+        try {
+            const response = await API.post(`/orders/${orderId}/rate`, { score, review });
+            const updatedOrder = response.data.data;
+            set({
+                orders: get().orders.map(o => o._id === orderId ? updatedOrder : o)
+            });
+            return updatedOrder;
+        } catch (error) {
+            console.error('Failed to rate order:', error);
+            throw error;
+        }
     }
 }));
 

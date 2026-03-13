@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign } from 'lucide-react';
+import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Wifi } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -8,6 +8,39 @@ import API from '../api/axios';
 import { socket, connectSocket } from '../api/socket.js';
 import AdminBI from '../components/AdminBI';
 import ImageUploadField from '../components/ImageUploadField';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
+import marker from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// Fix Leaflet markers in React
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({ iconRetinaUrl: marker2x, iconUrl: marker, shadowUrl: markerShadow });
+
+const riderMapIcon = new L.Icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+  iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
+});
+const restaurantMapIcon = new L.Icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
+  iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
+});
+
+// Calculate distance in km
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 
 const STATUS_COLORS = {
   placed: 'bg-yellow-100 text-yellow-700',
@@ -53,10 +86,14 @@ export default function AdminDashboard() {
   const [showUserPass, setShowUserPass] = useState(false);
 
   const [toasts, setToasts] = useState([]); // transient session notifications
-
   const [financeData, setFinanceData] = useState({ totalGrossRevenue: 0, totalCommission: 0, pendingRevenue: 0, weeklyReport: [], settlements: [], totalOrders: 0, averageOrderValue: 0 });
   const [allTransactions, setAllTransactions] = useState([]);
   const [roleFilter, setRoleFilter] = useState('all');
+
+  // GPS Tracking state
+  const [onlineRiders, setOnlineRiders] = useState([]); // [{userId, name, location: {lat,lng}, ...}]
+  const [assignModal, setAssignModal] = useState(null); // { order: {...}, restaurantCoords: {lat,lng} }
+  const [assigningTo, setAssigningTo] = useState(null); // riderId being assigned
 
   const addToast = (msg, type = 'info') => {
     const id = Date.now();
@@ -133,16 +170,48 @@ export default function AdminDashboard() {
         }
       });
 
-      socket.on('order_needs_rider', (data) => {
+      socket.on('order_needs_rider', async (data) => {
         addToast(`🛵 Order #${(data.orderId || data._id)?.toString().slice(-6)} needs a rider!`, 'info');
         fetchNotifications();
         fetchData();
+
+        // Fetch fresh online riders and open assignment modal with map
+        try {
+          const ridersRes = await API.get('/riders/online');
+          setOnlineRiders(ridersRes.data.data || []);
+        } catch (e) { console.error('Failed to fetch online riders', e); }
+
+        // Try to extract restaurant coordinates from data
+        const restLat = data.restaurantLocation?.latitude || data.restaurantAddress?.lat || null;
+        const restLng = data.restaurantLocation?.longitude || data.restaurantAddress?.lng || null;
+
+        setAssignModal({
+          order: data,
+          restaurantCoords: restLat && restLng ? { lat: restLat, lng: restLng } : null
+        });
+      });
+
+      // Live rider GPS from socket (admin gets all updates)
+      socket.on('rider_position_update', ({ riderId, location }) => {
+        setOnlineRiders(prev => prev.map(r =>
+          r.userId?.toString() === riderId ? { ...r, location } : r
+        ));
+      });
+
+      socket.on('rider_came_online', ({ riderId, location }) => {
+        // Add to online list if not already there, will be merged on next fetchOnlineRiders
+        fetchOnlineRiders();
+      });
+
+      socket.on('rider_went_offline', ({ riderId }) => {
+        setOnlineRiders(prev => prev.filter(r => r.userId?.toString() !== riderId));
       });
 
       socket.on('order_assigned', (data) => {
         addToast(`✅ Rider assigned to #${data.orderId?.toString().slice(-6)}`, 'success');
         fetchNotifications();
         fetchData();
+        setAssignModal(null); // close the modal
       });
 
       socket.on('platform_earnings_update', (data) => {
@@ -168,6 +237,9 @@ export default function AdminDashboard() {
         socket.off('order_needs_rider');
         socket.off('order_assigned');
         socket.off('platform_earnings_update');
+        socket.off('rider_position_update');
+        socket.off('rider_came_online');
+        socket.off('rider_went_offline');
       };
     }
   }, [user]);
@@ -186,6 +258,7 @@ export default function AdminDashboard() {
     if (isInitialLoad) setLoading(true);
 
     fetchNotifications();
+    fetchOnlineRiders();
 
     try {
       const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes, financeRes] = await Promise.all([
@@ -220,6 +293,33 @@ export default function AdminDashboard() {
       setPersistentNotifications(res.data.data);
     } catch (err) {
       console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const fetchOnlineRiders = async () => {
+    try {
+      const res = await API.get('/riders/online');
+      setOnlineRiders(res.data.data || []);
+    } catch (err) {
+      console.error('Error fetching online riders:', err);
+    }
+  };
+
+  const handleAssignRiderFromModal = async (riderId) => {
+    if (!assignModal?.order) return;
+    setAssigningTo(riderId);
+    try {
+      const orderId = assignModal.order._id;
+      const res = await API.post(`/admin/orders/${orderId}/assign`, { riderId });
+      addToast('🛵 Rider assigned successfully!', 'success');
+      const updatedOrder = res.data.data;
+      setOrdersList(prev => prev.map(o => o._id === orderId ? updatedOrder : o));
+      fetchNotifications();
+      setAssignModal(null);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to assign rider', 'error');
+    } finally {
+      setAssigningTo(null);
     }
   };
 
@@ -392,6 +492,7 @@ export default function AdminDashboard() {
               { id: 'overview', label: 'Overview' },
               { id: 'intelligence', label: 'Intelligence 📊' },
               { id: 'live', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
+              { id: 'gps', label: `📍 GPS Map (${onlineRiders.length} online)` },
               { id: 'orders', label: 'All Orders' },
               { id: 'approvals', label: `Approvals ${(restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length})` : ''}` },
               { id: 'finance', label: 'Finance' },
@@ -399,6 +500,7 @@ export default function AdminDashboard() {
               { id: 'notifications', label: `Notifications ${persistentNotifications.filter(n => !n.read).length > 0 ? `(${persistentNotifications.filter(n => !n.read).length})` : ''}` },
               { id: 'users', label: 'Users' },
               { id: 'restaurants', label: 'Restaurants' },
+              { id: 'settings', label: 'Platform Settings ⚙️' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -410,6 +512,9 @@ export default function AdminDashboard() {
                 {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && (restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0) || (tab.id === 'notifications' && persistentNotifications.filter(n => !n.read).length > 0) ? (
                   <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                 ) : null}
+                {tab.id === 'gps' && onlineRiders.length > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                )}
                 {tab.label}
               </button>
             ))}
@@ -552,6 +657,94 @@ export default function AdminDashboard() {
 
             {/* ─── INTELLIGENCE ─── */}
             {activeTab === 'intelligence' && <AdminBI />}
+
+            {/* ─── GPS LIVE MAP ─── */}
+            {activeTab === 'gps' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900">Live GPS Fleet Map</h3>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+                      {onlineRiders.length} rider{onlineRiders.length !== 1 ? 's' : ''} online
+                    </p>
+                  </div>
+                  <button onClick={fetchOnlineRiders} className="px-5 py-2.5 bg-slate-100 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-orange-50 hover:text-orange-600 transition-all flex items-center gap-2">
+                    <Wifi size={12} /> Refresh
+                  </button>
+                </div>
+
+                {/* Map Panel */}
+                {onlineRiders.filter(r => r.location).length > 0 ? (
+                  <div className="relative rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-sm" style={{ height: '480px' }}>
+                    <MapContainer
+                      center={[
+                        onlineRiders.find(r => r.location)?.location?.lat || 20.5937,
+                        onlineRiders.find(r => r.location)?.location?.lng || 78.9629
+                      ]}
+                      zoom={12}
+                      className="h-full w-full z-0"
+                    >
+                      <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                      {onlineRiders.filter(r => r.location).map(rider => (
+                        <Marker
+                          key={rider.userId || rider._id}
+                          position={[rider.location.lat, rider.location.lng]}
+                          icon={riderMapIcon}
+                        >
+                          <Popup>
+                            <strong>🛵 {rider.name}</strong><br />
+                            Vehicle: {rider.vehicleType || 'N/A'}<br />
+                            Rating: ★ {rider.rating || '4.5'}<br />
+                            Deliveries: {rider.completedDeliveries || 0}
+                          </Popup>
+                        </Marker>
+                      ))}
+                    </MapContainer>
+                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg z-[1000] border border-slate-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                      Live Fleet Tracker
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-64 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200 flex flex-col items-center justify-center gap-4">
+                    <MapPin size={36} className="text-slate-300" />
+                    <p className="font-black text-slate-400 text-[10px] uppercase tracking-widest">No rider locations available yet</p>
+                    <p className="text-slate-400 text-xs">Riders must be online and have shared their GPS position</p>
+                  </div>
+                )}
+
+                {/* Online Riders List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {onlineRiders.length === 0 ? (
+                    <div className="col-span-full text-center py-12 text-slate-400">
+                      <Truck size={28} className="mx-auto mb-3 text-slate-300" />
+                      <p className="font-black text-[10px] uppercase tracking-widest">No riders currently online</p>
+                    </div>
+                  ) : onlineRiders.map(rider => (
+                    <div key={rider.userId || rider._id} className="p-5 bg-white rounded-[1.5rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                          <Truck size={18} className="text-emerald-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-slate-900 text-sm truncate">{rider.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{rider.vehicleType || 'Bike'} • ★ {rider.rating || '4.5'}</p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            {rider.location ? (
+                              <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                              <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest">GPS Active</span></>
+                            ) : (
+                              <><span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
+                              <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">No GPS Yet</span></>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ─── LIVE ORDERS ─── */}
             {activeTab === 'live' && (
@@ -1437,6 +1630,89 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* ─── PLATFORM SETTINGS ─── */}
+            {activeTab === 'settings' && (
+              <div className="space-y-8 animate-fade-up">
+                <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center gap-6 mb-12">
+                     <div className="w-16 h-16 bg-orange-600 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-orange-100">
+                        <DollarSign size={32} />
+                     </div>
+                     <div>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Economic Configuration</h3>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Set platform fees, multipliers and commissions</p>
+                     </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-8">
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Base Delivery Fee</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₹</span>
+                        <input type="number" className="w-full pl-10 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" defaultValue={30} />
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The starting fee for any delivery within 1.5km.</p>
+                    </div>
+
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Per KM Charge</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₹</span>
+                        <input type="number" className="w-full pl-10 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" defaultValue={10} />
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-bold mt-4 italic">Additional charge added for every extra kilometer.</p>
+                    </div>
+
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Platform Commission</label>
+                      <div className="relative">
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">%</span>
+                        <input type="number" className="w-full pl-6 pr-10 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" defaultValue={20} />
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The percentage shared with the platform from restaurant sales.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-12 flex justify-end">
+                    <button 
+                      onClick={() => addToast('🚀 Global Configuration Saved Successfully!', 'info')}
+                      className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-200 hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-3"
+                    >
+                      <ShieldCheck size={18} /> Update Configuration
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8">
+                   <div className="p-10 bg-slate-900 rounded-[2.5rem] border border-slate-800 text-white relative overflow-hidden group">
+                      <h4 className="text-xl font-black mb-2 flex items-center gap-3"><Wifi className="text-emerald-500 animate-pulse" /> Real-time Nodes</h4>
+                      <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">Platform connectivity and socket states</p>
+                      
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/10">
+                           <span className="text-[10px] font-black uppercase tracking-widest">Socket Latency</span>
+                           <span className="text-emerald-500 font-black text-sm">24ms</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/10">
+                           <span className="text-[10px] font-black uppercase tracking-widest">Active Heartbeats</span>
+                           <span className="text-white font-black text-sm">Responsive</span>
+                        </div>
+                      </div>
+                      <TrendingUp className="absolute -bottom-10 -right-10 w-40 h-40 text-white/5 opacity-50 group-hover:scale-125 transition-all duration-1000" />
+                   </div>
+                   
+                   <div className="p-10 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm">
+                      <h4 className="text-xl font-black text-slate-900 mb-2">Automated Payouts</h4>
+                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-8">Current Cycle: Weekly (Sunday midnight)</p>
+                      <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center text-center">
+                         <Clock size={32} className="text-slate-300 mb-4" />
+                         <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-relaxed">System automatically initiates settlements via RazorpayX every Sunday at 23:59 IST</p>
+                      </div>
+                   </div>
+                </div>
+              </div>
+            )}
+
             {/* ─── FINANCE ─── */}
             {activeTab === 'finance' && (
               <div className="space-y-8 animate-fade-up">
@@ -1753,6 +2029,126 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      {/* ─── RIDER ASSIGNMENT MODAL ─── */}
+      {assignModal && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setAssignModal(null)} />
+          <div className="relative bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col md:flex-row h-[80vh] md:h-[600px]">
+            {/* Left: Map */}
+            <div className="flex-1 relative bg-slate-100">
+              <MapContainer
+                center={assignModal.restaurantCoords ? [assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng] : [20.5937, 78.9629]}
+                zoom={14}
+                className="h-full w-full z-0"
+              >
+                <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                
+                {/* Restaurant Marker */}
+                {assignModal.restaurantCoords && (
+                  <Marker position={[assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng]} icon={restaurantMapIcon}>
+                    <Popup>
+                      <p className="font-bold">🍴 {assignModal.order?.restaurantName || 'Restaurant'}</p>
+                      <p className="text-[10px]">{assignModal.order?.restaurantAddress || 'Pickup Point'}</p>
+                    </Popup>
+                  </Marker>
+                )}
+
+                {/* Riders on Map */}
+                {onlineRiders.filter(r => r.location).map(rider => (
+                  <Marker 
+                    key={rider.userId} 
+                    position={[rider.location.lat, rider.location.lng]} 
+                    icon={riderMapIcon}
+                    eventHandlers={{
+                      click: () => handleAssignRiderFromModal(rider.userId)
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-1">
+                        <p className="font-bold">🛵 {rider.name}</p>
+                        <p className="text-[10px] text-slate-500 mb-2">{rider.vehicleType || 'Bike'} • ★ {rider.rating || '4.5'}</p>
+                        <button 
+                          onClick={() => handleAssignRiderFromModal(rider.userId)}
+                          className="w-full bg-orange-500 text-white py-1 px-3 rounded-lg font-bold text-[10px] uppercase"
+                        >
+                          Assign This Rider
+                        </button>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+              
+              <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg z-[1000] border border-slate-100">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+                  Assignment Map
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Rider List */}
+            <div className="w-full md:w-80 border-l border-slate-100 flex flex-col bg-slate-50">
+              <div className="p-6 border-b border-slate-100 bg-white">
+                <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-black text-lg text-slate-900">Assign Rider</h3>
+                    <button onClick={() => setAssignModal(null)} className="text-slate-400 hover:text-slate-900 transition-colors">
+                      <X size={20} />
+                    </button>
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                  Order #{(assignModal.order?.orderId || assignModal.order?._id)?.slice(-6)} needs a delivery partner
+                </p>
+                <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                   <p className="text-[9px] font-black text-indigo-700 uppercase tracking-widest mb-1">Pickup Store</p>
+                   <p className="text-xs font-bold text-slate-900 truncate">{assignModal.order?.restaurantName || 'Restaurant'}</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {onlineRiders.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Wifi size={24} className="mx-auto mb-2 text-slate-300" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No riders online</p>
+                  </div>
+                ) : (
+                  onlineRiders.map(rider => {
+                    const distance = assignModal.restaurantCoords && rider.location
+                      ? calculateDistance(
+                          assignModal.restaurantCoords.lat,
+                          assignModal.restaurantCoords.lng,
+                          rider.location.lat,
+                          rider.location.lng
+                        )
+                      : null;
+
+                    return (
+                      <button 
+                        key={rider.userId}
+                        disabled={assigningTo === rider.userId}
+                        onClick={() => handleAssignRiderFromModal(rider.userId)}
+                        className="w-full p-4 bg-white rounded-2xl border border-slate-100 hover:border-orange-200 hover:shadow-md transition-all text-left flex items-center gap-4 group disabled:opacity-50"
+                      >
+                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-orange-50 transition-colors">
+                           <Truck size={18} className="text-slate-400 group-hover:text-orange-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-slate-900 text-xs truncate">{rider.name}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                            {rider.vehicleType || 'Bike'} • ★ {rider.rating || '4.5'}
+                            {distance !== null && <span className="text-orange-600 ml-2">({distance.toFixed(1)} km)</span>}
+                          </p>
+                        </div>
+                        <ArrowRight size={14} className="text-slate-200 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

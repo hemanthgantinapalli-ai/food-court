@@ -91,7 +91,7 @@ export default function AdminMenu() {
       };
 
       if (editingId) {
-        const response = await API.put(`/ menu / ${editingId} `, payload);
+        const response = await API.put(`/menu/${editingId}`, payload);
         setItems(items.map(i => i._id === editingId ? response.data.data : i));
       } else {
         const response = await API.post('/menu', payload);
@@ -120,7 +120,7 @@ export default function AdminMenu() {
 
   const toggleBlockStatus = async (item) => {
     try {
-      const response = await API.put(`/ menu / ${item._id} `, { isBlocked: !item.isBlocked });
+      const response = await API.put(`/menu/${item._id}`, { isBlocked: !item.isBlocked });
       setItems(items.map(i => i._id === item._id ? { ...i, isBlocked: response.data.data.isBlocked } : i));
     } catch (error) {
       alert('Failed to update status');
@@ -130,7 +130,7 @@ export default function AdminMenu() {
   const deleteItem = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
-      await API.delete(`/ menu / ${id} `);
+      await API.delete(`/menu/${id}`);
       setItems(items.filter(i => i._id !== id));
     } catch (error) {
       console.error('Failed to delete item:', error);

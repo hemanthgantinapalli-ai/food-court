@@ -34,3 +34,36 @@ export const joinRoleRoom = (role) => {
         });
     }
 };
+
+// Join a specific order's room to receive live tracking updates
+export const joinOrderRoom = (orderId) => {
+    if (socket.connected) {
+        socket.emit('join_order', orderId);
+    } else {
+        socket.once('connect', () => {
+            socket.emit('join_order', orderId);
+        });
+    }
+};
+
+// Rider broadcasts their live GPS position to customer + admin
+export const broadcastRiderLocation = (orderId, riderId, location) => {
+    if (socket.connected) {
+        socket.emit('update_location', { orderId, riderId, location });
+    }
+};
+
+// Rider announces they went online (sends GPS immediately so admin map updates)
+export const notifyRiderOnline = (riderId, location) => {
+    if (socket.connected) {
+        socket.emit('rider_online', { riderId, location });
+    }
+};
+
+// Rider announces they went offline
+export const notifyRiderOffline = (riderId) => {
+    if (socket.connected) {
+        socket.emit('rider_offline', { riderId });
+    }
+};
+

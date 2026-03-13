@@ -144,7 +144,7 @@ export const updateRestaurant = async (req, res) => {
             delete updates.owner; // prevent re-assigning owner
         }
 
-        const restaurant = await Restaurant.findByIdAndUpdate(id, updates, { new: true });
+        const restaurant = await Restaurant.findByIdAndUpdate(id, updates, { new: true }).populate('owner', 'name email');
         if (!restaurant) {
             return res.status(404).json({ success: false, message: 'Restaurant not found' });
         }

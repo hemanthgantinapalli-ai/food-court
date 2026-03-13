@@ -1,9 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock, Wallet } from 'lucide-react';
+import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock, Wallet, Navigation, Edit2, Tag, X } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import API from '../api/axios';
+import AddressManagerModal from '../components/AddressManagerModal';
+
+// Fix for leaflet icons
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
+
+const restIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448607.png',
+    iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
+});
+
+const homeIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1077/1077114.png',
+    iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
+});
 
 const PAYMENT_METHODS = [
   { id: 'upi', label: 'UPI / QR Code', icon: Smartphone, desc: 'Google Pay, PhonePe, Paytm' },
@@ -14,13 +41,32 @@ const PAYMENT_METHODS = [
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getTotal, discount, coupon, clearCart, getRestaurantId } = useCartStore();
+  const { items, getTotal, discount, coupon, clearCart, getRestaurantId, applyCoupon } = useCartStore();
   const { user, getProfile } = useAuthStore();
   const { addOrder } = useOrderStore();
+
+  const [restLocation, setRestLocation] = useState(null);
 
   // Always fetch fresh user profile so wallet balance is current (not stale from login)
   useEffect(() => {
     getProfile();
+    
+    // Fetch restaurant location for map routing
+    const fetchRestLoc = async () => {
+      const restId = getRestaurantId() || (items.length > 0 ? (items[0].restaurant?._id || items[0].restaurant) : null);
+      if (restId) {
+        try {
+          const res = await API.get(`/restaurants/${restId}`);
+          const restData = res.data.data.restaurant || res.data.data;
+          if (restData.location?.latitude) {
+            setRestLocation(restData.location);
+          }
+        } catch (e) {
+          console.error("Failed to fetch restaurant location for checkout map", e);
+        }
+      }
+    };
+    fetchRestLoc();
   }, []);
 
 
@@ -30,6 +76,26 @@ export default function CheckoutPage() {
   const [success, setSuccess] = useState(false);
   const [orderError, setOrderError] = useState('');
 
+  // ── Coupon ────────────────────────────────────────────────────
+  const [couponInput, setCouponInput] = useState('');
+  const [couponMsg, setCouponMsg] = useState(null); // { text, ok }
+  const VALID_CODES = ['FIRST50', 'PIZZA40', 'FREEDEL', 'WEEKEND30', 'SUSHI25', 'COMBO199', 'FOODCOURT10', 'WELCOME20'];
+
+  const handleApplyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) { setCouponMsg({ text: 'Please enter a coupon code.', ok: false }); return; }
+    const result = applyCoupon(code);
+    setCouponMsg({ text: result.message, ok: result.success });
+    if (result.success) setCouponInput('');
+  };
+
+  const handleRemoveCoupon = () => {
+    applyCoupon('__INVALID__CLEAR__');
+    setCouponMsg(null);
+    setCouponInput('');
+  };
+  // ─────────────────────────────────────────────────────────────
+
   const [address, setAddress] = useState({
     name: user?.name || user?.firstName || '',
     phone: user?.phone || '',
@@ -38,11 +104,59 @@ export default function CheckoutPage() {
     city: '',
     pincode: '',
     landmark: '',
+    lat: null,
+    lng: null
   });
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [errors, setErrors] = useState({});
+  const [gpsCoords, setGpsCoords] = useState(null); // { latitude, longitude }
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  const handleUseMyLocation = () => {
+    if (!('geolocation' in navigator)) return;
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        setGpsLoading(false);
+      },
+      () => setGpsLoading(false),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // Distance calculation helper (Haversine Formula)
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  const distanceKm = (gpsCoords && restLocation) 
+    ? calculateDistance(gpsCoords.latitude, gpsCoords.longitude, restLocation.latitude, restLocation.longitude)
+    : null;
 
   const subtotal = getTotal();
-  const deliveryFee = subtotal > 0 ? 49 : 0;
+  
+  // Dynamic Delivery Fee based on distance
+  // Base fee: ₹30 (up to 3km), then ₹10 per km extra
+  const calculateDynamicFee = (dist) => {
+    if (subtotal === 0) return 0;
+    if (dist === null) return 0; // Wait for location
+    if (dist <= 3) return 30; // Min fee
+    return Math.round(30 + (dist - 3) * 10);
+  };
+
+  // Show base fee as placeholder if location not available, else calculate dynamically
+  const deliveryFee = subtotal > 0 ? (distanceKm !== null ? calculateDynamicFee(distanceKm) : 30) : 0;
+  const deliveryNote = distanceKm !== null ? `Distance: ${distanceKm.toFixed(1)}km` : 'Standard delivery fee';
   const tax = Math.round(subtotal * 0.05);
   const total = subtotal + deliveryFee + tax - (discount || 0);
   // Always read from live user state (getProfile refreshes this on mount)
@@ -93,10 +207,14 @@ export default function CheckoutPage() {
       restaurant: targetRestaurant,
       deliveryAddress: {
         street: address.street,
+        area: address.area || '',
         city: address.city,
         state: address.state || '',
         zipCode: address.pincode,
         label: address.landmark || 'Home',
+        // GPS coordinates for live map tracking
+        latitude: gpsCoords?.latitude || null,
+        longitude: gpsCoords?.longitude || null,
       },
       paymentMethod: normalizedPaymentMethod,
       items: items.map((i) => ({
@@ -109,6 +227,7 @@ export default function CheckoutPage() {
       subtotal,
       tax,
       deliveryFee,
+      distance: distanceKm ? Number(distanceKm.toFixed(2)) : 0,
       discount,
       discountCode: coupon || '',
       total,
@@ -203,11 +322,50 @@ export default function CheckoutPage() {
                   <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
                     <MapPin size={20} className="text-orange-500" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h2 className="text-lg font-black text-slate-900">Delivery Address</h2>
                     <p className="text-xs text-slate-400 font-medium">Where should we deliver your order?</p>
                   </div>
                 </div>
+
+                {/* Saved Addresses Quick Select */}
+                {user?.addresses?.length > 0 && (
+                  <div className="mb-8 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-none">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Choose from saved</p>
+                    <div className="flex gap-3">
+                      {user.addresses.map((addr, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setAddress({
+                              name: user?.name || user?.firstName || '',
+                              phone: user?.phone || '',
+                              street: addr.street,
+                              city: addr.city,
+                              pincode: addr.zipCode,
+                              area: addr.area || '',
+                              landmark: addr.landmark || '',
+                              label: addr.label || 'Home',
+                              lat: addr.lat,
+                              lng: addr.lng
+                            });
+                            if (addr.lat && addr.lng) {
+                              setGpsCoords({ latitude: addr.lat, longitude: addr.lng });
+                            }
+                          }}
+                          className="shrink-0 p-5 border-2 border-slate-50 bg-slate-50/50 rounded-2xl text-left hover:border-orange-500 hover:bg-white transition-all group relative min-w-[200px]"
+                        >
+                          <p className="text-xs font-black text-slate-900 uppercase mb-1 flex items-center justify-between gap-4">
+                             {addr.label || 'Home'}
+                             <Edit2 size={12} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium line-clamp-2 mt-2">{addr.street}, {addr.city}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <form onSubmit={handleAddressNext} className="space-y-4">
                   {/* Name + Phone */}
@@ -239,6 +397,83 @@ export default function CheckoutPage() {
                   <div className="flex gap-4">
                     {field('pincode', 'Pincode (6 digits)', 'text', true)}
                     {field('landmark', 'Landmark (optional)', 'text', true)}
+                  </div>
+                  {/* GPS Location & Routing Map */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${gpsCoords ? 'bg-emerald-100' : 'bg-orange-50'}`}>
+                        <MapPin size={16} className={gpsCoords ? 'text-emerald-600' : 'text-orange-500'} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-black text-slate-700">
+                          {gpsCoords
+                            ? `📍 GPS captured (${gpsCoords.latitude.toFixed(4)}, ${gpsCoords.longitude.toFixed(4)})`
+                            : 'Share GPS for live map tracking'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-medium">Enables real-time rider tracking on map</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUseMyLocation}
+                        disabled={gpsLoading || !!gpsCoords}
+                        className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                          gpsCoords
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-orange-500 text-white hover:bg-orange-600 active:scale-95'
+                        } disabled:opacity-60`}
+                      >
+                        {gpsLoading ? '...' : gpsCoords ? '✓ Got it' : 'Use Location'}
+                      </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddressModalOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-black text-[10px] uppercase tracking-widest hover:border-orange-500 hover:bg-orange-50/30 hover:text-orange-600 transition-all"
+                    >
+                      <Navigation size={14} />
+                      Pin Detailed Address on Map
+                    </button>
+                    </div>
+
+                    {/* Preview Map */}
+                    {gpsCoords && restLocation && (
+                      <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 h-60 w-full relative group animate-in fade-in zoom-in duration-500">
+                        <MapContainer
+                          center={[
+                            (gpsCoords.latitude + restLocation.latitude) / 2,
+                            (gpsCoords.longitude + restLocation.longitude) / 2
+                          ]}
+                          zoom={13}
+                          className="h-full w-full z-0"
+                          zoomControl={false}
+                        >
+                          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                          
+                          {/* Route Line */}
+                          <Polyline 
+                            positions={[
+                              [restLocation.latitude, restLocation.longitude],
+                              [gpsCoords.latitude, gpsCoords.longitude]
+                            ]}
+                            color="#f97316"
+                            weight={4}
+                            dashArray="10, 10"
+                          />
+
+                          <Marker position={[restLocation.latitude, restLocation.longitude]} icon={restIcon}>
+                            <Popup>🍴 Restaurant</Popup>
+                          </Marker>
+
+                          <Marker position={[gpsCoords.latitude, gpsCoords.longitude]} icon={homeIcon}>
+                            <Popup>🏠 Your Home</Popup>
+                          </Marker>
+                        </MapContainer>
+
+                        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg z-[1000] border border-slate-100 flex items-center gap-2">
+                          <Navigation size={12} className="text-orange-500" />
+                          Delivery Route Preview
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -405,14 +640,71 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* Promo Code Section */}
+              <div className="border-b border-white/10 pb-5 mb-5">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Tag size={14} /> Apply Promo Code</p>
+                {coupon ? (
+                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl animate-in fade-in zoom-in duration-300">
+                    <div className="flex items-center gap-2">
+                       <Tag size={16} className="text-emerald-400" />
+                       <div>
+                         <p className="text-sm font-black text-emerald-400">{coupon} Applied</p>
+                         <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest leading-none mt-1">You saved ₹{discount.toFixed(0)}!</p>
+                       </div>
+                    </div>
+                    <button onClick={handleRemoveCoupon} className="p-1.5 hover:bg-emerald-500/20 rounded-lg text-emerald-400 transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={couponInput}
+                        onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponMsg(null); }}
+                        placeholder="e.g. FIRST50" 
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-black text-white outline-none focus:border-orange-500 focus:bg-white/10 transition-all uppercase placeholder:normal-case placeholder:font-medium placeholder:text-slate-600"
+                        onKeyDown={e => e.key === 'Enter' && handleApplyCoupon()}
+                      />
+                      <button 
+                        onClick={handleApplyCoupon}
+                        className="bg-white/10 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-orange-500 hover:text-white transition-all"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                    {couponMsg && (
+                       <p className={`text-[10px] font-bold uppercase tracking-widest mt-2 ${couponMsg.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+                         {couponMsg.ok ? '✓ ' : '! '}{couponMsg.text}
+                       </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {VALID_CODES.slice(0, 3).map(c => (
+                        <button key={c} onClick={() => { setCouponInput(c); setCouponMsg(null); }} className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white/5 px-2 py-1 rounded hover:bg-white/10 hover:text-white transition-colors">
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-3 border-b border-white/10 pb-5 mb-5">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400 font-bold">Subtotal</span>
                   <span className="text-white font-black">₹{subtotal.toFixed(0)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400 font-bold">Delivery</span>
-                  <span className="text-white font-black">₹{deliveryFee}</span>
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 font-bold text-sm uppercase tracking-wider">Delivery Fee</span>
+                    <span className="text-white font-black">
+                       {distanceKm === null ? '₹30' : (deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE')}
+                    </span>
+                  </div>
+                  <p className={`text-[9px] font-black uppercase tracking-widest ${distanceKm === null ? 'text-orange-500 animate-pulse' : 'text-slate-500'}`}>
+                    {distanceKm === null ? '📍 Share location for road-accurate fee' : `✓ ${deliveryNote}`}
+                  </p>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400 font-bold">Taxes (5%)</span>
@@ -440,6 +732,11 @@ export default function CheckoutPage() {
 
         </div>
       </div>
+      
+      <AddressManagerModal 
+        isOpen={isAddressModalOpen} 
+        onClose={() => setIsAddressModalOpen(false)} 
+      />
     </div>
   );
 }

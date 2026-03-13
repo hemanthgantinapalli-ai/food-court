@@ -4,10 +4,57 @@ import { authenticateUser, authorizeRole } from '../middleware/auth.js';
 import Rider from '../models/Rider.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
-import { getIO } from '../utils/socket.js';
+import { getIO, getOnlineRiderLocations } from '../utils/socket.js';
 import { sendOtp, emailLogin, emailSignup } from '../controllers/riderAuthController.js';
 
 const router = express.Router();
+
+// ─── GET /api/riders/online (admin only) ─────────────────────────────────────
+// Admin fetches all currently online riders with their live GPS position
+router.get('/online', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    console.log(`👑 [Admin] Fetching online riders with locations.`);
+    // Get all online riders from DB
+    const onlineRiders = await Rider.find({ isOnline: true })
+      .populate('user', 'name email phone');
+
+    // Merge with in-memory real-time locations (more up-to-date than DB)
+    const liveLocations = getOnlineRiderLocations();
+
+    const ridersWithLocation = onlineRiders.map(rider => {
+      const liveData = liveLocations.get(rider.user?._id?.toString());
+      return {
+        _id: rider._id,
+        userId: rider.user?._id,
+        name: rider.user?.name,
+        email: rider.user?.email,
+        phone: rider.user?.phone,
+        vehicleType: rider.vehicleType,
+        rating: rider.rating,
+        completedDeliveries: rider.completedDeliveries,
+        // Live location from socket (most accurate) or DB fallback
+        location: liveData ? {
+          lat: liveData.latitude,
+          lng: liveData.longitude,
+          heading: liveData.heading,
+          speed: liveData.speed,
+          updatedAt: liveData.updatedAt,
+        } : rider.currentLocation ? {
+          lat: rider.currentLocation.latitude,
+          lng: rider.currentLocation.longitude,
+          heading: 0,
+          speed: 0,
+          updatedAt: rider.updatedAt,
+        } : null,
+      };
+    });
+
+    res.status(200).json({ success: true, data: ridersWithLocation });
+  } catch (error) {
+    console.error(`🔥 [Online Riders] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // ─── GET /api/riders/stats ──────────────────────────────────────────────────
 // Rider fetches their own stats summary for dashboard
@@ -352,6 +399,11 @@ router.put('/:riderId/verify', authenticateUser, authorizeRole('admin'), async (
 router.post('/update-location', authenticateUser, authorizeRole('rider'), async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
+    
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
+    }
+
     console.log(`📍 [Rider Location] Updating location for rider: ${req.userId} → ${latitude}, ${longitude}`);
 
     await Rider.findOneAndUpdate(
@@ -367,11 +419,15 @@ router.post('/update-location', authenticateUser, authorizeRole('rider'), async 
 
     const io = getIO();
     activeOrders.forEach(order => {
-      io.to(order.customer.toString()).emit('rider_location_update', {
+      // Consolidate event name to rider_location_updated and use consistent structure
+      const payload = {
         orderId: order._id,
-        latitude,
-        longitude
-      });
+        location: { lat: latitude, lng: longitude },
+        timestamp: new Date()
+      };
+      
+      io.to(order.customer.toString()).emit('rider_location_updated', payload);
+      io.to(`order_${order._id}`).emit('rider_location_updated', payload);
     });
 
     res.status(200).json({ success: true, message: 'Location updated' });

@@ -1,14 +1,70 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Package, Clock, CheckCircle, MapPin, Receipt, ArrowRight, ChevronRight, CreditCard, Smartphone, Banknote, Map } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Package, Clock, CheckCircle, MapPin, Receipt, ArrowRight, ChevronRight, CreditCard, Smartphone, Banknote, Map, Star, X, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
+import { useCartStore } from '../store/cartStore';
 
 export default function OrderHistoryPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
   const { user } = useAuthStore();
-  const { orders, fetchOrders } = useOrderStore();
+  const { orders, fetchOrders, rateOrder } = useOrderStore();
+  const { clearCart, addToCart } = useCartStore();
   const [loading, setLoading] = useState(true);
+  const [reorderingId, setReorderingId] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleOrderAgain = (order) => {
+    if (!order.items?.length) return;
+    setReorderingId(order._id);
+    clearCart();
+    const restaurantRef = order.restaurant?._id || order.restaurant;
+    order.items.forEach(item => {
+      addToCart({
+        _id: item.menuItem?._id || item.menuItem || item._id,
+        name: item.name,
+        price: item.price,
+        image: item.menuItem?.image || item.image || '',
+        restaurant: restaurantRef,
+        quantity: 1,
+      });
+    });
+    showToast('🛒 Items added to cart! Redirecting…', 'success');
+    setTimeout(() => { setReorderingId(null); navigate('/checkout'); }, 1200);
+  };
+
+  // Rating Modal State
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
+  const [selectedOrderForRating, setSelectedOrderForRating] = useState(null);
+  const [ratingScore, setRatingScore] = useState(0);
+  const [ratingReview, setRatingReview] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
+  const handleOpenRatingModal = (order) => {
+    setSelectedOrderForRating(order);
+    setRatingModalOpen(true);
+    setRatingScore(0);
+    setRatingReview('');
+  };
+
+  const submitRating = async () => {
+    if (ratingScore === 0) return alert('Please select a star rating first.');
+    setIsSubmittingRating(true);
+    try {
+      await rateOrder(selectedOrderForRating._id || selectedOrderForRating.id, ratingScore, ratingReview);
+      setRatingModalOpen(false);
+    } catch (error) {
+      alert(error.message || 'Failed to submit rating');
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -50,6 +106,14 @@ export default function OrderHistoryPage() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] py-12 px-6">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-[9999] px-5 py-4 rounded-2xl shadow-2xl font-black text-sm text-white transition-all animate-in slide-in-from-right-4 ${
+          toast.type === 'success' ? 'bg-emerald-600' : 'bg-slate-900'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
       <div className="max-w-5xl mx-auto">
 
         {/* Header */}
@@ -163,7 +227,7 @@ export default function OrderHistoryPage() {
               </div>
 
               {/* Actions Footer */}
-              <div className="pt-5 border-t border-slate-100 flex gap-3 sm:justify-end">
+              <div className="pt-5 border-t border-slate-100 flex gap-3 sm:justify-end flex-wrap">
                 {(order.status || order.orderStatus)?.toLowerCase() !== 'delivered' && (
                   <Link
                     to={`/track-order?orderId=${order.orderId || order._id}`}
@@ -172,8 +236,31 @@ export default function OrderHistoryPage() {
                     Track Order <Map size={16} />
                   </Link>
                 )}
+                {(order.status || order.orderStatus)?.toLowerCase() === 'delivered' && !order.rating?.score && (
+                  <button
+                    onClick={() => handleOpenRatingModal(order)}
+                    className="flex-1 sm:flex-none justify-center bg-yellow-400 text-yellow-900 px-6 py-2.5 rounded-xl font-black text-sm hover:bg-yellow-500 transition-colors shadow-lg shadow-yellow-200 flex items-center gap-2"
+                  >
+                    <Star size={16} className="fill-current" /> Rate Order
+                  </button>
+                )}
+                {(order.status || order.orderStatus)?.toLowerCase() === 'delivered' && order.rating?.score && (
+                  <div className="flex-1 sm:flex-none justify-center px-6 py-2.5 rounded-xl font-black text-sm text-yellow-600 bg-yellow-50 flex items-center gap-2 border border-yellow-200">
+                    <Star size={16} className="fill-current" /> Rated {order.rating.score}/5
+                  </div>
+                )}
+                {['delivered', 'cancelled'].includes((order.status || order.orderStatus)?.toLowerCase()) && (
+                  <button
+                    onClick={() => handleOrderAgain(order)}
+                    disabled={reorderingId === order._id}
+                    className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-xl font-black text-sm hover:bg-emerald-600 transition-colors shadow-lg disabled:opacity-60"
+                  >
+                    <RotateCcw size={15} className={reorderingId === order._id ? 'animate-spin' : ''} />
+                    {reorderingId === order._id ? 'Adding…' : 'Order Again'}
+                  </button>
+                )}
                 <button className="flex-1 sm:flex-none justify-center px-6 py-2.5 rounded-xl font-bold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-2">
-                  <Receipt size={16} /> Download Invoice
+                  <Receipt size={16} /> Invoice
                 </button>
               </div>
 
@@ -191,6 +278,65 @@ export default function OrderHistoryPage() {
         </div>
 
       </div>
+
+      {/* Rating Modal */}
+      {ratingModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={() => setRatingModalOpen(false)}
+              className="absolute top-6 right-6 w-10 h-10 bg-slate-50 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <div className="mb-8">
+              <div className="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center text-yellow-500 mb-6 mx-auto">
+                <Star size={32} className="fill-current" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 text-center tracking-tight">Rate your order</h3>
+              <p className="text-slate-500 font-medium text-center mt-2 leading-relaxed text-sm">
+                How was your food from <span className="text-slate-900 font-bold">{selectedOrderForRating?.restaurant?.name || 'the restaurant'}</span>?
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 mb-8">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRatingScore(star)}
+                  className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${
+                    ratingScore >= star
+                      ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-200/50 scale-110'
+                      : 'bg-slate-50 text-slate-300 hover:bg-slate-100 hover:scale-105'
+                  }`}
+                >
+                  <Star size={24} className={ratingScore >= star ? "fill-current" : ""} />
+                </button>
+              ))}
+            </div>
+            <div className="mb-8">
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Leave a Review (Optional)</label>
+              <textarea
+                value={ratingReview}
+                onChange={(e) => setRatingReview(e.target.value)}
+                placeholder="What did you like or dislike?"
+                className="w-full h-32 bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 focus:outline-none focus:border-yellow-400 focus:bg-white transition-all resize-none"
+              />
+            </div>
+            <button
+              onClick={submitRating}
+              disabled={isSubmittingRating || ratingScore === 0}
+              className={`w-full py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
+                isSubmittingRating || ratingScore === 0
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-yellow-400 text-yellow-900 shadow-xl shadow-yellow-200 hover:bg-yellow-500 hover:-translate-y-0.5'
+              }`}
+            >
+              {isSubmittingRating ? 'Submitting...' : 'Submit Rating'}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -3,6 +3,26 @@ import { useParams, Link } from 'react-router-dom';
 import { Star, Clock, Bike, MapPin, Heart, ArrowLeft, Phone, Users, Copy, Check, X } from 'lucide-react';
 import API from '../api/axios';
 import MenuItemCard from '../components/MenuItemCard';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for leaflet icons
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
+
+const restIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448607.png',
+    iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
+});
 
 import { useAuthStore } from '../context/authStore';
 
@@ -276,10 +296,26 @@ export default function RestaurantDetail() {
               {restaurant.location && (
                 <div className="mb-6">
                   <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-2">Location</p>
-                  <p className="text-sm font-bold text-white flex gap-2">
+                  <p className="text-sm font-bold text-white flex gap-2 mb-4">
                     <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5" />
                     {restaurant.location.address}, {restaurant.location.city}
                   </p>
+                  
+                  {restaurant.location.latitude && restaurant.location.longitude && (
+                    <div className="h-40 w-full rounded-2xl overflow-hidden border border-white/10 mb-6">
+                      <MapContainer 
+                        center={[restaurant.location.latitude, restaurant.location.longitude]} 
+                        zoom={15} 
+                        className="h-full w-full z-0"
+                        zoomControl={false}
+                      >
+                        <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                        <Marker position={[restaurant.location.latitude, restaurant.location.longitude]} icon={restIcon}>
+                          <Popup>{restaurant.name}</Popup>
+                        </Marker>
+                      </MapContainer>
+                    </div>
+                  )}
                 </div>
               )}
 

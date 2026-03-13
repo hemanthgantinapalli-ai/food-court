@@ -22,7 +22,8 @@ export const createOrder = async (req, res) => {
     let orderPayload;
     if (!cart || cart.items.length === 0) {
       console.log(`⚠️ [Create Order API] Cart is empty or not found. Checking request body for items...`);
-      const { items, subtotal, tax, deliveryFee, discount, discountCode, total, restaurant } = req.body;
+      const bodyData = req.body;
+      const { items, subtotal, tax, deliveryFee: bodyDeliveryFee, discount, discountCode, total, restaurant } = bodyData;
       if (!items || items.length === 0) {
         console.log(`❌ [Create Order API] No items found in cart or request body. Aborting.`);
         return res.status(400).json({ success: false, message: 'Cart is empty and no items provided' });
@@ -47,14 +48,14 @@ export const createOrder = async (req, res) => {
         deliveryAddress: deliveryAddress || {},
         subtotal: subtotal || 0,
         tax: tax || 0,
-        deliveryFee: deliveryFee || 0,
+        deliveryFee: bodyDeliveryFee || 0,
         discount: discount || 0,
         discountCode: discountCode || '',
         total: total || 0,
         paymentMethod: normalizedPaymentMethod,
       };
     } else {
-      console.log(`🛒 [Create Order API] Cart found with ${cart.items.length} items. Fetching full details...`);
+      console.log(`🛒 [Create Order API] Cart found with ${cart.items.length} items. Merging with checkout data...`);
       // Re-fetch cart with populated items for names
       const fullCart = await Cart.findOne({ user: req.userId }).populate('items.menuItem');
 
@@ -63,9 +64,11 @@ export const createOrder = async (req, res) => {
         return res.status(404).json({ success: false, message: 'Cart not found' });
       }
 
+      // PRIORITIZE Body values for dynamic fields (fee, total, address) determined at checkout
+      const body = req.body;
       orderPayload = {
         customer: req.userId,
-        restaurant: fullCart.restaurant?._id || fullCart.restaurant || null,
+        restaurant: fullCart.restaurant?._id || fullCart.restaurant || body.restaurant || null,
         items: fullCart.items.map((item) => ({
           menuItem: item.menuItem?._id || item.menuItem,
           name: item.menuItem?.name || 'Unknown Item',
@@ -73,14 +76,14 @@ export const createOrder = async (req, res) => {
           price: item.price || item.menuItem?.price || 0,
           addOns: item.addOns,
         })),
-        deliveryAddress,
-        subtotal: fullCart.subtotal,
-        tax: fullCart.tax,
-        deliveryFee: fullCart.deliveryFee,
-        discount: fullCart.discount,
-        discountCode: fullCart.discountCode,
-        total: fullCart.total,
-        paymentMethod,
+        deliveryAddress: body.deliveryAddress || {},
+        subtotal: body.subtotal || fullCart.subtotal,
+        tax: body.tax || fullCart.tax,
+        deliveryFee: body.deliveryFee !== undefined ? body.deliveryFee : fullCart.deliveryFee,
+        discount: body.discount || fullCart.discount,
+        discountCode: body.discountCode || fullCart.discountCode,
+        total: body.total || fullCart.total,
+        paymentMethod: body.paymentMethod || paymentMethod,
       };
     }
 
@@ -163,13 +166,20 @@ export const createOrder = async (req, res) => {
 
     // --- Prepare Full Order Payload ---
     const commissionRate = (targetRestaurant.commissionPercentage || 10) / 100;
-    const orderTotal = Number(orderPayload.total) || 0;
-    const deliveryFee = Number(orderPayload.deliveryFee) || 0;
-    const orderSubtotal = Number(orderPayload.subtotal) || (orderTotal - deliveryFee);
+    const finalOrderTotal = Number(orderPayload.total) || 0;
+    const finalDeliveryFee = Number(orderPayload.deliveryFee) || 0;
+    const orderSubtotal = Number(orderPayload.subtotal) || (finalOrderTotal - finalDeliveryFee);
 
-    // Calculate split for initial record
-    const platformFee = Math.round(orderSubtotal * (isNaN(commissionRate) ? 0.1 : commissionRate));
-    const partnerEarnings = orderSubtotal - platformFee;
+    // Logistics Split (Swiggy/Zomato Style)
+    const dist = Number(orderPayload.distance) || 0;
+    // Formula: ₹20 base + ₹5 per km (if distance > 3, additional per km)
+    // This is simple but feels professional
+    const riderEarnings = Math.round(20 + (dist * 5));
+    const platformCommissionFromDelivery = Math.max(0, finalDeliveryFee - riderEarnings);
+
+    // Platform Fee (from restaurant commission)
+    const platformFeeFromFood = Math.round(orderSubtotal * (isNaN(commissionRate) ? 0.1 : commissionRate));
+    const partnerEarnings = orderSubtotal - platformFeeFromFood;
 
     // Add additional fields to payload before creation
     const finalOrderPayload = {
@@ -178,7 +188,9 @@ export const createOrder = async (req, res) => {
       // Status must match enum: ['pending', 'completed', 'failed', 'refunded']
       paymentStatus: isWallet ? 'completed' : (orderPayload.paymentMethod === 'cash' ? 'pending' : 'pending'),
       partnerEarnings: partnerEarnings,
-      platformFee: platformFee,
+      platformFee: platformFeeFromFood, // This is restaurant commission
+      riderEarnings: riderEarnings,
+      platformCommission: platformCommissionFromDelivery, // This is logistics cut
     };
 
     console.log(`✨ [Create Order API] Creating order in database...`);
@@ -404,6 +416,22 @@ export const getOrderById = async (req, res) => {
     }
 
     console.log(`✅ [Get Order By ID API] Successfully fetched order: ${orderId}`);
+    
+    // Attach current rider location if order is active
+    if (order.rider && ['picked_up', 'on_the_way'].includes(order.orderStatus)) {
+      const Rider = mongoose.model('Rider');
+      const riderProfile = await Rider.findOne({ user: order.rider._id });
+      if (riderProfile && riderProfile.currentLocation) {
+        // Convert to structure expected by frontend
+        const plainOrder = order.toObject();
+        plainOrder.rider.currentLocation = riderProfile.currentLocation;
+        return res.status(200).json({
+          success: true,
+          data: plainOrder,
+        });
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: order,
@@ -581,6 +609,7 @@ export const updateOrderStatus = async (req, res) => {
         customerName: fullOrderForAdmin.customer?.name,
         restaurantName: fullOrderForAdmin.restaurant?.name,
         restaurantAddress: fullOrderForAdmin.restaurant?.location?.address,
+        restaurantLocation: fullOrderForAdmin.restaurant?.location,
         deliveryAddress: fullOrderForAdmin.deliveryAddress,
         total: fullOrderForAdmin.total,
         deliveryFee: fullOrderForAdmin.deliveryFee,
@@ -610,6 +639,18 @@ export const updateOrderStatus = async (req, res) => {
       status: order.orderStatus,
       message: notificationMessage,
     };
+
+    // Include rider location if available for live tracking initialization
+    if (order.rider && (status === 'picked_up' || status === 'on_the_way')) {
+      const Rider = mongoose.model('Rider');
+      const riderProfile = await Rider.findOne({ user: order.rider });
+      if (riderProfile && riderProfile.currentLocation) {
+        statusPayload.riderLocation = {
+          lat: riderProfile.currentLocation.latitude,
+          lng: riderProfile.currentLocation.longitude
+        };
+      }
+    }
 
     if (notificationMessage && customerId) {
       // Create persistent notification for Customer
@@ -704,6 +745,23 @@ export const assignRiderToOrder = async (req, res) => {
     const customerId = fullOrder.customer?._id.toString();
     const assignmentMessage = `🛵 Rider ${fullOrder.rider?.name || 'has been'} assigned to your order!`;
 
+    const statusPayload = {
+        orderId: fullOrder._id,
+        status: fullOrder.orderStatus,
+        message: assignmentMessage,
+        rider: { name: fullOrder.rider?.name, phone: fullOrder.rider?.phone },
+    };
+
+    // Attach current rider location if available
+    const Rider = mongoose.model('Rider');
+    const riderProfile = await Rider.findOne({ user: riderId });
+    if (riderProfile && riderProfile.currentLocation) {
+        statusPayload.riderLocation = {
+            lat: riderProfile.currentLocation.latitude,
+            lng: riderProfile.currentLocation.longitude
+        };
+    }
+
     if (customerId) {
       await Notification.create({
         user: customerId,
@@ -712,12 +770,7 @@ export const assignRiderToOrder = async (req, res) => {
         orderId: fullOrder._id,
         type: 'info'
       });
-      io.to(customerId).emit('order_status_update', {
-        orderId: fullOrder._id,
-        status: fullOrder.orderStatus,
-        message: assignmentMessage,
-        rider: { name: fullOrder.rider?.name, phone: fullOrder.rider?.phone },
-      });
+      io.to(customerId).emit('order_status_update', statusPayload);
     }
 
     // Notify Rider

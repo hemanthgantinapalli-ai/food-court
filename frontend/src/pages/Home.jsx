@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 import Hero from '../components/Hero';
 import RestaurantCard from '../components/RestaurantCard';
-import Loader_Component from '../components/Loader';
+import { SkeletonGrid } from '../components/SkeletonCard';
 import { Flame, ChevronRight } from 'lucide-react';
 
 const CATEGORY_FILTERS = ['All', 'Pizza', 'Burgers', 'Sushi', 'Indian', 'Chinese', 'Healthy'];
@@ -18,6 +18,8 @@ const FALLBACK_RESTAURANTS = [
     cuisines: ['American', 'Burgers', 'BBQ'],
     deliveryTime: 25,
     deliveryFee: 0,
+    averagePrice: 450,
+    location: { address: '42 Gourmet Street', city: 'Mumbai', latitude: 19.0760, longitude: 72.8777 }
   },
   {
     _id: '69a5bdb2d6f8c7e3b91a1062',
@@ -27,6 +29,8 @@ const FALLBACK_RESTAURANTS = [
     cuisines: ['Japanese', 'Sushi', 'Ramen'],
     deliveryTime: 30,
     deliveryFee: 49,
+    averagePrice: 800,
+    location: { address: '12 Tokyo Tower', city: 'Mumbai', latitude: 19.0820, longitude: 72.8888 }
   },
   {
     _id: '69a5bdb2d6f8c7e3b91a1063',
@@ -36,15 +40,19 @@ const FALLBACK_RESTAURANTS = [
     cuisines: ['Italian', 'Pizza', 'Pasta'],
     deliveryTime: 20,
     deliveryFee: 0,
+    averagePrice: 600,
+    location: { address: '8 Naples Way', city: 'Mumbai', latitude: 19.0900, longitude: 72.8999 }
   },
   {
     _id: '69a5bdb2d6f8c7e3b91a1064',
     name: '[DEMO] Spice Garden',
     image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80',
-    rating: 4.6,
+    rating: 4.4, // Using 4.4 to test the 4.5+ filter
     cuisines: ['Indian', 'Curry', 'Biryani'],
     deliveryTime: 35,
     deliveryFee: 29,
+    averagePrice: 350,
+    location: { address: '15 Curry Lane', city: 'Mumbai', latitude: 19.1000, longitude: 72.9000 }
   },
   {
     _id: '69a5bdb2d6f8c7e3b91a1065',
@@ -54,6 +62,8 @@ const FALLBACK_RESTAURANTS = [
     cuisines: ['Healthy', 'Salads', 'Vegan'],
     deliveryTime: 20,
     deliveryFee: 0,
+    averagePrice: 300,
+    location: { address: '3 Green Terrace', city: 'Mumbai', latitude: 19.1100, longitude: 72.9111 }
   },
   {
     _id: '69a5bdb2d6f8c7e3b91a1066',
@@ -61,8 +71,10 @@ const FALLBACK_RESTAURANTS = [
     image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&q=80',
     rating: 4.7,
     cuisines: ['Chinese', 'Dim Sum', 'Noodles'],
-    deliveryTime: 30,
+    deliveryTime: 40, // Using 40 to test the Fast filter
     deliveryFee: 39,
+    averagePrice: 550,
+    location: { address: '9 Silk Road', city: 'Mumbai', latitude: 19.1200, longitude: 72.9222 }
   },
 ];
 
@@ -213,26 +225,35 @@ const Home = () => {
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.cuisines?.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // 3. Fast Delivery ( < 30 mins)
-    const matchesFast = !fastDelivery || (r.deliveryTime || 30) < 30;
+    // 3. Fast Delivery ( <= 30 mins)
+    const matchesFast = !fastDelivery || (r.deliveryTime || 30) <= 30;
 
-    // 4. High Rating ( 4.5+ )
-    const matchesRating = !highRating || parseFloat(r.rating || 0) >= 4.5;
+    // 4. High Rating ( 4.5+ ) - Use 4.5 as fallback consistent with card display
+    const currentRating = parseFloat(r.rating || 4.5);
+    const matchesRating = !highRating || currentRating >= 4.5;
 
     return matchesCategory && matchesSearch && matchesFast && matchesRating;
   }).sort((a, b) => {
-    if (sortBy === 'rating') return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
-    if (sortBy === 'deliveryTime') return (a.deliveryTime || 30) - (b.deliveryTime || 30);
-    if (sortBy === 'priceLowHigh') return (a.averagePrice || 0) - (b.averagePrice || 0);
+    // Advanced sorting logic
+    if (sortBy === 'rating') {
+      return parseFloat(b.rating || 4.5) - parseFloat(a.rating || 4.5);
+    }
+    if (sortBy === 'deliveryTime') {
+      return (a.deliveryTime || 30) - (b.deliveryTime || 30);
+    }
+    if (sortBy === 'priceLowHigh') {
+      return (a.averagePrice || 500) - (b.averagePrice || 500);
+    }
     return 0;
   });
 
-  if (loading) return <Loader_Component message="Curating the best kitchens..." />;
+  // loading state is handled inline (skeleton cards) — no full-page spinner needed
 
   const cuisineEmojis = {
     'Pizza': '🍕', 'Sushi': '🍣', 'Burgers': '🍔', 'Indian': '🍛', 'Chinese': '🥡',
     'Healthy': '🥗', 'Italian': '🍝', 'Japanese': '🍱', 'American': '🍟', 'BBQ': '🍗',
-    'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐', 'South Indian': '🍱'
+    'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐', 'South Indian': '🍱',
+    'Salads': '🥗', 'Cafe': '☕', 'Juices': '🍹', 'Continental': '🍽️'
   };
 
   return (
@@ -272,40 +293,51 @@ const Home = () => {
       {/* Discovery Feed Section */}
       <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Sticky Filters Header */}
-        <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-md pt-4 pb-6 -mx-6 px-6 mb-8 border-b border-slate-100/50 flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div id="restaurant-section">
-              <span className="text-[10px] font-black tracking-[0.3em] text-orange-500 uppercase mb-2 block">
-                {activeFilter === 'All' ? 'What are you craving?' : `Specializing in ${activeFilter}`}
-              </span>
-              <h2 className="text-3xl font-black tracking-tighter text-slate-900">
-                Order <span className="text-orange-500">{activeFilter === 'All' ? 'Everything' : activeFilter}</span> Online
+        <div className="sticky top-20 z-40 bg-white/70 backdrop-blur-2xl pt-6 pb-8 -mx-6 px-6 mb-10 border-b border-slate-100/80 flex flex-col gap-8 shadow-sm group">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <div id="restaurant-section" className="animate-fade-up">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="h-0.5 w-12 bg-orange-500 rounded-full" />
+                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-orange-600">
+                   Top Curation for {selectedCity || 'Your City'}
+                </span>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-950 leading-[0.95]">
+                Discover<br/> 
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-red-600">
+                  {activeFilter === 'All' ? 'Culinary Excellence' : `Premium ${activeFilter}`}
+                </span>
               </h2>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => setFastDelivery(!fastDelivery)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${fastDelivery ? 'bg-orange-500 text-white shadow-xl shadow-orange-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200'}`}
+                className={`group flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${fastDelivery ? 'bg-orange-500 text-white shadow-2xl shadow-orange-500/30' : 'bg-slate-50 text-slate-500 hover:bg-white hover:border-orange-500/30 border border-slate-100'}`}
               >
+                <div className={`w-1.5 h-1.5 rounded-full ${fastDelivery ? 'bg-white animate-pulse' : 'bg-orange-500'}`} />
                 ⚡ Fast
               </button>
               <button
                 onClick={() => setHighRating(!highRating)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${highRating ? 'bg-orange-500 text-white shadow-xl shadow-orange-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200'}`}
+                className={`group flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${highRating ? 'bg-orange-500 text-white shadow-2xl shadow-orange-500/30' : 'bg-slate-50 text-slate-500 hover:bg-white hover:border-orange-500/30 border border-slate-100'}`}
               >
+                <div className={`w-1.5 h-1.5 rounded-full ${highRating ? 'bg-white animate-pulse' : 'bg-yellow-400'}`} />
                 ⭐ 4.5+
               </button>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-5 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 outline-none cursor-pointer hover:bg-slate-100"
-              >
-                <option value="none">SORT BY</option>
-                <option value="rating">Top Rated</option>
-                <option value="deliveryTime">Fastest first</option>
-                <option value="priceLowHigh">Value for money</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="appearance-none pl-6 pr-12 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest bg-slate-950 text-white border border-transparent outline-none cursor-pointer hover:bg-slate-900 transition-all shadow-xl"
+                >
+                  <option value="none">SORTS</option>
+                  <option value="rating">Top Rated</option>
+                  <option value="deliveryTime">Fastest first</option>
+                  <option value="priceLowHigh">Value for money</option>
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none" size={14} />
+              </div>
             </div>
           </div>
 
@@ -367,35 +399,39 @@ const Home = () => {
           </div>
         )}
 
-        {/* Store Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-x-10 md:gap-y-12">
-          {filtered.length > 0 ? (
-            filtered.map((res, i) => (
-              <RestaurantCard key={res._id} restaurant={res} index={i} />
-            ))
-          ) : (
-            <div className="col-span-full py-24 flex flex-col items-center text-center">
-              <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-4xl mb-6 grayscale opacity-50">
-                🍜
+        {/* Store Grid — shows skeleton cards while loading */}
+        {loading ? (
+          <SkeletonGrid count={6} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-x-10 md:gap-y-12">
+            {filtered.length > 0 ? (
+              filtered.map((res, i) => (
+                <RestaurantCard key={res._id} restaurant={res} index={i} />
+              ))
+            ) : (
+              <div className="col-span-full py-24 flex flex-col items-center text-center">
+                <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-4xl mb-6 grayscale opacity-50">
+                  🍜
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">No matching stores found</h3>
+                <p className="text-slate-500 font-medium mb-8 max-w-sm">
+                  We couldn't find &quot;{searchQuery || activeFilter}&quot; in your current filters. Try relaxing your search for better results.
+                </p>
+                <button
+                  onClick={() => {
+                    applyFilter('All');
+                    setSearchQuery('');
+                    setFastDelivery(false);
+                    setHighRating(false);
+                  }}
+                  className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-orange-500 transition-all shadow-xl shadow-slate-200"
+                >
+                  Clear All Filters
+                </button>
               </div>
-              <h3 className="text-2xl font-black text-slate-900 mb-2">No matching stores found</h3>
-              <p className="text-slate-500 font-medium mb-8 max-w-sm">
-                We couldn't find &quot;{searchQuery || activeFilter}&quot; in your current filters. Try relaxing your search for better results.
-              </p>
-              <button
-                onClick={() => {
-                  applyFilter('All');
-                  setSearchQuery('');
-                  setFastDelivery(false);
-                  setHighRating(false);
-                }}
-                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-orange-500 transition-all shadow-xl shadow-slate-200"
-              >
-                Clear All Filters
-              </button>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
 

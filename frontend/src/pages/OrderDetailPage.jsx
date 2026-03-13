@@ -106,18 +106,18 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Download Receipt / Invoice */}
+          {/* Print Receipt Action */}
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-100 rounded-xl text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:text-orange-600 transition-all shadow-sm no-print"
+            className="flex items-center gap-3 px-6 py-4 bg-white border-2 border-slate-100 rounded-[1.4rem] text-slate-600 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm active:scale-95 no-print"
           >
-            <Printer size={16} />
+            <Printer size={18} />
             Print Receipt
           </button>
         </div>
 
         {/* Order Header Card */}
-        <div className="bg-white rounded-[2.5rem] p-8 md:p-12 mb-8 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="bg-white rounded-[2.5rem] p-8 md:p-12 mb-8 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8 no-print">
           <div>
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-2 tracking-tighter">Order <span className="text-orange-600">#{order.orderId || order._id.slice(-8)}</span></h1>
             <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2">
@@ -144,7 +144,7 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Status Timeline */}
-        <div className="bg-white rounded-[2.5rem] p-10 mb-8 shadow-sm border border-slate-100">
+        <div className="bg-white rounded-[2.5rem] p-10 mb-8 shadow-sm border border-slate-100 no-print">
           <h3 className="text-sm font-black text-slate-900 mb-10 uppercase tracking-[0.2em] text-center">Journey Tracker</h3>
           <div className="relative">
             <div className="flex justify-between relative z-10">
@@ -180,57 +180,67 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Rating Section (If exists) */}
-        {order.rating?.score && (
-          <div className="bg-white rounded-[2.5rem] p-10 mb-8 shadow-sm border border-slate-100 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Star size={120} className="fill-orange-500 text-orange-500 rotate-12" />
+        {/* Main Content Card (Contains Print Header) */}
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden mb-8 print:shadow-none print:border-none">
+          {/* Receipt Header (Visible ONLY on print) */}
+          <div className="hidden print:block p-10 border-b-2 border-dashed border-slate-200">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">FOOD<span className="text-orange-600">COURT</span></h1>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-1">Official Delivery Receipt</p>
+              </div>
+              <div className="text-right">
+                <p className="font-black text-slate-900">Order #{order.orderId || (order._id && order._id.slice(-8))}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{new Date(order.createdAt).toLocaleString()}</p>
+              </div>
             </div>
-            <div className="relative z-10">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
-                  <Star size={16} className="text-orange-500 fill-orange-500" /> Your Experience
-                </h3>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star
-                      key={s}
-                      size={14}
-                      className={s <= order.rating.score ? "text-orange-500 fill-orange-500" : "text-slate-100 fill-slate-100"}
-                    />
-                  ))}
+            <div className="grid grid-cols-2 gap-8 text-sm">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">From</p>
+                <p className="font-black text-slate-900">{order.restaurant?.name}</p>
+                <p className="text-slate-500 font-medium text-xs mt-1">{order.restaurant?.location?.address || order.restaurant?.address}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Deliver To</p>
+                <p className="font-black text-slate-900">{user?.name || (user?.firstName + ' ' + (user?.lastName || ''))}</p>
+                <p className="text-slate-500 font-medium text-xs mt-1">{order.deliveryAddress?.street}, {order.deliveryAddress?.city}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Rating Section (Inside main card to keep layout clean) */}
+          {order.rating?.score && (
+            <div className="p-10 border-b border-slate-50 relative overflow-hidden group no-print">
+              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Star size={120} className="fill-orange-500 text-orange-500 rotate-12" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
+                    <Star size={16} className="text-orange-500 fill-orange-500" /> Your Experience
+                  </h3>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        size={14}
+                        className={s <= order.rating.score ? "text-orange-500 fill-orange-500" : "text-slate-100 fill-slate-100"}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="p-6 bg-slate-50 rounded-[1.8rem] border border-slate-100">
+                  <p className="text-slate-700 font-medium italic">"{order.rating.review || 'No written review provided.'}"</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">
+                    Rated on {new Date(order.rating.timestamp || order.updatedAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 rounded-[1.8rem] border border-slate-100">
-                <p className="text-slate-700 font-medium italic">"{order.rating.review || 'No written review provided.'}"</p>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">
-                  Rated on {new Date(order.rating.timestamp || order.updatedAt).toLocaleDateString()}
-                </p>
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Action Prompt for Delivered Orders without rating */}
-        {order.orderStatus === 'delivered' && !order.rating?.score && user?.role === 'customer' && (
-          <div className="bg-orange-600 rounded-[2.5rem] p-10 mb-8 shadow-xl shadow-orange-100 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group">
-            <div className="relative z-10 text-center md:text-left">
-              <h3 className="text-2xl font-black mb-2 tracking-tight">How was your meal?</h3>
-              <p className="text-orange-100 font-bold text-sm">Tap below to share your feedback and help others!</p>
-            </div>
-            <Link
-              to="/dashboard?tab=orders"
-              className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg relative z-10"
-            >
-              Rate Now
-            </Link>
-            <Star size={180} className="absolute -bottom-20 -right-20 text-white/10 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
-          </div>
-        )}
-
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
-          {/* Items Table */}
-          <div className="md:col-span-2 bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
+          {/* Items Section */}
+          <div className="p-8 md:p-12">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-8 flex items-center gap-3">
               <Package size={16} className="text-orange-500" /> Order Items
             </h3>
@@ -251,9 +261,29 @@ export default function OrderDetailPage() {
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Summary Card */}
-          <div className="bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl shadow-orange-100/50 text-white self-start">
+        {/* Action Prompt for Delivered Orders without rating */}
+        {order.orderStatus === 'delivered' && !order.rating?.score && user?.role === 'customer' && (
+          <div className="bg-orange-600 rounded-[2.5rem] p-10 mb-8 shadow-xl shadow-orange-100 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group no-print">
+            <div className="relative z-10 text-center md:text-left">
+              <h3 className="text-2xl font-black mb-2 tracking-tight">How was your meal?</h3>
+              <p className="text-orange-100 font-bold text-sm">Tap below to share your feedback and help others!</p>
+            </div>
+            <Link
+              to="/dashboard?tab=orders"
+              className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg relative z-10"
+            >
+              Rate Now
+            </Link>
+            <Star size={180} className="absolute -bottom-20 -right-20 text-white/10 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
+          </div>
+        )}
+
+        {/* Summary and Logic Grid */}
+        <div className="grid md:grid-cols-3 gap-8 mb-8">
+           {/* Summary Card */}
+           <div className="bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl shadow-orange-100/50 text-white self-start">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-8">Summary</h3>
             <div className="space-y-4 mb-8">
               {[
@@ -261,7 +291,7 @@ export default function OrderDetailPage() {
                 { label: 'Tax', value: order.tax },
                 { label: 'Delivery', value: order.deliveryFee },
                 { label: 'Discount', value: -order.discount, color: 'text-emerald-400' }
-              ].filter(item => item.value !== 0).map((item, i) => (
+              ].filter(item => item.value !== 0 || item.label === 'Subtotal').map((item, i) => (
                 <div key={i} className="flex justify-between items-center">
                   <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{item.label}</span>
                   <span className={`font-black ${item.color || 'text-white'}`}>₹{Math.abs(Number(item.value)).toFixed(2)}</span>
@@ -273,76 +303,69 @@ export default function OrderDetailPage() {
               <p className="text-4xl font-black text-orange-400 tracking-tighter">₹{Number(order.total).toFixed(2)}</p>
             </div>
           </div>
-        </div>
 
-        {/* Information Grid */}
-        <div className="grid md:grid-cols-2 gap-8">
           {/* Logistics Info */}
-          <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Delivery Logic</h3>
-            <div className="space-y-6">
-              <div className="flex gap-4">
-                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
-                  <Package size={20} />
-                </div>
-                <div>
-                  <p className="font-black text-slate-900 border-b-2 border-orange-500/10 inline-block mb-1">{order.restaurant?.name}</p>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">{order.restaurant?.location?.address || 'Pickup at Restaurant'}</p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
-                  <MapPin size={20} />
-                </div>
-                <div>
-                  <p className="font-black text-slate-900 border-b-2 border-blue-500/10 inline-block mb-1">Destination</p>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                    {order.deliveryAddress?.label && <span className="font-black block text-[10px] text-orange-600 mb-0.5">{order.deliveryAddress.label.toUpperCase()}</span>}
-                    {order.deliveryAddress?.street}, {order.deliveryAddress?.city}, {order.deliveryAddress?.state} {order.deliveryAddress?.zipCode}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Rider/Time Info */}
-          <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 flex flex-col justify-between">
-            <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Timeline & Staff</h3>
-              {order.rider ? (
-                <div className="flex items-center gap-4 mb-6 p-4 bg-slate-50 rounded-[1.5rem] border border-slate-100">
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-black">
-                    {order.rider.firstName?.[0] || 'R'}
+          <div className="md:col-span-2 bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 flex flex-col gap-8">
+            <div className="flex flex-col md:flex-row gap-8">
+               <div className="flex-1">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Pickup</h3>
+                <div className="flex gap-4">
+                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 shrink-0">
+                    <Package size={20} />
                   </div>
                   <div>
-                    <p className="font-black text-slate-900 text-sm">{order.rider.firstName} {order.rider.lastName}</p>
-                    <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5">
-                      <Phone size={10} className="text-orange-500" /> {order.rider.phone}
+                    <p className="font-black text-slate-900 border-b-2 border-orange-500/10 inline-block mb-1">{order.restaurant?.name}</p>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">{order.restaurant?.location?.address || order.restaurant?.address || 'Restaurant Address'}</p>
+                  </div>
+                </div>
+               </div>
+               <div className="flex-1">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Drop-off</h3>
+                <div className="flex gap-4">
+                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 shrink-0">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-900 border-b-2 border-blue-500/10 inline-block mb-1">Destination</p>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                      {order.deliveryAddress?.label && <span className="font-black block text-[10px] text-orange-600 mb-0.5">{order.deliveryAddress.label.toUpperCase()}</span>}
+                      {order.deliveryAddress?.street}, {order.deliveryAddress?.city}, {order.deliveryAddress?.state} {order.deliveryAddress?.zipCode}
                     </p>
                   </div>
                 </div>
-              ) : (
-                <div className="p-4 bg-slate-50 rounded-[1.5rem] border border-slate-100 mb-6">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigning Rider...</p>
-                </div>
-              )}
+               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center">
-                <Clock size={24} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimated Delivery</p>
-                <p className="text-xl font-black text-slate-900 tracking-tight">
-                  {order.estimatedDeliveryTime ? new Date(order.estimatedDeliveryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'ASAP'}
-                </p>
-                {order.actualDeliveryTime && (
-                  <p className="text-emerald-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 mt-1">
-                    <CheckCircle size={12} /> Delivered at {new Date(order.actualDeliveryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <div className="border-t border-slate-50 pt-8 flex flex-col md:flex-row gap-8 items-center justify-between">
+               {order.rider ? (
+                 <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-[1.5rem] border border-slate-100 w-full md:w-auto">
+                    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-black">
+                      {order.rider.firstName?.[0] || 'R'}
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-sm">{order.rider.firstName} {order.rider.lastName}</p>
+                      <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5">
+                        <Phone size={10} className="text-orange-500" /> {order.rider.phone}
+                      </p>
+                    </div>
+                 </div>
+               ) : (
+                 <div className="p-4 bg-slate-50 rounded-[1.5rem] border border-slate-100 w-full md:w-auto">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigning Rider...</p>
+                 </div>
+               )}
+
+               <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+                <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center">
+                  <Clock size={24} />
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimated Delivery</p>
+                  <p className="text-xl font-black text-slate-900 tracking-tight">
+                    {order.estimatedDeliveryTime ? new Date(order.estimatedDeliveryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'ASAP'}
                   </p>
-                )}
-              </div>
+                </div>
+               </div>
             </div>
           </div>
         </div>
@@ -350,4 +373,3 @@ export default function OrderDetailPage() {
     </div>
   );
 }
-

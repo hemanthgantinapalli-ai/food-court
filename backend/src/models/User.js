@@ -16,8 +16,11 @@ const userSchema = new mongoose.Schema(
       {
         label: { type: String },
         street: { type: String },
+        area: { type: String },
         city: { type: String },
         zipCode: { type: String },
+        lat: { type: Number },
+        lng: { type: Number },
       },
     ],
     wallet: {
