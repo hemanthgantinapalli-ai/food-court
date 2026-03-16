@@ -240,8 +240,4 @@ html.dark ::-webkit-scrollbar-thumb {
     display: block !important;
   }
 }
-
-/* Smooth Map Marker Movement */
-.leaflet-marker-icon {
-  transition: transform 0.8s linear;
-}
+

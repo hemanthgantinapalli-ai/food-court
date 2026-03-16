@@ -3,26 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { Star, Clock, Bike, MapPin, Heart, ArrowLeft, Phone, Users, Copy, Check, X } from 'lucide-react';
 import API from '../api/axios';
 import MenuItemCard from '../components/MenuItemCard';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-// Fix for leaflet icons
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: markerIcon2x,
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-});
-
-const restIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448607.png',
-    iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
+import { useGoogleMaps } from '../hooks/useGoogleMaps';
+import { Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 
 import { useAuthStore } from '../context/authStore';
 
@@ -37,7 +19,9 @@ const DEMO_MENU = [
 
 export default function RestaurantDetail() {
   const { id } = useParams();
+  const { isLoaded: isGoogleLoaded } = useGoogleMaps();
   const { user, toggleFavorite } = useAuthStore();
+
   const [restaurant, setRestaurant] = useState(null);
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -301,19 +285,20 @@ export default function RestaurantDetail() {
                     {restaurant.location.address}, {restaurant.location.city}
                   </p>
                   
-                  {restaurant.location.latitude && restaurant.location.longitude && (
+                  {restaurant.location.latitude && restaurant.location.longitude && isGoogleLoaded && (
                     <div className="h-40 w-full rounded-2xl overflow-hidden border border-white/10 mb-6">
-                      <MapContainer 
-                        center={[restaurant.location.latitude, restaurant.location.longitude]} 
-                        zoom={15} 
-                        className="h-full w-full z-0"
-                        zoomControl={false}
+                        <Map 
+                        defaultCenter={{lat: restaurant.location.latitude, lng: restaurant.location.longitude}}
+                        defaultZoom={15} 
+                        style={{ height: '100%', width: '100%' }}
+                        disableDefaultUI={true}
+                        mapId="DEMO_MAP_ID"
+                        gestureHandling={'none'} // static map feel
                       >
-                        <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                        <Marker position={[restaurant.location.latitude, restaurant.location.longitude]} icon={restIcon}>
-                          <Popup>{restaurant.name}</Popup>
-                        </Marker>
-                      </MapContainer>
+                        <AdvancedMarker position={{lat: restaurant.location.latitude, lng: restaurant.location.longitude}}>
+                            <img src="https://cdn-icons-png.flaticon.com/512/3448/3448607.png" style={{width: 38, height: 38}} alt="restaurant" />
+                        </AdvancedMarker>
+                      </Map>
                     </div>
                   )}
                 </div>

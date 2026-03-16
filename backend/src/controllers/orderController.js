@@ -167,17 +167,23 @@ export const createOrder = async (req, res) => {
     // --- Prepare Full Order Payload ---
     const commissionRate = (targetRestaurant.commissionPercentage || 10) / 100;
     const finalOrderTotal = Number(orderPayload.total) || 0;
-    const finalDeliveryFee = Number(orderPayload.deliveryFee) || 0;
+    // Logistics & Earnings Split (Swiggy/Zomato Professional Style)
+    const dist = Number(orderPayload.distance) || 0;
+    
+    // Formula per requirement: ₹30 base (up to 3km) + ₹10 per km extra
+    const calculatedDeliveryFee = dist <= 3 ? 30 : Math.round(30 + (dist - 3) * 10);
+    
+    // Final fee used is what came from frontend, but we use our calculation for internal sanity or if missing
+    const finalDeliveryFee = Number(orderPayload.deliveryFee) || calculatedDeliveryFee;
+    
+    // Total order subtotal (food only)
     const orderSubtotal = Number(orderPayload.subtotal) || (finalOrderTotal - finalDeliveryFee);
 
-    // Logistics Split (Swiggy/Zomato Style)
-    const dist = Number(orderPayload.distance) || 0;
-    // Formula: ₹20 base + ₹5 per km (if distance > 3, additional per km)
-    // This is simple but feels professional
-    const riderEarnings = Math.round(20 + (dist * 5));
-    const platformCommissionFromDelivery = Math.max(0, finalDeliveryFee - riderEarnings);
+    // Rider Earnings: Rider gets 100% of the delivery fee (Standard Swiggy model for small distances)
+    const riderEarnings = finalDeliveryFee;
+    const platformCommissionFromDelivery = 0; // Everything goes to rider for logistics
 
-    // Platform Fee (from restaurant commission)
+    // Platform Fee (Restaurant Commission - e.g. 10%)
     const platformFeeFromFood = Math.round(orderSubtotal * (isNaN(commissionRate) ? 0.1 : commissionRate));
     const partnerEarnings = orderSubtotal - platformFeeFromFood;
 
@@ -185,12 +191,12 @@ export const createOrder = async (req, res) => {
     const finalOrderPayload = {
       ...orderPayload,
       customer: req.userId,
-      // Status must match enum: ['pending', 'completed', 'failed', 'refunded']
+      deliveryFee: finalDeliveryFee, // Use strictly validated/calculated fee
       paymentStatus: isWallet ? 'completed' : (orderPayload.paymentMethod === 'cash' ? 'pending' : 'pending'),
       partnerEarnings: partnerEarnings,
-      platformFee: platformFeeFromFood, // This is restaurant commission
+      platformFee: platformFeeFromFood, 
       riderEarnings: riderEarnings,
-      platformCommission: platformCommissionFromDelivery, // This is logistics cut
+      platformCommission: platformCommissionFromDelivery,
     };
 
     console.log(`✨ [Create Order API] Creating order in database...`);
@@ -587,6 +593,12 @@ export const updateOrderStatus = async (req, res) => {
         }
       } catch (adminErr) {
         console.error('❌ Failed to credit admin commission:', adminErr.message);
+      }
+
+      // 5. Reset Rider Availability
+      if (order.rider) {
+        await User.findByIdAndUpdate(order.rider, { isAvailable: true });
+        console.log(`🏍️ [Rider Status] Rider ${order.rider} is now available for new orders.`);
       }
     }
 

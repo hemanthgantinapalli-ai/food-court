@@ -6,50 +6,10 @@ import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
 import { socket, connectSocket, disconnectSocket, joinRoleRoom, broadcastRiderLocation, notifyRiderOnline, notifyRiderOffline } from '../api/socket.js';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
-import marker from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import LeafletRiderMap from '../components/LeafletRiderMap';
 
-const filterValidPositions = (positions) => {
-    return positions.filter(pos => 
-        pos && 
-        pos[0] !== undefined && 
-        pos[1] !== undefined && 
-        pos[0] !== null && 
-        pos[1] !== null &&
-        !isNaN(pos[0]) &&
-        !isNaN(pos[1])
-    );
-};
 
-// Fix Leaflet marker icons in React
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({ iconRetinaUrl: marker2x, iconUrl: marker, shadowUrl: markerShadow });
-
-const restaurantIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448609.png',
-  iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
-const customerIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/1077/1077114.png',
-  iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
-const riderSelfIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
-  iconSize: [44, 44], iconAnchor: [22, 44], popupAnchor: [0, -44]
-});
-
-// Internal helper for smooth map panning
-const MapUpdater = ({ center }) => {
-    const map = useMap();
-    React.useEffect(() => {
-        if (center) map.panTo(center, { animate: true, duration: 2 });
-    }, [center, map]);
-    return null;
-};
+const PAN_PLACEHOLDER = null; // Replaced by LeafletRiderMap internal logic
 
 export default function RiderDashboard() {
   const navigate = useNavigate();
@@ -78,9 +38,6 @@ export default function RiderDashboard() {
   const [supportForm, setSupportForm] = React.useState({ subject: '', message: '', orderId: '', priority: 'medium' });
   const [submittingSupport, setSubmittingSupport] = React.useState(false);
 
-  // Proof of Delivery state
-  const [deliveryProofOrder, setDeliveryProofOrder] = React.useState(null);
-  const [deliveryPin, setDeliveryPin] = React.useState('');
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -124,7 +81,7 @@ export default function RiderDashboard() {
   React.useEffect(() => {
     if (!user || user.role !== 'rider') return;
 
-    if (isOnline) {
+    if (isOnline && user?._id) {
       connectSocket(user._id);
 
       // Join the riders room to receive broadcasts
@@ -183,7 +140,7 @@ export default function RiderDashboard() {
     let dbInterval;
     let socketInterval;
 
-    const activeTrackingOrder = assignedOrders.find(o => o.orderStatus === 'on_the_way' || o.orderStatus === 'picked_up' || o.orderStatus === 'ready');
+    const activeTrackingOrder = assignedOrders.find(o => ['ready', 'picked_up', 'on_the_way', 'confirmed', 'preparing'].includes(o.orderStatus));
 
     if (isOnline && user?.role === 'rider') {
       // 1. Database Sync (Every 30s) - Updates persistent location in DB
@@ -203,6 +160,8 @@ export default function RiderDashboard() {
         socket.emit('join_order', activeTrackingOrder._id);
 
         socketInterval = setInterval(() => {
+          if (!activeTrackingOrder) return;
+          
           if (isSimulating) {
             // ----- GPS SIMULATION MODE -----
             const restLoc = activeTrackingOrder.restaurant?.location || activeTrackingOrder.restaurantAddress || {};
@@ -212,33 +171,33 @@ export default function RiderDashboard() {
             let restLng = Number(restLoc.longitude || restLoc.lng);
             let custLat = Number(custLoc.latitude || custLoc.lat);
             let custLng = Number(custLoc.longitude || custLoc.lng);
-
-            // Extreme fallback for testing (Tenali Specific)
-            if (isNaN(restLat) || isNaN(restLng) || restLat === 0) {
-                console.warn("[SIMULATION] Missing Restaurant Coords! Using fallback near Tenali Station.");
-                restLat = 16.2425; 
-                restLng = 80.6450;
-            }
-            if (isNaN(custLat) || isNaN(custLng) || custLat === 0) {
-                console.warn("[SIMULATION] Missing Customer Coords! Using Chenchupet, Tenali fallback.");
-                custLat = 16.2378;
-                custLng = 80.6434;
-            }
             
-            // Defend against identical fake DB coordinates so the simulation doesn't auto-complete
+            // Tenure Specific fallbacks if needed
+            if (!restLat || isNaN(restLat)) { restLat = 16.2425; restLng = 80.6450; }
+            if (!custLat || isNaN(custLat)) { custLat = 16.2378; custLng = 80.6434; }
+
+            // 🛡️ DEFENSE: If mock data has Restaurant and Customer at same spot, 
+            // artificially separate them so they don't overlap on the map.
             if (Math.abs(restLat - custLat) < 0.0001 && Math.abs(restLng - custLng) < 0.0001) {
-                custLat += 0.02; // Roughly 2km away artificially
-                custLng += 0.02;
+                custLat += 0.032; // Shift destination ~3.5km away
+                custLng += 0.032;
             }
 
             const isGoingToCustomer = activeTrackingOrder.orderStatus === 'picked_up' || activeTrackingOrder.orderStatus === 'on_the_way';
             const currentTarget = isGoingToCustomer ? 'dropoff' : 'pickup';
 
-            // Start position (Explicitly separate 'Rider Hub' near Tenali Bus Stand for demo)
-            let start = riderPosRef.current || { lat: 16.2415, lng: 80.6480 }; 
+            // Explicitly set start point if we don't have one, ensuring it's not the same as the target
+            let start = riderPosRef.current || (isGoingToCustomer ? { lat: restLat, lng: restLng } : { lat: restLat + 0.02, lng: restLng + 0.02 }); 
             let end = isGoingToCustomer ? { lat: custLat, lng: custLng } : { lat: restLat, lng: restLng };
 
-            // ── ROUTE FETCHING LOGIC ──
+            // Reset simulation if target changed
+            if (activeTrackingOrder.lastSimulationTarget !== currentTarget || activeTrackingOrder.lastSimulationOrderId !== activeTrackingOrder._id) {
+                activeTrackingOrder.lastSimulationTarget = currentTarget;
+                activeTrackingOrder.lastSimulationOrderId = activeTrackingOrder._id;
+                simulationProgress.current = 0;
+                setRoadRoutePoints([]);
+            }
+
             if (routeFetchRef.current !== `${currentTarget}-${end.lat}-${end.lng}`) {
                 const fetchSimRoute = async () => {
                    try {
@@ -255,40 +214,32 @@ export default function RiderDashboard() {
                 routeFetchRef.current = `${currentTarget}-${end.lat}-${end.lng}`;
             }
 
-            // ── MOVEMENT LOGIC (Road Following) ──
             let currentLat, currentLng;
-            
             if (roadRoutePoints.length > 0) {
-               // Move through indices of roadPoints
                const totalPoints = roadRoutePoints.length;
-               const stepSize = 0.02; // Advance 2% of the path per tick
+               const stepSize = 0.001; // Adjusted for 1s interval (0.1% per tick)
                simulationProgress.current = Math.min(1, simulationProgress.current + stepSize);
-               
                const pointIndex = Math.min(totalPoints - 1, Math.floor(simulationProgress.current * (totalPoints - 1)));
-               const targetPoint = roadRoutePoints[pointIndex];
-               currentLat = targetPoint[0];
-               currentLng = targetPoint[1];
+               currentLat = roadRoutePoints[pointIndex][0];
+               currentLng = roadRoutePoints[pointIndex][1];
             } else {
-               // Fallback: Straight line if OSRM fails
-               const dLat = end.lat - start.lat;
-               const dLng = end.lng - start.lng;
-               const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-               if (dist < 0.0003) {
-                   currentLat = end.lat; currentLng = end.lng;
-                   simulationProgress.current = 1;
-               } else {
-                   currentLat = start.lat + (dLat * 0.03); 
-                   currentLng = start.lng + (dLng * 0.03);
-                   simulationProgress.current = Math.min(0.99, simulationProgress.current + 0.02);
-               }
+               simulationProgress.current = Math.min(1, simulationProgress.current + 0.002); // Adjusted for 1s interval
+               currentLat = start.lat + (end.lat - start.lat) * simulationProgress.current;
+               currentLng = start.lng + (end.lng - start.lng) * simulationProgress.current;
             }
 
-            const newLoc = { lat: currentLat, lng: currentLng };
-            const prevLoc = riderPosRef.current;
+            const heading = (roadRoutePoints.length > 0)
+                ? (() => {
+                    const nextIdx = Math.min(roadRoutePoints.length - 1, Math.floor((simulationProgress.current + 0.01) * (roadRoutePoints.length - 1)));
+                    return Math.atan2(roadRoutePoints[nextIdx][1] - currentLng, roadRoutePoints[nextIdx][0] - currentLat) * 180 / Math.PI;
+                })()
+                : Math.atan2(end.lng - currentLng, end.lat - currentLat) * 180 / Math.PI;
+            
+            const normalizedHeading = (heading + 360) % 360;
+            const newLoc = { lat: currentLat, lng: currentLng, heading: normalizedHeading };
             riderPosRef.current = newLoc;
             setRiderSelfLocation(newLoc);
 
-            // Notify Arrived if within meters
             const distToDest = Math.sqrt(Math.pow(end.lat - currentLat, 2) + Math.pow(end.lng - currentLng, 2));
             if (distToDest < 0.0002 && simulationProgress.current > 0.95) {
                 if (routeFetchRef.current && !routeFetchRef.current.includes('ARRIVED')) {
@@ -297,38 +248,35 @@ export default function RiderDashboard() {
                 }
             }
 
-            // Compute heading based on next point or destination
-            let heading = 0;
-            if (roadRoutePoints.length > 0) {
-                const nextIdx = Math.min(roadRoutePoints.length - 1, Math.floor((simulationProgress.current + 0.01) * (roadRoutePoints.length - 1)));
-                const nextP = roadRoutePoints[nextIdx];
-                heading = Math.atan2(nextP[1] - currentLng, nextP[0] - currentLat) * 180 / Math.PI;
-            } else {
-                heading = Math.atan2(end.lng - currentLng, end.lat - currentLat) * 180 / Math.PI;
-            }
-            if (heading < 0) heading += 360;
-
-            broadcastRiderLocation(activeTrackingOrder._id, user._id, { ...newLoc, heading, speed: 25 });
+            broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: currentLat, lng: currentLng }, normalizedHeading, 25);
 
             if (simulationProgress.current >= 1) {
+                // Done with this leg of simulation
                 setIsSimulating(false); 
                 simulationProgress.current = 0;
-                setRoadRoutePoints([]); // Clear for next leg
-                const locationName = currentTarget === 'pickup' ? 'the Restaurant' : 'Chenchupet (Customer)';
+                setRoadRoutePoints([]);
+                const locationName = currentTarget === 'pickup' ? 'the Restaurant' : 'the Customer';
                 showToast(`🚀 Arrived at ${locationName}!`);
             }
-          } else if ('geolocation' in navigator) {
-            // ----- REAL GPS MODE -----
-            navigator.geolocation.getCurrentPosition((position) => {
-              const { latitude, longitude, heading, speed } = position.coords;
-              const location = { lat: latitude, lng: longitude, heading: heading || 0, speed: speed || 0 };
-
-              broadcastRiderLocation(activeTrackingOrder._id, user._id, location);
-              riderPosRef.current = { lat: latitude, lng: longitude };
-              setRiderSelfLocation({ lat: latitude, lng: longitude });
-            }, (err) => console.error('GPS Error:', err.message), { enableHighAccuracy: true, timeout: 5000 });
           }
-        }, 800); // 800ms frequency for high-fidelity real-time simulation
+        }, 1000); // 1s interval for smoother local animation while maintaining server broadcast frequency
+
+        if (!isSimulating && 'geolocation' in navigator) {
+          // ----- REAL GPS MODE: Use watchPosition for continuous tracking -----
+          const watchId = navigator.geolocation.watchPosition((position) => {
+            if (!activeTrackingOrder) return;
+            const { latitude, longitude, heading, speed } = position.coords;
+            broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: latitude, lng: longitude }, heading || 0, speed || 0);
+            riderPosRef.current = { lat: latitude, lng: longitude };
+            setRiderSelfLocation({ lat: latitude, lng: longitude });
+          }, (err) => console.error('GPS Error:', err.message), { 
+            enableHighAccuracy: true, 
+            timeout: 5000, 
+            maximumAge: 0 
+          });
+          
+          return () => navigator.geolocation.clearWatch(watchId);
+        }
       }
     }
 
@@ -437,17 +385,6 @@ export default function RiderDashboard() {
 
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
-      if (newStatus === 'delivered') {
-        const order = assignedOrders.find(o => o._id === orderId);
-        const expectedPin = order?.orderId?.slice(-4).toUpperCase() || order?._id?.slice(-4).toUpperCase() || '7429';
-        
-        const pin = prompt(`Enter 4-digit Delivery PIN from customer (Demo PIN: ${expectedPin}):`);
-        if (!pin) return;
-        if (pin.toUpperCase() !== expectedPin) {
-          showToast('❌ Incorrect PIN! Please verify with customer.');
-          return;
-        }
-      }
 
       await useOrderStore.getState().updateStatus(orderId, newStatus);
       showToast(newStatus === 'delivered' ? '🎉 Order delivered! Your payment has been added to wallet.' : '✅ Status updated!');
@@ -504,53 +441,6 @@ export default function RiderDashboard() {
         </div>
       )}
 
-      {/* Proof of Delivery Modal */}
-      {deliveryProofOrder && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl border-4 border-emerald-500 animate-in zoom-in-95 fade-in duration-300 relative text-center">
-            <button 
-              onClick={() => { setDeliveryProofOrder(null); setDeliveryPin(''); }} 
-              className="absolute top-6 right-6 text-slate-400 hover:text-rose-500 transition-colors"
-            >
-              <X size={20} />
-            </button>
-            
-            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner animate-pulse rotate-12">
-              <Package size={40} />
-            </div>
-            
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Proof of Delivery</h2>
-            <p className="text-slate-500 font-bold mb-6 text-sm">
-              Please enter the 4-digit PIN provided by the customer to secure the handover.
-            </p>
-            
-            <div className="mb-8">
-              <input 
-                type="text" 
-                maxLength="4"
-                placeholder="• • • •"
-                value={deliveryPin}
-                onChange={(e) => setDeliveryPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full text-center text-4xl font-black tracking-[0.5em] bg-slate-50 border-2 border-slate-200 rounded-2xl py-6 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all placeholder:text-slate-300"
-              />
-              {/* For Demo Purposes */}
-              <p className="text-[9px] text-orange-500 font-bold uppercase tracking-widest mt-2">Demo: Enter ANY 4 digits to proceed</p>
-            </div>
-            
-            <button 
-              disabled={deliveryPin.length < 4}
-              onClick={() => {
-                handleStatusUpdate(deliveryProofOrder._id, 'delivered');
-                setDeliveryProofOrder(null);
-                setDeliveryPin('');
-              }}
-              className="w-full bg-emerald-500 text-white font-black text-sm uppercase tracking-widest py-5 rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-600 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Confirm Delivery
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -842,7 +732,15 @@ export default function RiderDashboard() {
                               <p className="font-black text-slate-900 text-lg">Order #{(order.orderId || order._id)?.slice(-6)}</p>
                               <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${statusBadge(order.orderStatus)}`}>{order.orderStatus?.replace('_', ' ')}</span>
                             </div>
-                            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">{order.restaurant?.name || order.restaurantName} • <span className="text-emerald-600">₹{order.deliveryFee} fee</span></p>
+                            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+                              {order.restaurant?.name || order.restaurantName} • 
+                              <span className="text-emerald-600">₹{order.deliveryFee} fee</span>
+                              {riderSelfLocation && order.restaurant?.location?.latitude && (
+                                <span className="text-blue-500 ml-2 bg-blue-50 px-2 py-0.5 rounded-md text-[9px]">
+                                  {(Math.sqrt(Math.pow(order.restaurant.location.latitude - riderSelfLocation.lat, 2) + Math.pow(order.restaurant.location.longitude - riderSelfLocation.lng, 2)) * 111).toFixed(1)} km away
+                                </span>
+                              )}
+                            </p>
                             <div className="mt-3 space-y-2">
                               <div className="flex items-start gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                                 <Package size={12} className="text-orange-400 shrink-0 mt-0.5" />
@@ -899,6 +797,9 @@ export default function RiderDashboard() {
                       const hasRestaurantCoords = true;
                       const hasCustomerCoords = true;
 
+                      // Calculate real distance for UI/ETA
+                      const distanceKm = order.distance || (Math.sqrt(Math.pow(restLat - custLat, 2) + Math.pow(restLng - custLng, 2)) * 111).toFixed(1);
+
                       // Build map center: prefer rider location, then restaurant, then customer
                       const mapCenter = riderSelfLocation
                         ? [riderSelfLocation.lat, riderSelfLocation.lng]
@@ -910,114 +811,44 @@ export default function RiderDashboard() {
 
                       return (
                         <div key={order._id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden hover:shadow-lg transition-all">
-                          {/* Navigation Map */}
+                          {/* Navigation Map — FREE (Leaflet + OpenStreetMap + OSRM) */}
                           {mapCenter && (
                             <div className="relative h-64 w-full">
                               {/* Floating Directions Guide */}
                               {isSimulating && (
-                                <div className="absolute top-6 left-6 right-6 z-[1000] animate-in slide-in-from-top duration-700">
-                                  <div className="bg-slate-900 border border-white/10 p-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 relative overflow-hidden group">
-                                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-transparent pointer-events-none" />
-                                    <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center shrink-0 border border-white/10 group-hover:rotate-12 transition-transform">
-                                      <Navigation className="text-orange-500" size={32} />
+                                <div className="absolute top-4 left-4 right-4 z-[1000] animate-in slide-in-from-top duration-700">
+                                  <div className="bg-slate-900/95 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-2xl flex items-center gap-4 relative overflow-hidden group max-w-md mx-auto">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-transparent pointer-events-none" />
+                                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-110 transition-transform">
+                                      <Navigation className="text-orange-500" size={20} />
                                     </div>
-                                    <div className="flex-1">
-                                      <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-1">Live Road Navigation</p>
-                                      <p className="text-xl font-black text-white leading-none">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em] mb-1">Live Navigation</p>
+                                      <p className="text-sm font-black text-white leading-none truncate">
                                         {simulationProgress.current > 0.9 ? 'Arriving at Destination' :
                                         simulationProgress.current > 0.6 ? 'Stay on Current Road' :
                                         simulationProgress.current > 0.3 ? 'Continue Straight for 400m' : 'Starting Logistics Journey'}
                                       </p>
-                                      <div className="w-full bg-white/5 h-1.5 rounded-full mt-4 overflow-hidden">
+                                      <div className="w-full bg-white/10 h-1 rounded-full mt-2.5 overflow-hidden">
                                         <div className="bg-orange-500 h-full transition-all duration-300" style={{ width: `${simulationProgress.current * 100}%` }} />
                                       </div>
                                     </div>
                                   </div>
                                 </div>
                               )}
-                              <MapContainer
-                                key={`${order._id}-map`}
-                                center={mapCenter}
-                                zoom={14}
-                                className="h-full w-full z-0"
-                                zoomControl={false}
-                              >
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                                
-                                {isSimulating && riderSelfLocation && (
-                                  <MapUpdater center={[riderSelfLocation.lat, riderSelfLocation.lng]} />
-                                )}
 
-                                {/* Rider's current position */}
-                                {riderSelfLocation && (
-                                  <Marker position={[riderSelfLocation.lat, riderSelfLocation.lng]} icon={riderSelfIcon}>
-                                    <Popup>📍 You are here</Popup>
-                                  </Marker>
-                                )}
-
-                                {/* Restaurant pickup pin */}
-                                {hasRestaurantCoords && (
-                                  <Marker position={[restLat, restLng]} icon={restaurantIcon}>
-                                    <Popup>🍴 Pickup: {order.restaurant?.name}</Popup>
-                                  </Marker>
-                                )}
-
-                                {/* Customer drop-off pin */}
-                                {hasCustomerCoords && (
-                                  <Marker position={[custLat, custLng]} icon={customerIcon}>
-                                    <Popup>🏠 Drop-off: {order.deliveryAddress?.street}</Popup>
-                                  </Marker>
-                                )}
-
-                                {/* Road Accurate Route Visualization */}
-                                {roadRoutePoints.length > 0 && (
-                                  <Polyline
-                                    positions={roadRoutePoints}
-                                    color="#f97316"
-                                    weight={5}
-                                    opacity={0.6}
-                                    dashArray="5, 10"
-                                  />
-                                )}
-
-                                {/* Fallback Planned Path (Faint) */}
-                                {roadRoutePoints.length === 0 && hasRestaurantCoords && hasCustomerCoords && (
-                                  <Polyline
-                                    positions={[[restLat, restLng], [custLat, custLng]]}
-                                    color="#94a3b8" weight={6} opacity={0.2}
-                                  />
-                                )}
-
-                                {/* Route line: You → Next Stop */}
-                                {riderSelfLocation && !isNaN(riderSelfLocation.lat) && filterValidPositions(
-                                    order.orderStatus === 'on_the_way' || order.orderStatus === 'picked_up'
-                                        ? [[riderSelfLocation.lat, riderSelfLocation.lng], [custLat, custLng]]
-                                        : [[riderSelfLocation.lat, riderSelfLocation.lng], [restLat, restLng]]
-                                ).length === 2 && (
-                                  <Polyline
-                                    positions={filterValidPositions(
-                                      order.orderStatus === 'on_the_way' || order.orderStatus === 'picked_up'
-                                        ? [[riderSelfLocation.lat, riderSelfLocation.lng], [custLat, custLng]]
-                                        : [[riderSelfLocation.lat, riderSelfLocation.lng], [restLat, restLng]]
-                                    )}
-                                    color={order.orderStatus === 'on_the_way' || order.orderStatus === 'picked_up' ? "#3b82f6" : "#f97316"}
-                                    weight={4} dashArray="10,10"
-                                  />
-                                )}
-
-                                {/* If picked up, still show path from restaurant to me to show where I came from */}
-                                {(order.orderStatus === 'on_the_way' || order.orderStatus === 'picked_up') && riderSelfLocation && !isNaN(riderSelfLocation.lat) && hasRestaurantCoords && filterValidPositions([[restLat, restLng], [riderSelfLocation.lat, riderSelfLocation.lng]]).length === 2 && (
-                                  <Polyline
-                                    positions={filterValidPositions([[restLat, restLng], [riderSelfLocation.lat, riderSelfLocation.lng]])}
-                                    color="#10b981" weight={4} opacity={0.4}
-                                  />
-                                )}
-                              </MapContainer>
+                              {/* Free Leaflet Map */}
+                              <LeafletRiderMap
+                                riderPos={riderSelfLocation}
+                                restaurantPos={{ lat: restLat, lng: restLng }}
+                                customerPos={{ lat: custLat, lng: custLng }}
+                                orderStatus={order.orderStatus}
+                              />
 
                               {/* Map Status Badge */}
-                              <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest uppercase shadow-lg z-[1000] border border-slate-100 flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full animate-pulse ${order.orderStatus === 'on_the_way' ? 'bg-blue-500' : 'bg-orange-500'}`}></span>
-                                {order.orderStatus === 'on_the_way' ? 'Navigation to Customer' : 'Navigating to Restaurant'}
+                              <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[8px] font-black tracking-[0.15em] uppercase shadow-lg z-[1000] border border-slate-100 flex items-center gap-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${order.orderStatus === 'on_the_way' ? 'bg-blue-500' : 'bg-orange-500'}`}></span>
+                                {order.orderStatus === 'on_the_way' ? 'To Customer' : 'To Restaurant'}
                               </div>
 
                               {/* Map Legend */}
@@ -1027,19 +858,40 @@ export default function RiderDashboard() {
                                 <div className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-emerald-500 opacity-50 inline-block rounded"></span> Completed Leg</div>
                               </div>
 
-                              {/* Simulate GPS Button */}
-                              <button
-                                onClick={() => setIsSimulating(!isSimulating)}
-                                className={`absolute bottom-3 right-3 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg z-[1000] flex items-center gap-2 transition-all ${isSimulating ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
-                              >
-                                {isSimulating ? (
-                                    <><X size={14} /> Stop Demo</>
-                                ) : (
-                                    <><Navigation size={14} /> Simulate GPS Drive</>
+                                <button
+                                  onClick={() => setIsSimulating(!isSimulating)}
+                                  className={`absolute bottom-3 right-3 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl z-[1000] flex items-center gap-2 transition-all active:scale-95 ${isSimulating ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-white text-slate-900 hover:bg-slate-50 border border-slate-200'}`}
+                                >
+                                  {isSimulating ? (
+                                      <><X size={14} /> Stop Simulation</>
+                                  ) : (
+                                      <><Navigation size={14} className="text-orange-500" /> Start Simulation</>
+                                  )}
+                                </button>
+
+                                {/* Real-time Hardware Tracker Indicator */}
+                                {!isSimulating && (
+                                  <div className="absolute top-3 right-3 bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg z-[1000] flex items-center gap-2 animate-pulse">
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                    Live Device GPS Active
+                                  </div>
                                 )}
-                              </button>
-                            </div>
-                          )}
+                                
+                                {isSimulating && (
+                                  <div className="absolute bottom-3 left-3 bg-slate-950/90 backdrop-blur-xl px-3 py-2 rounded-xl shadow-2xl z-[1000] border border-white/10 flex items-center gap-4 animate-in slide-in-from-left duration-500">
+                                    <div className="flex flex-col">
+                                      <span className="text-[7px] font-black uppercase text-slate-500 tracking-widest">ETA</span>
+                                      <span className="text-sm font-black text-orange-400">{Math.round((1 - simulationProgress.current) * (distanceKm || 5) * 2)} <span className="text-[8px]">MIN</span></span>
+                                    </div>
+                                    <div className="w-px h-5 bg-white/10" />
+                                    <div className="flex flex-col">
+                                      <span className="text-[7px] font-black uppercase text-slate-500 tracking-widest">GATEWAY</span>
+                                      <span className="text-sm font-black text-blue-400">{((1 - simulationProgress.current) * (distanceKm || 5)).toFixed(1)} <span className="text-[8px]">KM</span></span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                           {/* Order Controls */}
                           <div className="p-6">
@@ -1051,7 +903,7 @@ export default function RiderDashboard() {
                                 <div>
                                   <p className="font-black text-slate-900">Order #{(order.orderId || order._id)?.slice(-6)}</p>
                                   <p className="text-slate-400 font-bold text-xs mt-0.5 flex items-center gap-1">
-                                    <UserIcon size={10} /> {order.customer?.name || 'Customer'} • ₹{order.deliveryFee} fee
+                                    <UserIcon size={10} /> {order.customer?.name || 'Customer'} • ₹{order.deliveryFee} fee • {order.distance?.toFixed(1) || '3.5'} km
                                   </p>
                                   <div className="mt-2 space-y-1">
                                     <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
@@ -1083,8 +935,13 @@ export default function RiderDashboard() {
                                     <Navigation size={14} /> Start Journey
                                   </button>
                                 )}
-                                {(order.orderStatus === 'picked_up' || order.orderStatus === 'on_the_way') && (
-                                  <button onClick={() => setDeliveryProofOrder(order)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2">
+                                {((order.orderStatus === 'picked_up' || order.orderStatus === 'on_the_way')) && (
+                                  <button onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await handleStatusUpdate(order._id, 'delivered');
+                                      setIsSimulating(false);
+                                      simulationProgress.current = 0;
+                                  }} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2">
                                     <CheckCircle size={14} /> Mark Delivered
                                   </button>
                                 )}

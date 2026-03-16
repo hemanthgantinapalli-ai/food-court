@@ -694,6 +694,14 @@ export default function PartnerDashboard() {
                                                             Mark Ready
                                                         </button>
                                                     )}
+                                                    {order.orderStatus === 'ready' && (
+                                                        <button
+                                                            onClick={() => handleStatusUpdate(order._id, 'picked_up')}
+                                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-700 transition-all"
+                                                        >
+                                                            Mark Picked Up
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

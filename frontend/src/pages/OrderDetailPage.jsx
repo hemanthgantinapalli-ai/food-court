@@ -5,6 +5,8 @@ import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import API from '../api/axios';
+import LeafletTrackingMap from '../components/LeafletTrackingMap';
+
 
 
 export default function OrderDetailPage() {
@@ -142,6 +144,13 @@ export default function OrderDetailPage() {
             </button>
           )}
         </div>
+
+        {/* Real-time Tracking Map — 100% Free (Leaflet + OpenStreetMap) */}
+        {!['delivered', 'cancelled'].includes(order.orderStatus) && (
+          <div className="mb-8 no-print animate-fade-in" style={{ height: '420px' }}>
+            <LeafletTrackingMap order={order} />
+          </div>
+        )}
 
         {/* Status Timeline */}
         <div className="bg-white rounded-[2.5rem] p-10 mb-8 shadow-sm border border-slate-100 no-print">

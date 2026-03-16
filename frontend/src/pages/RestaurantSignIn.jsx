@@ -64,6 +64,7 @@ export default function RestaurantSignIn() {
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={20} />
                         <input
                             type="email"
+                            autoComplete="username"
                             className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
                             placeholder="partner@foodcourt.com"
                             value={email}
@@ -82,6 +83,7 @@ export default function RestaurantSignIn() {
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={20} />
                         <input
                             type={showPass ? 'text' : 'password'}
+                            autoComplete="current-password"
                             className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
                             placeholder="••••••••"
                             value={password}

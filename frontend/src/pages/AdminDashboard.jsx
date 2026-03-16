@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Wifi } from 'lucide-react';
+import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Wifi, ShieldCheck, Store } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -8,25 +8,8 @@ import API from '../api/axios';
 import { socket, connectSocket } from '../api/socket.js';
 import AdminBI from '../components/AdminBI';
 import ImageUploadField from '../components/ImageUploadField';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
-import marker from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import LeafletFleetMap from '../components/LeafletFleetMap';
 
-// Fix Leaflet markers in React
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({ iconRetinaUrl: marker2x, iconUrl: marker, shadowUrl: markerShadow });
-
-const riderMapIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
-  iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
-const restaurantMapIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
-  iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
 
 // Calculate distance in km
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -676,30 +659,7 @@ export default function AdminDashboard() {
                 {/* Map Panel */}
                 {onlineRiders.filter(r => r.location).length > 0 ? (
                   <div className="relative rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-sm" style={{ height: '480px' }}>
-                    <MapContainer
-                      center={[
-                        onlineRiders.find(r => r.location)?.location?.lat || 20.5937,
-                        onlineRiders.find(r => r.location)?.location?.lng || 78.9629
-                      ]}
-                      zoom={12}
-                      className="h-full w-full z-0"
-                    >
-                      <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                      {onlineRiders.filter(r => r.location).map(rider => (
-                        <Marker
-                          key={rider.userId || rider._id}
-                          position={[rider.location.lat, rider.location.lng]}
-                          icon={riderMapIcon}
-                        >
-                          <Popup>
-                            <strong>🛵 {rider.name}</strong><br />
-                            Vehicle: {rider.vehicleType || 'N/A'}<br />
-                            Rating: ★ {rider.rating || '4.5'}<br />
-                            Deliveries: {rider.completedDeliveries || 0}
-                          </Popup>
-                        </Marker>
-                      ))}
-                    </MapContainer>
+                    <LeafletFleetMap riders={onlineRiders} />
                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg z-[1000] border border-slate-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                       <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                       Live Fleet Tracker
@@ -2036,48 +1996,44 @@ export default function AdminDashboard() {
           <div className="relative bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col md:flex-row h-[80vh] md:h-[600px]">
             {/* Left: Map */}
             <div className="flex-1 relative bg-slate-100">
-              <MapContainer
-                center={assignModal.restaurantCoords ? [assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng] : [20.5937, 78.9629]}
-                zoom={14}
+              <Map
+                defaultCenter={assignModal.restaurantCoords ? { lat: assignModal.restaurantCoords.lat, lng: assignModal.restaurantCoords.lng } : { lat: 20.5937, lng: 78.9629 }}
+                defaultZoom={14}
+                mapId="DEMO_MAP_ID"
                 className="h-full w-full z-0"
+                gestureHandling={'greedy'}
+                disableDefaultUI={true}
               >
-                <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                
                 {/* Restaurant Marker */}
                 {assignModal.restaurantCoords && (
-                  <Marker position={[assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng]} icon={restaurantMapIcon}>
-                    <Popup>
-                      <p className="font-bold">🍴 {assignModal.order?.restaurantName || 'Restaurant'}</p>
-                      <p className="text-[10px]">{assignModal.order?.restaurantAddress || 'Pickup Point'}</p>
-                    </Popup>
-                  </Marker>
+                  <AdvancedMarker 
+                    position={{ lat: assignModal.restaurantCoords.lat, lng: assignModal.restaurantCoords.lng }}
+                  >
+                    <div className="bg-white p-2 rounded-2xl shadow-xl border-2 border-orange-500 scale-110 animate-bounce">
+                      <Store className="text-orange-500" size={24} />
+                    </div>
+                  </AdvancedMarker>
                 )}
 
                 {/* Riders on Map */}
                 {onlineRiders.filter(r => r.location).map(rider => (
-                  <Marker 
+                  <AdvancedMarker 
                     key={rider.userId} 
-                    position={[rider.location.lat, rider.location.lng]} 
-                    icon={riderMapIcon}
-                    eventHandlers={{
-                      click: () => handleAssignRiderFromModal(rider.userId)
-                    }}
+                    position={{ lat: rider.location.lat, lng: rider.location.lng }}
+                    onClick={() => handleAssignRiderFromModal(rider.userId)}
                   >
-                    <Popup>
-                      <div className="p-1">
-                        <p className="font-bold">🛵 {rider.name}</p>
-                        <p className="text-[10px] text-slate-500 mb-2">{rider.vehicleType || 'Bike'} • ★ {rider.rating || '4.5'}</p>
-                        <button 
-                          onClick={() => handleAssignRiderFromModal(rider.userId)}
-                          className="w-full bg-orange-500 text-white py-1 px-3 rounded-lg font-bold text-[10px] uppercase"
-                        >
-                          Assign This Rider
-                        </button>
+                    <div className="relative group cursor-pointer">
+                      <div className="absolute -inset-4 bg-orange-500/20 rounded-full animate-ping group-hover:bg-orange-500/40 transition-all" />
+                      <div className="relative bg-white p-2 rounded-xl shadow-lg border border-slate-100 group-hover:border-orange-500 group-hover:scale-110 transition-all">
+                        <Truck className="text-slate-600 group-hover:text-orange-500" size={20} />
                       </div>
-                    </Popup>
-                  </Marker>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl">
+                        {rider.name} • {calculateDistance(assignModal.restaurantCoords?.lat, assignModal.restaurantCoords?.lng, rider.location.lat, rider.location.lng)?.toFixed(1)} km
+                      </div>
+                    </div>
+                  </AdvancedMarker>
                 ))}
-              </MapContainer>
+              </Map>
               
               <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg z-[1000] border border-slate-100">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">

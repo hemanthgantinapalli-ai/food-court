@@ -8,7 +8,41 @@ import { Flame, ChevronRight } from 'lucide-react';
 
 const CATEGORY_FILTERS = ['All', 'Pizza', 'Burgers', 'Sushi', 'Indian', 'Chinese', 'Healthy'];
 
-// Curated fallback restaurants for when backend is offline
+const CUISINE_EMOJI_MAP = {
+  'Pizza': '🍕', 'Sushi': '🍣', 'Burgers': '🍔', 'Indian': '🍛', 'Chinese': '🥡',
+  'Healthy': '🥗', 'Italian': '🍝', 'Japanese': '🍱', 'American': '🍟', 'BBQ': '🍗',
+  'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐', 'South Indian': '🍱',
+  'Salads': '🥗', 'Cafe': '☕', 'Juices': '🍹', 'Continental': '🍽️', 'Samosas': '🥟',
+  'Ramen': '🍜', 'Smoothies': '🥤', 'Pasta': '🍝', 'Chicken': '🍗', 'Seafood': '🍤',
+  'Ice Cream': '🍦', 'Steak': '🥩', 'Tacos': '🌮',
+  'Sandwich': '🥪', 'Momo': '🥟', 'Kebab': '🍢', 'Rolls': '🌯'
+};
+
+const getCuisineEmoji = (c) => {
+  if (!c) return '🍽️';
+  const normalized = c.trim().toLowerCase();
+  if (normalized.includes('samosa')) return '🥟';
+  if (normalized.includes('ramen')) return '🍜';
+  if (normalized.includes('biryani')) return '🥘';
+  if (normalized.includes('burger')) return '🍔';
+  if (normalized.includes('chicken')) return '🍗';
+  if (normalized.includes('beverage')) return '🥤';
+  if (normalized.includes('juice')) return '🍹';
+  if (normalized.includes('pizza')) return '🍕';
+  
+  for (const [key, emoji] of Object.entries(CUISINE_EMOJI_MAP)) {
+    if (key.toLowerCase() === normalized) return emoji;
+  }
+  return '🍽️';
+};
+
+const cleanLabel = (label) => {
+  if (!label) return '';
+  if (label.toLowerCase().includes('chicken')) return 'Chicken';
+  if (label.toLowerCase().includes('ramen')) return 'Ramen';
+  return label.replace(/^and\s+/i, '').replace(/\.+$/, '').trim();
+};
+
 const FALLBACK_RESTAURANTS = [
   {
     _id: '69a5bdb2d6f8c7e3b91a1061',
@@ -47,7 +81,7 @@ const FALLBACK_RESTAURANTS = [
     _id: '69a5bdb2d6f8c7e3b91a1064',
     name: '[DEMO] Spice Garden',
     image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80',
-    rating: 4.4, // Using 4.4 to test the 4.5+ filter
+    rating: 4.4,
     cuisines: ['Indian', 'Curry', 'Biryani'],
     deliveryTime: 35,
     deliveryFee: 29,
@@ -71,7 +105,7 @@ const FALLBACK_RESTAURANTS = [
     image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&q=80',
     rating: 4.7,
     cuisines: ['Chinese', 'Dim Sum', 'Noodles'],
-    deliveryTime: 40, // Using 40 to test the Fast filter
+    deliveryTime: 40,
     deliveryFee: 39,
     averagePrice: 550,
     location: { address: '9 Silk Road', city: 'Mumbai', latitude: 19.1200, longitude: 72.9222 }
@@ -88,19 +122,16 @@ const Home = () => {
   // Advanced Filters
   const [fastDelivery, setFastDelivery] = useState(false);
   const [highRating, setHighRating] = useState(false);
-  const [sortBy, setSortBy] = useState('none'); // 'rating', 'deliveryTime', 'none'
+  const [sortBy, setSortBy] = useState('none');
 
-  // Read ?cuisine= from URL on mount so category links work
   const cuisineParam = searchParams.get('cuisine') || 'All';
   const [activeFilter, setActiveFilter] = useState(cuisineParam);
 
-  // Track the selected city for display in the UI
   const [selectedCity, setSelectedCity] = React.useState(() => {
     const c = localStorage.getItem('userLocation');
     return (c && c !== 'Select Location') ? c : null;
   });
 
-  // Sync filter → URL so browser back/forward works
   const applyFilter = (filter) => {
     setActiveFilter(filter);
     setSearchQuery('');
@@ -117,28 +148,16 @@ const Home = () => {
         let city = localStorage.getItem('userLocation');
         if (city && city === 'Select Location') city = undefined;
 
-        console.log(`[Home] Fetching restaurants for city: "${city}"`);
-
         const [resResponse, recResponse] = await Promise.all([
           API.get(`/restaurants`, { params: { city: city ? city.trim() : undefined } }),
           API.get('/restaurants/recommendations').catch(e => ({ data: { data: [] } }))
         ]);
 
-        console.log('[Home] Backend response:', resResponse.data);
         const list = Array.isArray(resResponse.data) ? resResponse.data : (resResponse.data?.data || []);
-
         setRestaurants(list);
         setRecommendations(recResponse.data?.data || []);
-
-        if (list.length === 0) {
-          console.warn(`[Home] No restaurants found in ${city}.`);
-          // Note: We no longer clobber setRestaurants(list) with FALLBACK_RESTAURANTS 
-          // because if the user has selected a city, we want them to see 0 results, 
-          // not fake results from Mumbai.
-        }
       } catch (error) {
         console.error('[Home] API Error:', error);
-        // On hard error, fallback to demo data so the app doesn't look dead
         setRestaurants(FALLBACK_RESTAURANTS);
       } finally {
         setLoading(false);
@@ -147,7 +166,6 @@ const Home = () => {
 
     fetchRestaurants();
 
-    // Listen for custom locationChanged events from Header
     const handleLocChange = () => {
       const newCity = localStorage.getItem('userLocation');
       setSelectedCity((newCity && newCity !== 'Select Location') ? newCity : null);
@@ -160,7 +178,6 @@ const Home = () => {
     return () => window.removeEventListener('locationChanged', handleLocChange);
   }, []);
 
-  // Sync searchQuery with URL q= parameter
   useEffect(() => {
     const q = searchParams.get('q');
     if (q) {
@@ -169,7 +186,6 @@ const Home = () => {
     }
   }, [searchParams]);
 
-  // Handle filter from Hero cuisine tags or search bar
   const handleHeroFilter = (query) => {
     const matched = CATEGORY_FILTERS.find(
       (f) => f.toLowerCase() === query.toLowerCase()
@@ -183,7 +199,6 @@ const Home = () => {
     }
   };
 
-  // Dynamic categories derived from data
   const dynamicCategories = React.useMemo(() => {
     const cuisineSet = new Set();
     restaurants.forEach(r => {
@@ -194,27 +209,14 @@ const Home = () => {
       }
     });
 
-    // Sort and limit/map with emojis
-    const emojis = {
-      'Pizza': '🍕', 'Sushi': '🍣', 'Burgers': '🍔', 'Indian': '🍛', 'Chinese': '🥡',
-      'Healthy': '🥗', 'Italian': '🍝', 'Japanese': '🍱', 'American': '🍟', 'BBQ': '🍗',
-      'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐'
-    };
-
     const sorted = Array.from(cuisineSet).sort();
     return sorted.map(label => ({
       label,
-      emoji: emojis[label] || '🍽️',
-      color: `from-slate-100 to-slate-50` // Default color
+      emoji: getCuisineEmoji(label),
+      color: `from-slate-100 to-slate-50`
     }));
   }, [restaurants]);
 
-  useEffect(() => {
-    // Also update CATEGORY_FILTERS-like list for the pill filters
-    // (We could use the set here too)
-  }, [restaurants]);
-
-  // Combined category filter + text search
   const filtered = restaurants.filter((r) => {
     const matchesCategory =
       activeFilter === 'All' ||
@@ -223,45 +225,24 @@ const Home = () => {
     const matchesSearch =
       !searchQuery ||
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.cuisines?.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase()));
+      r.cuisines?.some((c) => (c || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // 3. Fast Delivery ( <= 30 mins)
     const matchesFast = !fastDelivery || (r.deliveryTime || 30) <= 30;
-
-    // 4. High Rating ( 4.5+ ) - Use 4.5 as fallback consistent with card display
     const currentRating = parseFloat(r.rating || 4.5);
     const matchesRating = !highRating || currentRating >= 4.5;
 
     return matchesCategory && matchesSearch && matchesFast && matchesRating;
   }).sort((a, b) => {
-    // Advanced sorting logic
-    if (sortBy === 'rating') {
-      return parseFloat(b.rating || 4.5) - parseFloat(a.rating || 4.5);
-    }
-    if (sortBy === 'deliveryTime') {
-      return (a.deliveryTime || 30) - (b.deliveryTime || 30);
-    }
-    if (sortBy === 'priceLowHigh') {
-      return (a.averagePrice || 500) - (b.averagePrice || 500);
-    }
+    if (sortBy === 'rating') return parseFloat(b.rating || 4.5) - parseFloat(a.rating || 4.5);
+    if (sortBy === 'deliveryTime') return (a.deliveryTime || 30) - (b.deliveryTime || 30);
+    if (sortBy === 'priceLowHigh') return (a.averagePrice || 500) - (b.averagePrice || 500);
     return 0;
   });
 
-  // loading state is handled inline (skeleton cards) — no full-page spinner needed
-
-  const cuisineEmojis = {
-    'Pizza': '🍕', 'Sushi': '🍣', 'Burgers': '🍔', 'Indian': '🍛', 'Chinese': '🥡',
-    'Healthy': '🥗', 'Italian': '🍝', 'Japanese': '🍱', 'American': '🍟', 'BBQ': '🍗',
-    'Biryani': '🥘', 'Desserts': '🍰', 'Beverages': '🥤', 'Bakery': '🥐', 'South Indian': '🍱',
-    'Salads': '🥗', 'Cafe': '☕', 'Juices': '🍹', 'Continental': '🍽️'
-  };
-
   return (
     <div className="bg-white min-h-screen">
-      {/* Hero passes onFilterChange so cuisine tags & search work */}
       <Hero onFilterChange={handleHeroFilter} />
 
-      {/* Feature Highlights */}
       <div className="bg-slate-900 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-full bg-orange-500/10 skew-x-12 blur-3xl" />
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-wrap justify-between items-center gap-4">
@@ -290,23 +271,18 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Discovery Feed Section */}
       <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Sticky Filters Header */}
         <div className="sticky top-20 z-40 bg-white/70 backdrop-blur-2xl pt-6 pb-8 -mx-6 px-6 mb-10 border-b border-slate-100/80 flex flex-col gap-8 shadow-sm group">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
             <div id="restaurant-section" className="animate-fade-up">
               <div className="flex items-center gap-3 mb-3">
                 <span className="h-0.5 w-12 bg-orange-500 rounded-full" />
                 <span className="text-[10px] font-black uppercase tracking-[0.4em] text-orange-600">
-                   Top Curation for {selectedCity || 'Your City'}
+                  Top Curation for Tenali
                 </span>
               </div>
-              <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-950 leading-[0.95]">
-                Discover<br/> 
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-red-600">
-                  {activeFilter === 'All' ? 'Culinary Excellence' : `Premium ${activeFilter}`}
-                </span>
+              <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-slate-950 leading-none">
+                Discover <span className="text-orange-600 block md:inline">Culinary Excellence</span>
               </h2>
             </div>
 
@@ -341,29 +317,56 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Icon Based Categories Bar */}
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none">
-            {['All', ...Array.from(new Set(restaurants.flatMap(r => r.cuisines || [])))].sort().map((cuisine) => (
+          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth">
+            {[
+              { label: 'All', emoji: '🌎' },
+              { label: 'Samosas', emoji: '🥟' },
+              { label: 'Ramen', emoji: '🍜' },
+              { label: 'Beverages', emoji: '🥤' },
+              { label: 'Biryani', emoji: '🥘' },
+              { label: 'Burgers', emoji: '🍔' },
+              { label: 'Chicken', emoji: '🍗' }
+            ].map((cat) => (
               <button
-                key={cuisine}
-                onClick={() => applyFilter(cuisine)}
-                className={`group flex items-center gap-3 px-6 py-3.5 rounded-2xl transition-all duration-300 ${activeFilter === cuisine
-                    ? 'bg-orange-500 text-white shadow-xl shadow-orange-100 translate-y-[-2px]'
-                    : 'bg-white border border-slate-100 text-slate-600 hover:border-orange-500 hover:bg-orange-50/50'
+                key={cat.label}
+                onClick={() => applyFilter(cat.label)}
+                className={`group flex items-center gap-3 px-6 py-4 rounded-2xl transition-all duration-500 shrink-0 ${activeFilter === cat.label
+                    ? 'bg-slate-950 text-white shadow-2xl translate-y-[-4px]'
+                    : 'bg-white border border-slate-100 text-slate-600 hover:border-orange-500 hover:bg-orange-50/50 hover:translate-y-[-2px]'
                   }`}
               >
-                <span className={`text-xl transition-transform group-hover:scale-125 ${activeFilter === cuisine ? 'scale-110' : ''}`}>
-                  {cuisine === 'All' ? '🌎' : (cuisineEmojis[cuisine] || '🍽️')}
-                </span>
-                <span className="text-[11px] font-black uppercase tracking-widest text-inherit whitespace-nowrap">
-                  {cuisine}
+                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${activeFilter === cat.label ? 'bg-orange-500 rotate-12' : 'bg-slate-50'}`}>
+                  <span className={`text-lg md:text-xl transition-transform duration-500 group-hover:scale-110 ${activeFilter === cat.label ? 'scale-110' : ''}`}>
+                    {cat.emoji}
+                  </span>
+                </div>
+                <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-inherit whitespace-nowrap">
+                  {cat.label}
                 </span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Dynamic Section Message */}
+        {!loading && !searchQuery && activeFilter === 'All' && restaurants.length > 3 && (
+          <div className="mb-20 animate-fade-up">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-2xl font-black text-slate-950 tracking-tighter uppercase">Trending <span className="text-orange-500">Near You</span></h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">What your neighbors are ordering right now</p>
+              </div>
+              <Link to="/" className="text-[10px] font-black text-orange-500 uppercase tracking-widest hover:underline px-4 py-2 bg-orange-50 rounded-xl transition-all">View All →</Link>
+            </div>
+            <div className="flex gap-8 overflow-x-auto pb-8 scrollbar-none snap-x">
+              {restaurants.slice(0, 5).map((res, i) => (
+                <div key={res._id + '-trending'} className="min-w-[320px] md:min-w-[380px] snap-start">
+                  <RestaurantCard restaurant={res} index={i + 20} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {searchQuery && (
           <div className="flex items-center gap-4 mb-8 p-4 bg-orange-50 rounded-2xl border border-orange-100">
             <div className="p-2 bg-orange-500 text-white rounded-lg">
@@ -382,7 +385,6 @@ const Home = () => {
           </div>
         )}
 
-        {/* AI Recommendations Section (Only on main view) */}
         {!loading && recommendations.length > 0 && !searchQuery && activeFilter === 'All' && (
           <div className="mb-16">
             <div className="flex items-center justify-between mb-8">
@@ -399,7 +401,6 @@ const Home = () => {
           </div>
         )}
 
-        {/* Store Grid — shows skeleton cards while loading */}
         {loading ? (
           <SkeletonGrid count={6} />
         ) : (
@@ -434,9 +435,6 @@ const Home = () => {
         )}
       </div>
 
-
-
-      {/* Why Choose Us Section */}
       <div className="bg-slate-950 py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -485,7 +483,6 @@ const Home = () => {
         </div>
       </div>
 
-      {/* App Download CTA */}
       <div className="bg-gradient-to-br from-orange-500 to-red-600 py-20 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
           <div className="text-white max-w-xl">

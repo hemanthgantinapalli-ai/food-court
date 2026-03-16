@@ -2,14 +2,28 @@ import { io } from 'socket.io-client';
 
 const SOCKET_URL = '/'; // Uses Vite proxy in dev; same origin in production
 
+// Helper: read the JWT stored by authStore on login/signup
+const getStoredToken = () => localStorage.getItem('token') ?? null;
+
 export const socket = io(SOCKET_URL, {
     autoConnect: false,
     reconnectionAttempts: 5,
     reconnectionDelay: 2000,
+    // auth is populated dynamically in connectSocket() below
 });
 
+/**
+ * Connect and authenticate the socket with the user's JWT.
+ * @param {string} userId - MongoDB user id (for joining the personal room)
+ */
 export const connectSocket = (userId) => {
+    if (!userId) return; // Silent return during auth transitions
     if (!socket.connected) {
+        // 🔐 Attach JWT so the server can verify identity on handshake
+        const token = getStoredToken();
+        if (token) {
+            socket.auth = { token };
+        }
         socket.connect();
         socket.emit('join', userId);
         console.log(`🔌 Socket connected for user: ${userId}`);
@@ -28,10 +42,7 @@ export const joinRoleRoom = (role) => {
     if (socket.connected) {
         socket.emit('join_role', role);
     } else {
-        // If not connected yet, emit after connection
-        socket.once('connect', () => {
-            socket.emit('join_role', role);
-        });
+        socket.once('connect', () => socket.emit('join_role', role));
     }
 };
 
@@ -40,16 +51,14 @@ export const joinOrderRoom = (orderId) => {
     if (socket.connected) {
         socket.emit('join_order', orderId);
     } else {
-        socket.once('connect', () => {
-            socket.emit('join_order', orderId);
-        });
+        socket.once('connect', () => socket.emit('join_order', orderId));
     }
 };
 
 // Rider broadcasts their live GPS position to customer + admin
-export const broadcastRiderLocation = (orderId, riderId, location) => {
+export const broadcastRiderLocation = (orderId, riderId, location, heading, speed) => {
     if (socket.connected) {
-        socket.emit('update_location', { orderId, riderId, location });
+        socket.emit('update_location', { orderId, riderId, location, heading, speed });
     }
 };
 
@@ -63,7 +72,7 @@ export const notifyRiderOnline = (riderId, location) => {
 // Rider announces they went offline
 export const notifyRiderOffline = (riderId) => {
     if (socket.connected) {
-        socket.emit('rider_offline', { riderId });
+        socket.emit('rider_offline', riderId);
     }
 };
 

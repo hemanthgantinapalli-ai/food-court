@@ -1,36 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock, Wallet, Navigation, Edit2, Tag, X } from 'lucide-react';
+import { MapPin, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle, ArrowLeft, ShoppingBag, Lock, Wallet, Navigation, Edit2, Tag, X, Trash2, Save } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useGoogleMaps } from '../hooks/useGoogleMaps';
+import { Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
 import API from '../api/axios';
 import AddressManagerModal from '../components/AddressManagerModal';
-
-// Fix for leaflet icons
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: markerIcon2x,
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-});
-
-const restIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448607.png',
-    iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
-
-const homeIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1077/1077114.png',
-    iconSize: [38, 38], iconAnchor: [19, 38], popupAnchor: [0, -38]
-});
 
 const PAYMENT_METHODS = [
   { id: 'upi', label: 'UPI / QR Code', icon: Smartphone, desc: 'Google Pay, PhonePe, Paytm' },
@@ -43,6 +20,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getTotal, discount, coupon, clearCart, getRestaurantId, applyCoupon } = useCartStore();
   const { user, getProfile } = useAuthStore();
+  const { isLoaded: isGoogleLoaded } = useGoogleMaps();
   const { addOrder } = useOrderStore();
 
   const [restLocation, setRestLocation] = useState(null);
@@ -108,16 +86,55 @@ export default function CheckoutPage() {
     lng: null
   });
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const { updateProfile } = useAuthStore();
   const [errors, setErrors] = useState({});
   const [gpsCoords, setGpsCoords] = useState(null); // { latitude, longitude }
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState({ baseDeliveryFee: 30, perKmCharge: 10 });
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await API.get('/admin/settings/public');
+        if (res.data.success) {
+          setPlatformSettings(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch platform settings:', err);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const handleUseMyLocation = () => {
     if (!('geolocation' in navigator)) return;
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGpsCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      async (pos) => {
+        const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setGpsCoords(coords);
+        
+        // Reverse geocode to fill address fields
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.latitude}&lon=${coords.longitude}`);
+          const data = await res.json();
+          if (data && data.address) {
+            const addr = data.address;
+            setAddress(prev => ({
+              ...prev,
+              street: addr.road || addr.suburb || prev.street,
+              area: addr.neighbourhood || addr.residential || addr.suburb || prev.area,
+              city: addr.city || addr.town || addr.village || prev.city,
+              pincode: addr.postcode || prev.pincode,
+              lat: coords.latitude,
+              lng: coords.longitude
+            }));
+          }
+        } catch (err) {
+          console.error("Auto-geocoding failed", err);
+        }
+        
         setGpsLoading(false);
       },
       () => setGpsLoading(false),
@@ -145,13 +162,15 @@ export default function CheckoutPage() {
 
   const subtotal = getTotal();
   
-  // Dynamic Delivery Fee based on distance
-  // Base fee: ₹30 (up to 3km), then ₹10 per km extra
   const calculateDynamicFee = (dist) => {
     if (subtotal === 0) return 0;
     if (dist === null) return 0; // Wait for location
-    if (dist <= 3) return 30; // Min fee
-    return Math.round(30 + (dist - 3) * 10);
+    
+    const base = platformSettings.baseDeliveryFee || 30;
+    const perKm = platformSettings.perKmCharge || 10;
+    
+    if (dist <= 3) return base; // Min fee up to 3km
+    return Math.round(base + (dist - 3) * perKm);
   };
 
   // Show base fee as placeholder if location not available, else calculate dynamically
@@ -175,8 +194,52 @@ export default function CheckoutPage() {
   };
 
   const handleAddressNext = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (validate()) setStep(2);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!validate()) return;
+    setSaveLoading(true);
+    try {
+      const newAddress = {
+        label: address.label || address.landmark || 'Home',
+        street: address.street,
+        area: address.area,
+        city: address.city,
+        zipCode: address.pincode,
+        landmark: address.landmark,
+        lat: gpsCoords?.latitude || null,
+        lng: gpsCoords?.longitude || null
+      };
+      
+      const currentAddresses = user?.addresses || [];
+      // Check if address already exists (simple string comparison for street)
+      if (currentAddresses.find(a => a.street === newAddress.street && a.city === newAddress.city)) {
+          setSaveLoading(false);
+          return;
+      }
+
+      await updateProfile({
+        addresses: [...currentAddresses, newAddress]
+      });
+      alert("Address saved to your profile!");
+    } catch (err) {
+      console.error("Save address failed:", err);
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleDeleteAddress = async (idx) => {
+    if (!window.confirm("Delete this address?")) return;
+    try {
+      const updatedAddresses = [...user.addresses];
+      updatedAddresses.splice(idx, 1);
+      await updateProfile({ addresses: updatedAddresses });
+    } catch (err) {
+      console.error("Delete address failed:", err);
+    }
   };
 
   const handlePlaceOrder = async () => {
@@ -334,34 +397,46 @@ export default function CheckoutPage() {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Choose from saved</p>
                     <div className="flex gap-3">
                       {user.addresses.map((addr, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setAddress({
-                              name: user?.name || user?.firstName || '',
-                              phone: user?.phone || '',
-                              street: addr.street,
-                              city: addr.city,
-                              pincode: addr.zipCode,
-                              area: addr.area || '',
-                              landmark: addr.landmark || '',
-                              label: addr.label || 'Home',
-                              lat: addr.lat,
-                              lng: addr.lng
-                            });
-                            if (addr.lat && addr.lng) {
-                              setGpsCoords({ latitude: addr.lat, longitude: addr.lng });
-                            }
-                          }}
-                          className="shrink-0 p-5 border-2 border-slate-50 bg-slate-50/50 rounded-2xl text-left hover:border-orange-500 hover:bg-white transition-all group relative min-w-[200px]"
-                        >
-                          <p className="text-xs font-black text-slate-900 uppercase mb-1 flex items-center justify-between gap-4">
-                             {addr.label || 'Home'}
-                             <Edit2 size={12} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-medium line-clamp-2 mt-2">{addr.street}, {addr.city}</p>
-                        </button>
+                        <div key={idx} className="group relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddress({
+                                name: user?.name || user?.firstName || '',
+                                phone: user?.phone || '',
+                                street: addr.street,
+                                city: addr.city,
+                                pincode: addr.zipCode,
+                                area: addr.area || '',
+                                landmark: addr.landmark || '',
+                                label: addr.label || 'Home',
+                                lat: addr.lat,
+                                lng: addr.lng
+                              });
+                              if (addr.lat && addr.lng) {
+                                setGpsCoords({ latitude: addr.lat, longitude: addr.lng });
+                              }
+                            }}
+                            className="p-5 border-2 border-slate-100 bg-white rounded-2xl text-left hover:border-orange-500 hover:shadow-xl hover:shadow-orange-100/20 transition-all min-w-[200px] h-full"
+                          >
+                            <div className="text-xs font-black text-slate-900 uppercase mb-1 flex items-center justify-between gap-4">
+                               {addr.label || 'Home'}
+                               <div className="flex gap-2">
+                                 <Edit2 size={12} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
+                               </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 font-medium line-clamp-2 mt-2 leading-relaxed">{addr.street}, {addr.city}</p>
+                          </button>
+                          
+                          {/* Delete Action Overlay */}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteAddress(idx); }}
+                            className="absolute -top-2 -right-2 w-8 h-8 bg-white border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 hover:border-rose-100 shadow-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -400,88 +475,91 @@ export default function CheckoutPage() {
                   </div>
                   {/* GPS Location & Routing Map */}
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${gpsCoords ? 'bg-emerald-100' : 'bg-orange-50'}`}>
-                        <MapPin size={16} className={gpsCoords ? 'text-emerald-600' : 'text-orange-500'} />
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${gpsCoords ? 'bg-emerald-100' : 'bg-orange-100'}`}>
+                          <MapPin size={24} className={gpsCoords ? 'text-emerald-600' : 'text-orange-600'} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-slate-900 truncate">
+                            {gpsCoords
+                              ? `📍 GPS: ${gpsCoords.latitude.toFixed(4)}, ${gpsCoords.longitude.toFixed(4)}`
+                              : 'Enable Live Tracking'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Auto-fill & road-accurate fee</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleUseMyLocation}
+                          disabled={gpsLoading || !!gpsCoords}
+                          className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-sm whitespace-nowrap ${
+                            gpsCoords
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-95 shadow-orange-200'
+                          } disabled:opacity-60`}
+                        >
+                          {gpsLoading ? 'Locating...' : gpsCoords ? '✓ Saved' : 'Use Current'}
+                        </button>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-black text-slate-700">
-                          {gpsCoords
-                            ? `📍 GPS captured (${gpsCoords.latitude.toFixed(4)}, ${gpsCoords.longitude.toFixed(4)})`
-                            : 'Share GPS for live map tracking'}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-medium">Enables real-time rider tracking on map</p>
-                      </div>
+
+                      {/* Map Pin Button correctly separated */}
                       <button
                         type="button"
-                        onClick={handleUseMyLocation}
-                        disabled={gpsLoading || !!gpsCoords}
-                        className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                          gpsCoords
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-orange-500 text-white hover:bg-orange-600 active:scale-95'
-                        } disabled:opacity-60`}
+                        onClick={() => setIsAddressModalOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-white border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-black text-[10px] uppercase tracking-widest hover:border-orange-500 hover:bg-orange-50 hover:text-orange-600 transition-all"
                       >
-                        {gpsLoading ? '...' : gpsCoords ? '✓ Got it' : 'Use Location'}
+                        <Navigation size={14} />
+                        Pin Detailed Address on Map
                       </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddressModalOpen(true)}
-                      className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-black text-[10px] uppercase tracking-widest hover:border-orange-500 hover:bg-orange-50/30 hover:text-orange-600 transition-all"
-                    >
-                      <Navigation size={14} />
-                      Pin Detailed Address on Map
-                    </button>
                     </div>
 
                     {/* Preview Map */}
-                    {gpsCoords && restLocation && (
+                    {gpsCoords && restLocation && isGoogleLoaded && (
                       <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 h-60 w-full relative group animate-in fade-in zoom-in duration-500">
-                        <MapContainer
-                          center={[
-                            (gpsCoords.latitude + restLocation.latitude) / 2,
-                            (gpsCoords.longitude + restLocation.longitude) / 2
-                          ]}
-                          zoom={13}
-                          className="h-full w-full z-0"
-                          zoomControl={false}
+                        <Map
+                          defaultCenter={{
+                            lat: (gpsCoords.latitude + restLocation.latitude) / 2,
+                            lng: (gpsCoords.longitude + restLocation.longitude) / 2
+                          }}
+                          defaultZoom={13}
+                          style={{ height: '100%', width: '100%' }}
+                          disableDefaultUI={true}
+                          mapId="DEMO_MAP_ID"
+                          gestureHandling={'greedy'}
                         >
-                          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                          
-                          {/* Route Line */}
-                          <Polyline 
-                            positions={[
-                              [restLocation.latitude, restLocation.longitude],
-                              [gpsCoords.latitude, gpsCoords.longitude]
-                            ]}
-                            color="#f97316"
-                            weight={4}
-                            dashArray="10, 10"
-                          />
+                          <AdvancedMarker position={{lat: restLocation.latitude, lng: restLocation.longitude}}>
+                              <img src="https://cdn-icons-png.flaticon.com/512/3448/3448607.png" style={{width: 38, height: 38}} alt="restaurant" />
+                          </AdvancedMarker>
 
-                          <Marker position={[restLocation.latitude, restLocation.longitude]} icon={restIcon}>
-                            <Popup>🍴 Restaurant</Popup>
-                          </Marker>
-
-                          <Marker position={[gpsCoords.latitude, gpsCoords.longitude]} icon={homeIcon}>
-                            <Popup>🏠 Your Home</Popup>
-                          </Marker>
-                        </MapContainer>
+                          <AdvancedMarker position={{lat: gpsCoords.latitude, lng: gpsCoords.longitude}}>
+                              <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" style={{width: 38, height: 38}} alt="home" />
+                          </AdvancedMarker>
+                        </Map>
 
                         <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg z-[1000] border border-slate-100 flex items-center gap-2">
                           <Navigation size={12} className="text-orange-500" />
-                          Delivery Route Preview
+                          Delivery Route Preview {distanceKm ? `(${distanceKm.toFixed(1)} km)` : ''}
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all shadow-xl shadow-orange-100 flex items-center justify-center gap-2 mt-2"
-                  >
-                    Continue to Payment <ChevronRight size={18} />
-                  </button>
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      type="button"
+                      onClick={handleSaveAddress}
+                      disabled={saveLoading}
+                      className="flex-1 border-2 border-slate-100 text-slate-600 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:border-orange-200 hover:bg-orange-50/30 hover:text-orange-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      {saveLoading ? 'Saving...' : <><Save size={16} /> Save Address</>}
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-[2] bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all shadow-xl shadow-orange-100 flex items-center justify-center gap-2"
+                    >
+                      Continue to Payment <ChevronRight size={18} />
+                    </button>
+                  </div>
                 </form>
               </div>
             )}

@@ -193,7 +193,7 @@ export default function RiderSignIn() {
                                 <div className="relative">
                                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                                     <input
-                                        type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                                        type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)}
                                         className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                                         placeholder="Email Address"
                                     />
@@ -201,7 +201,7 @@ export default function RiderSignIn() {
                                 <div className="relative">
                                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                                     <input
-                                        type={showPass ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)}
+                                        type={showPass ? 'text' : 'password'} autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)}
                                         className="w-full pl-11 pr-12 py-3.5 rounded-xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                                         placeholder="Password (Min 6 chars)" minLength={6}
                                     />
@@ -403,7 +403,7 @@ export default function RiderSignIn() {
                             <div className="relative">
                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-400 transition-colors" size={18} />
                                 <input
-                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+                                    type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required
                                     className="w-full pl-11 pr-4 py-4 rounded-2xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                                     placeholder="Enter your email"
                                 />
@@ -416,7 +416,7 @@ export default function RiderSignIn() {
                             <div className="relative">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 transition-colors" size={18} />
                                 <input
-                                    type={showPass ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
+                                    type={showPass ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required
                                     className="w-full pl-11 pr-12 py-4 rounded-2xl bg-slate-800/80 border border-white/10 text-white font-bold placeholder:text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                                     placeholder="••••••••"
                                 />

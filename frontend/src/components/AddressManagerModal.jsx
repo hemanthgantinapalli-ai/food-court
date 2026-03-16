@@ -1,39 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Navigation, Home, Briefcase, Tag } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useGoogleMaps } from '../hooks/useGoogleMaps';
+import { Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
 
-// Fix leaflet icons
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
-
-const pinIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/1077/1077114.png',
-  iconSize: [38, 38], iconAnchor: [19, 38]
-});
-
-// A component that updates the marker when the user clicks on the map
-function LocationPicker({ position, setPosition }) {
-  useMapEvents({
-    click(e) {
-      setPosition(e.latlng);
-    },
-  });
-  return position ? <Marker position={position} icon={pinIcon} /> : null;
+// A component that updates the map view when position changes
+function PanToCenter({ displayPos }) {
+  const map = useMap();
+  useEffect(() => {
+    if (map && displayPos) {
+      map.panTo(displayPos);
+    }
+  }, [displayPos, map]);
+  return null;
 }
 
 export default function AddressManagerModal({ isOpen, onClose, existingAddress = null, indexToEdit = null }) {
   const { user, updateProfile } = useAuthStore();
+  const { isLoaded: isGoogleLoaded } = useGoogleMaps();
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -47,6 +31,20 @@ export default function AddressManagerModal({ isOpen, onClose, existingAddress =
   });
 
   const [position, setPosition] = useState(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      setForm(prev => ({ 
+        ...prev, 
+        street: e.detail.street || prev.street,
+        area: e.detail.area || prev.area,
+        city: e.detail.city || prev.city,
+        zipCode: e.detail.zipCode || prev.zipCode
+      }));
+    };
+    window.addEventListener('updateAddressFields', handler);
+    return () => window.removeEventListener('updateAddressFields', handler);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -123,16 +121,45 @@ export default function AddressManagerModal({ isOpen, onClose, existingAddress =
 
         {/* Left Side: Map Picker */}
         <div className="md:w-1/2 relative bg-slate-100 min-h-[300px] md:min-h-full">
-          {isOpen && (
-             <MapContainer 
-              center={position || [17.3850, 78.4867]} // Default Hyderabad
-              zoom={position ? 15 : 11} 
-              className="w-full h-full absolute inset-0 z-0"
-              zoomControl={false}
+          {isOpen && isGoogleLoaded && (
+             <Map 
+              defaultCenter={position || { lat: 17.3850, lng: 78.4867 }} // Default Hyderabad
+              defaultZoom={position ? 15 : 11} 
+              style={{ height: '100%', width: '100%' }}
+              disableDefaultUI={true}
+              mapId="DEMO_MAP_ID"
+              onClick={(e) => {
+                if (!e.detail?.latLng) return;
+                const lat = e.detail.latLng.lat;
+                const lng = e.detail.latLng.lng;
+                setPosition({ lat, lng });
+                
+                // Automatically fetch address details (Reverse Geocoding)
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+                  .then(res => res.json())
+                  .then(data => {
+                    if (data && data.address) {
+                      const addr = data.address;
+                      window.dispatchEvent(new CustomEvent('updateAddressFields', { 
+                        detail: {
+                          street: addr.road || addr.suburb || '',
+                          area: addr.neighbourhood || addr.residential || addr.suburb || '',
+                          city: addr.city || addr.town || addr.village || '',
+                          zipCode: addr.postcode || ''
+                        }
+                      }));
+                    }
+                  })
+                  .catch(err => console.error("Geocoding failed", err));
+              }}
              >
-               <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-               <LocationPicker position={position} setPosition={setPosition} />
-             </MapContainer>
+               <PanToCenter displayPos={position} />
+               {position && (
+                  <AdvancedMarker position={position}>
+                   <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" style={{width: 38, height: 38}} alt="pin" />
+                  </AdvancedMarker>
+               )}
+             </Map>
           )}
 
           {/* Map Overlay Helpers */}

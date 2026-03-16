@@ -4,62 +4,10 @@ import API from '../api/axios';
 import { useAuthStore } from '../context/authStore';
 import { useSearchParams, Link } from 'react-router-dom';
 import { socket, connectSocket } from '../api/socket.js';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import LeafletTrackingMap from '../components/LeafletTrackingMap.jsx';
 
-import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
-import marker from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Fix for default Leaflet markers in React
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: marker2x,
-    iconUrl: marker,
-    shadowUrl: markerShadow,
-});
-
-const riderIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
-    iconSize: [44, 44],
-    iconAnchor: [22, 44],
-    popupAnchor: [0, -44]
-});
-
-const restIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3004/3004458.png',
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-    popupAnchor: [0, -40]
-});
-
-const homeIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1077/1077114.png',
-    iconSize: [38, 38],
-    iconAnchor: [19, 38],
-    popupAnchor: [0, -38]
-});
-
-// Smooth pan & Auto-zoom component
-const MapUpdater = ({ center, allPoints = [] }) => {
-    const map = useMap();
-    
-    useEffect(() => {
-        if (center) {
-            map.panTo(center, { animate: true, duration: 1.5 });
-        }
-    }, [center, map]);
-
-    useEffect(() => {
-        if (allPoints.length > 1) {
-            const bounds = L.latLngBounds(allPoints);
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-        }
-    }, [allPoints.length, map]);
-
-    return null;
-};
+// ── TrackOrderPage uses TrackingMap (Google Maps) for the live map section ──
 
 const STEPS = [
     { id: 'placed', label: 'Order Placed', icon: Package, desc: 'We have received your order' },
@@ -140,35 +88,18 @@ export default function TrackOrderPage() {
 
         if (user) {
             connectSocket(user._id);
+            // Update order status in UI when restaurant/admin changes it
             socket.on('order_status_update', (data) => {
                 if (order && (data.orderId === order._id || data.orderId === order.orderId)) {
                     setOrder(prev => ({ ...prev, orderStatus: data.status }));
                 }
             });
-
-            socket.on('rider_location_updated', (data) => {
-                // Maximum redundancy: check both ID types 
-                const currentId = order?._id || '';
-                const displayId = order?.orderId || '';
-
-                if (data.orderId === currentId || data.orderId === displayId) {
-                    setOrder(prev => ({
-                        ...prev,
-                        liveTracking: {
-                            ...prev.liveTracking,
-                            lastLatitude: data.location.lat,
-                            lastLongitude: data.location.lng,
-                            currentSpeed: data.speed,
-                            bearing: data.heading
-                        }
-                    }));
-                }
-            });
+            // Note: rider_location_updated is now handled inside <TrackingMap> via
+            // its own socket listener — no need to duplicate state here.
         }
 
         return () => {
             socket.off('order_status_update');
-            socket.off('rider_location_updated');
         };
     }, [user, searchParams, order?._id]);
 
@@ -263,7 +194,7 @@ export default function TrackOrderPage() {
     return (
         <div className="bg-[#F8F9FB] min-h-screen">
             {/* Elegant Header */}
-            <div className="bg-slate-950 py-16 px-6 text-center relative overflow-hidden">
+            <div className="bg-slate-950 py-10 px-6 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-orange-500/10 to-transparent opacity-30" />
                 <span className="relative z-10 inline-flex items-center gap-2 bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-[0.3em] px-5 py-2.5 rounded-full mb-6">
                     <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
@@ -349,80 +280,11 @@ export default function TrackOrderPage() {
                             </div>
                         )}
 
-                        {/* 3. High Fidelity Map */}
-                        <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-100 relative h-96 w-full z-0">
-                            <MapContainer
-                                key={order?._id || 'tracking-map'}
-                                center={riderLoc ? [riderLoc.latitude, riderLoc.longitude] : (order?.restaurant?.location ? [order.restaurant.location.latitude, order.restaurant.location.longitude] : [16.2366, 80.6405])}
-                                zoom={15}
-                                className="h-full w-full"
-                                zoomControl={false}
-                            >
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-                                
-                                <MapUpdater 
-                                    center={riderLoc ? [riderLoc.latitude, riderLoc.longitude] : null} 
-                                    allPoints={[
-                                        [order.deliveryAddress.latitude, order.deliveryAddress.longitude],
-                                        order.restaurant?.location ? [order.restaurant.location.latitude, order.restaurant.location.longitude] : null,
-                                        riderLoc ? [riderLoc.latitude, riderLoc.longitude] : null
-                                    ].filter(Boolean)}
-                                    routePoints={routePoints}
-                                />
-                                
-                                {/* Home */}
-                                <Marker position={[order.deliveryAddress.latitude, order.deliveryAddress.longitude]} icon={homeIcon}>
-                                    <Popup>🏠 {isDelivered ? 'Delivered Here' : 'Destination: Tenali Chenchupet'}</Popup>
-                                </Marker>
-
-                                {/* Restaurant */}
-                                {order.restaurant?.location && (
-                                    <Marker position={[order.restaurant.location.latitude, order.restaurant.location.longitude]} icon={restIcon}>
-                                        <Popup>🍳 {order.restaurant.name}</Popup>
-                                    </Marker>
-                                )}
-
-                                {/* Rider */}
-                                {!isDelivered && riderLoc?.latitude && (
-                                    <Marker position={[riderLoc.latitude, riderLoc.longitude]} icon={riderIcon}>
-                                        <Popup>
-                                            <div className="p-1 min-w-[120px]">
-                                                <p className="font-black text-slate-900 border-b border-slate-100 pb-1 mb-1 flex items-center gap-1.5">
-                                                    🛵 {order.rider?.name || 'Santosh'}
-                                                </p>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Vehicle: <span className="text-slate-900">Bike</span></p>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rating: <span className="text-orange-500">★ 4.5</span></p>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Deliveries: <span className="text-slate-900">0</span></p>
-                                                </div>
-                                            </div>
-                                        </Popup>
-                                    </Marker>
-                                )}
-
-                                {/* Route Line (Road Accurate) */}
-                                {(routePoints.length > 0 || (order.restaurant?.location && order.deliveryAddress)) && (
-                                    <Polyline 
-                                        positions={routePoints.length > 0 ? routePoints : [
-                                            [order.restaurant.location?.latitude || 0, order.restaurant.location?.longitude || 0],
-                                            [order.deliveryAddress.latitude, order.deliveryAddress.longitude]
-                                        ]}
-                                        color={isDelivered ? "#10b981" : "#f97316"} 
-                                        weight={isDelivered ? 6 : 5} 
-                                        dashArray={isDelivered ? "0" : "10, 15"} 
-                                        opacity={isDelivered ? 0.9 : 0.4}
-                                        lineCap="round"
-                                        lineJoin="round"
-                                    />
-                                )}
-                            </MapContainer>
-                            <div className="absolute top-6 left-6 z-[1000] bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${isDelivered ? 'bg-emerald-500' : 'bg-orange-500 animate-ping'}`} />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">
-                                    {isDelivered ? 'Verified Journey' : 'Live Journey Tracking'}
-                                </span>
-                            </div>
+                        {/* 3. Live Map — 100% Free (Leaflet + OpenStreetMap) */}
+                        <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-100 relative w-full" style={{ height: '384px' }}>
+                            <LeafletTrackingMap order={order} />
                         </div>
+
 
                         {/* 4. Advanced Status Timeline */}
                         <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
@@ -502,7 +364,9 @@ export default function TrackOrderPage() {
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center border-b border-slate-50 pb-2 mb-2">
                                          <span className="text-xs font-bold text-slate-500">Destination</span>
-                                         <span className="text-[10px] font-black text-slate-950 text-right uppercase tracking-tighter">Tenali Chenchupet, 522201</span>
+                                         <span className="text-[10px] font-black text-slate-950 text-right uppercase tracking-tighter">
+                                             {order.deliveryAddress?.street || 'Customer Address'}
+                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                          <span className="text-xs font-bold text-slate-500">Amount Paid</span>
@@ -531,39 +395,22 @@ export default function TrackOrderPage() {
                                             {order.rider.profilePhoto ? <img src={order.rider.profilePhoto} className="w-full h-full object-cover" /> : '🚴'}
                                         </div>
                                         <div className="flex-1">
-                                            <h4 className="font-black text-white text-lg">{order.rider?.name || 'Santosh'}</h4>
+                                            <h4 className="font-black text-white text-lg">{order.rider?.name || 'Assigned Rider'}</h4>
                                             <div className="flex items-center gap-3">
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Courier Partner</p>
                                                 <div className="flex items-center gap-1 text-orange-500">
-                                                    <span className="text-[10px] font-black">★ 4.5</span>
+                                                    <span className="text-[10px] font-black">★ {order.rider?.rating || '4.5'}</span>
                                                 </div>
                                             </div>
                                         </div>
                                         <button 
-                                            onClick={() => alert(`Calling ${order.rider?.name || 'Santosh'}...`)}
+                                            onClick={() => alert(`Calling ${order.rider?.name || 'Rider'}...`)}
                                             className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                                         >
                                             <Phone size={20} />
                                         </button>
                                     </div>
                                     
-                                    {!isDelivered && (
-                                        <div className="mt-8 p-6 bg-slate-900 rounded-3xl text-white relative overflow-hidden group">
-                                            <div className="relative z-10 flex justify-between items-center">
-                                                <div>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Delivery PIN</p>
-                                                    <p className="text-3xl font-black text-orange-500 tracking-tighter">
-                                                        {order._id?.slice(-4).toUpperCase() || '7429'}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Status</p>
-                                                    <p className="text-xs font-black text-white uppercase tracking-widest">Share with Rider</p>
-                                                </div>
-                                            </div>
-                                            <ShieldCheck className="absolute -bottom-4 -right-4 w-24 h-24 text-white/5 -rotate-12 group-hover:scale-110 transition-transform duration-700" />
-                                        </div>
-                                    )}
                                 </div>
                              ) : (
                                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-center items-center text-center">

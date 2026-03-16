@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
 import Rider from '../models/Rider.js';
+import Settings from '../models/Settings.js';
 
 const router = express.Router();
 
@@ -394,6 +395,53 @@ router.put('/restaurants/:id/settings', authenticateUser, authorizeRole('admin')
       { new: true }
     );
     res.status(200).json({ success: true, data: restaurant });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── GLOBAL PLATFORM SETTINGS ───
+router.get('/settings', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    let settings = await Settings.findOne({ key: 'global_config' });
+    if (!settings) {
+      settings = await Settings.create({ key: 'global_config' });
+    }
+    res.status(200).json({ success: true, data: settings });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/settings', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode } = req.body;
+    
+    const settings = await Settings.findOneAndUpdate(
+      { key: 'global_config' },
+      { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode },
+      { new: true, upsert: true }
+    );
+    
+    res.status(200).json({ success: true, message: 'Settings updated successfully', data: settings });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Also provide a public route for customers to get fees (to see in Checkout)
+// We'll put this in global settings fetch for everyone
+router.get('/settings/public', async (req, res) => {
+  try {
+    const settings = await Settings.findOne({ key: 'global_config' }) || { baseDeliveryFee: 30, perKmCharge: 10 };
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        baseDeliveryFee: settings.baseDeliveryFee,
+        perKmCharge: settings.perKmCharge,
+        minOrderForFreeDelivery: settings.minOrderForFreeDelivery
+      } 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

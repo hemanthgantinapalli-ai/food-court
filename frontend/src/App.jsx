@@ -14,6 +14,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import QuickRoleSwitcher from "./components/QuickRoleSwitcher";
 import CartConflictModal from "./components/CartConflictModal";
 import { useAuthStore } from "./context/authStore";
+// Google Maps removed — now using free Leaflet + OpenStreetMap
 
 // ---------- Customer Pages ----------
 import Home from "./pages/Home";
