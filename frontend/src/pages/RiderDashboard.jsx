@@ -32,6 +32,7 @@ export default function RiderDashboard() {
   const simTarget = React.useRef(null); // 'pickup' or 'dropoff'
   const [roadRoutePoints, setRoadRoutePoints] = React.useState([]);
   const routeFetchRef = React.useRef(null); // To avoid redundant fetches
+  const simDistanceRef = React.useRef(0); // Store route distance for speed calculation
 
   const [supportTickets, setSupportTickets] = React.useState([]);
   const [showSupportForm, setShowSupportForm] = React.useState(false);
@@ -143,9 +144,15 @@ export default function RiderDashboard() {
     const activeTrackingOrder = assignedOrders.find(o => ['ready', 'picked_up', 'on_the_way', 'confirmed', 'preparing'].includes(o.orderStatus));
 
     if (isOnline && user?.role === 'rider') {
-      // 1. Database Sync (Every 30s) - Updates persistent location in DB
+      // 1. Database Sync (Persistent location update)
+      // Faster sync during active simulation/journey (5s) vs idle (30s)
+      const syncInterval = isSimulating ? 5000 : 30000;
       dbInterval = setInterval(() => {
-        if (!isSimulating && 'geolocation' in navigator) {
+        if (isSimulating && riderPosRef.current) {
+          // Sync simulated position to DB so user refresh doesn't jump rider back
+          const { lat, lng } = riderPosRef.current;
+          API.post('/riders/update-location', { latitude: lat, longitude: lng }).catch(() => {});
+        } else if (!isSimulating && 'geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
             try {
@@ -153,9 +160,9 @@ export default function RiderDashboard() {
             } catch (err) { console.error('DB Location Sync Fail:', err); }
           }, () => {}, { enableHighAccuracy: false });
         }
-      }, 30000);
+      }, syncInterval);
 
-      // 2. Real-time Socket Broadcast (Every 800ms for high-frequency real-time feel)
+      // 2. Real-time Socket Broadcast (Ultra-high frequency for smooth map movement)
       if (activeTrackingOrder) {
         socket.emit('join_order', activeTrackingOrder._id);
 
@@ -167,35 +174,57 @@ export default function RiderDashboard() {
             const restLoc = activeTrackingOrder.restaurant?.location || activeTrackingOrder.restaurantAddress || {};
             const custLoc = activeTrackingOrder.deliveryAddress || {};
 
-            let restLat = Number(restLoc.latitude || restLoc.lat);
-            let restLng = Number(restLoc.longitude || restLoc.lng);
-            let custLat = Number(custLoc.latitude || custLoc.lat);
-            let custLng = Number(custLoc.longitude || custLoc.lng);
+            let restLat = Number(restLoc.latitude || restLoc.lat || 16.2435);
+            let restLng = Number(restLoc.longitude || restLoc.lng || 80.6480);
+            let custLat = Number(custLoc.latitude || custLoc.lat || 16.2340);
+            let custLng = Number(custLoc.longitude || custLoc.lng || 80.6550);
             
-            // Tenure Specific fallbacks if needed
-            if (!restLat || isNaN(restLat)) { restLat = 16.2425; restLng = 80.6450; }
-            if (!custLat || isNaN(custLat)) { custLat = 16.2378; custLng = 80.6434; }
+            // ─── Precision Tenali Hubs (Matched to User Text) ───
+            const HUB_RIDER = { lat: 16.2510, lng: 80.6390 }; // Sultanabad (North)
+            const HUB_REST  = { lat: 16.2435, lng: 80.6480 }; // Ramalingeswara Pet (Center)
+            const HUB_CUST  = { lat: 16.2340, lng: 80.6550 }; // Chinaravuru (South-East)
 
-            // 🛡️ DEFENSE: If mock data has Restaurant and Customer at same spot, 
-            // artificially separate them so they don't overlap on the map.
+            // 🛡️ Ensure points are not identical for pathfinding
             if (Math.abs(restLat - custLat) < 0.0001 && Math.abs(restLng - custLng) < 0.0001) {
-                custLat += 0.032; // Shift destination ~3.5km away
-                custLng += 0.032;
+                custLat = HUB_CUST.lat; 
+                custLng = HUB_CUST.lng;
             }
 
-            const isGoingToCustomer = activeTrackingOrder.orderStatus === 'picked_up' || activeTrackingOrder.orderStatus === 'on_the_way';
-            const currentTarget = isGoingToCustomer ? 'dropoff' : 'pickup';
+            const isMovingToCustomer = activeTrackingOrder.orderStatus === 'on_the_way';
+            const isAtRestaurant     = activeTrackingOrder.orderStatus === 'picked_up';
+            const isMovingToPickup   = !isMovingToCustomer && !isAtRestaurant;
+            
+            const currentTarget = (isMovingToCustomer || isAtRestaurant) ? 'dropoff' : 'pickup';
 
-            // Explicitly set start point if we don't have one, ensuring it's not the same as the target
-            let start = riderPosRef.current || (isGoingToCustomer ? { lat: restLat, lng: restLng } : { lat: restLat + 0.02, lng: restLng + 0.02 }); 
-            let end = isGoingToCustomer ? { lat: custLat, lng: custLng } : { lat: restLat, lng: restLng };
+            // Start/End points based on phase
+            let start = riderPosRef.current || (isMovingToCustomer ? HUB_REST : HUB_RIDER); 
+            let end = isMovingToCustomer ? { lat: custLat, lng: custLng } : { lat: restLat, lng: restLng };
 
-            // Reset simulation if target changed
-            if (activeTrackingOrder.lastSimulationTarget !== currentTarget || activeTrackingOrder.lastSimulationOrderId !== activeTrackingOrder._id) {
-                activeTrackingOrder.lastSimulationTarget = currentTarget;
-                activeTrackingOrder.lastSimulationOrderId = activeTrackingOrder._id;
+            // 📍 If at restaurant, snap to Hub and skip simulation steps
+            if (isAtRestaurant) {
+                const atRest = { lat: restLat, lng: restLng, heading: 0 };
+                riderPosRef.current = atRest;
+                setRiderSelfLocation(atRest);
+                broadcastRiderLocation(activeTrackingOrder._id, user._id, atRest, 0, 0); 
+                return; 
+            }
+
+            // Reset simulation if target changed, status shifted, or new order started
+            const simulationKey = `${activeTrackingOrder._id}-${currentTarget}-${activeTrackingOrder.orderStatus}`;
+            if (activeTrackingOrder.lastSimulationKey !== simulationKey) {
+                activeTrackingOrder.lastSimulationKey = simulationKey;
                 simulationProgress.current = 0;
                 setRoadRoutePoints([]);
+                
+                // 🧭 SNAP RIDER TO HUB: 
+                if (currentTarget === 'pickup') {
+                    riderPosRef.current = HUB_RIDER;
+                    setRiderSelfLocation(HUB_RIDER);
+                } else if (isAtRestaurant || isMovingToCustomer) {
+                    // Always snap to restaurant hub when transitioning to delivery phase
+                    riderPosRef.current = HUB_REST;
+                    setRiderSelfLocation(HUB_REST);
+                }
             }
 
             if (routeFetchRef.current !== `${currentTarget}-${end.lat}-${end.lng}`) {
@@ -206,6 +235,7 @@ export default function RiderDashboard() {
                        const data = await res.json();
                        if (data.routes?.[0]?.geometry?.coordinates) {
                            setRoadRoutePoints(data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]));
+                           simDistanceRef.current = data.routes[0].distance || 2000;
                            simulationProgress.current = 0;
                        }
                    } catch (e) { console.error("Sim Route Error", e); }
@@ -217,21 +247,27 @@ export default function RiderDashboard() {
             let currentLat, currentLng;
             if (roadRoutePoints.length > 0) {
                const totalPoints = roadRoutePoints.length;
-               const stepSize = 0.001; // Adjusted for 1s interval (0.1% per tick)
-               simulationProgress.current = Math.min(1, simulationProgress.current + stepSize);
-               const pointIndex = Math.min(totalPoints - 1, Math.floor(simulationProgress.current * (totalPoints - 1)));
-               currentLat = roadRoutePoints[pointIndex][0];
-               currentLng = roadRoutePoints[pointIndex][1];
+               
+               // 🐢 Adjusted to Professional Slow Speed: 20km/h = ~5.5m/s. 
+               // Tick is 150ms -> move ~0.8m per tick for ultra-smooth professional feel.
+               const metersPerTick = (20 / 3.6) * 0.15; 
+               const stepSize = metersPerTick / (simDistanceRef.current || 2000);
+               
+                simulationProgress.current = Math.max(0, Math.min(1, simulationProgress.current + stepSize));
+                const pointIndex = Math.min(totalPoints - 1, Math.floor(simulationProgress.current * (totalPoints - 1)));
+                currentLat = roadRoutePoints[pointIndex][0];
+                currentLng = roadRoutePoints[pointIndex][1];
             } else {
-               simulationProgress.current = Math.min(1, simulationProgress.current + 0.002); // Adjusted for 1s interval
-               currentLat = start.lat + (end.lat - start.lat) * simulationProgress.current;
-               currentLng = start.lng + (end.lng - start.lng) * simulationProgress.current;
+                // Slower fallback while route is fetching
+                simulationProgress.current = Math.min(1, simulationProgress.current + 0.001);
+                currentLat = start.lat + (end.lat - start.lat) * simulationProgress.current;
+                currentLng = start.lng + (end.lng - start.lng) * simulationProgress.current;
             }
 
             const heading = (roadRoutePoints.length > 0)
                 ? (() => {
-                    const nextIdx = Math.min(roadRoutePoints.length - 1, Math.floor((simulationProgress.current + 0.01) * (roadRoutePoints.length - 1)));
-                    return Math.atan2(roadRoutePoints[nextIdx][1] - currentLng, roadRoutePoints[nextIdx][0] - currentLat) * 180 / Math.PI;
+                    const lookAhead = Math.min(roadRoutePoints.length - 1, Math.floor((simulationProgress.current + 0.02) * (roadRoutePoints.length - 1)));
+                    return Math.atan2(roadRoutePoints[lookAhead][1] - currentLng, roadRoutePoints[lookAhead][0] - currentLat) * 180 / Math.PI;
                 })()
                 : Math.atan2(end.lng - currentLng, end.lat - currentLat) * 180 / Math.PI;
             
@@ -241,34 +277,46 @@ export default function RiderDashboard() {
             setRiderSelfLocation(newLoc);
 
             const distToDest = Math.sqrt(Math.pow(end.lat - currentLat, 2) + Math.pow(end.lng - currentLng, 2));
-            if (distToDest < 0.0002 && simulationProgress.current > 0.95) {
+            if (distToDest < 0.0002 && simulationProgress.current > 0.98) {
                 if (routeFetchRef.current && !routeFetchRef.current.includes('ARRIVED')) {
-                    showToast(`📍 Reached ${currentTarget === 'pickup' ? 'Restaurant' : 'Customer Location'}!`);
+                    showToast(`📍 Arrived at ${currentTarget === 'pickup' ? 'Ganganamma Peta' : 'Ramalingeswara Pet'}!`);
                     routeFetchRef.current += "-ARRIVED";
                 }
             }
 
-            broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: currentLat, lng: currentLng }, normalizedHeading, 25);
+            // High-frequency broadcast for ultra-smooth tracking on customer side
+            broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: currentLat, lng: currentLng }, normalizedHeading, 35);
 
             if (simulationProgress.current >= 1) {
-                // Done with this leg of simulation
                 setIsSimulating(false); 
                 simulationProgress.current = 0;
                 setRoadRoutePoints([]);
-                const locationName = currentTarget === 'pickup' ? 'the Restaurant' : 'the Customer';
-                showToast(`🚀 Arrived at ${locationName}!`);
+                showToast(`🚀 Logistics Complete: Handled with care.`);
             }
           }
-        }, 1000); // 1s interval for smoother local animation while maintaining server broadcast frequency
+        }, 150); // Increased frequency (150ms) for smoother road-following
 
         if (!isSimulating && 'geolocation' in navigator) {
           // ----- REAL GPS MODE: Use watchPosition for continuous tracking -----
           const watchId = navigator.geolocation.watchPosition((position) => {
             if (!activeTrackingOrder) return;
             const { latitude, longitude, heading, speed } = position.coords;
-            broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: latitude, lng: longitude }, heading || 0, speed || 0);
-            riderPosRef.current = { lat: latitude, lng: longitude };
-            setRiderSelfLocation({ lat: latitude, lng: longitude });
+            
+            // 📍 ENHANCED SNAPPING: If rider has picked up the order but not started journey, 
+            // keep them pinned to restaurant on the map (Matched to User Panel high-fidelity behavior)
+            if (activeTrackingOrder.orderStatus === 'picked_up') {
+                const restLoc = activeTrackingOrder.restaurant?.location || activeTrackingOrder.restaurantAddress || {};
+                const rLat = Number(restLoc.latitude || restLoc.lat || 16.2435);
+                const rLng = Number(restLoc.longitude || restLoc.lng || 80.6480);
+                
+                broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: rLat, lng: rLng }, 0, 0);
+                riderPosRef.current = { lat: rLat, lng: rLng };
+                setRiderSelfLocation({ lat: rLat, lng: rLng });
+            } else {
+                broadcastRiderLocation(activeTrackingOrder._id, user._id, { lat: latitude, lng: longitude }, heading || 0, speed || 0);
+                riderPosRef.current = { lat: latitude, lng: longitude };
+                setRiderSelfLocation({ lat: latitude, lng: longitude });
+            }
           }, (err) => console.error('GPS Error:', err.message), { 
             enableHighAccuracy: true, 
             timeout: 5000, 
@@ -301,8 +349,8 @@ export default function RiderDashboard() {
             riderPosRef.current = location;
             notifyRiderOnline(user._id, location);
           }, () => {
-            // Fallback for demo: Tenali Central Hub
-            const fallbackHub = { lat: 16.2415, lng: 80.6480 };
+            // Fallback for demo: Sultanabad (North Tenali)
+            const fallbackHub = { lat: 16.2510, lng: 80.6390 };
             setRiderSelfLocation(fallbackHub);
             riderPosRef.current = fallbackHub;
             notifyRiderOnline(user._id, fallbackHub);
@@ -387,6 +435,27 @@ export default function RiderDashboard() {
     try {
 
       await useOrderStore.getState().updateStatus(orderId, newStatus);
+      
+      // 🚀 Sync Simulation and snap location with Status
+      if (newStatus === 'on_the_way') {
+          setIsSimulating(true);
+      } else if (newStatus === 'picked_up') {
+          setIsSimulating(false);
+          // 📍 Force snap to restaurant when picking up
+          const order = assignedOrders.find(o => o._id === orderId);
+          if (order) {
+            const restLoc = order.restaurant?.location || order.restaurantAddress || {};
+            const rLat = Number(restLoc.latitude || restLoc.lat || 16.2435);
+            const rLng = Number(restLoc.longitude || restLoc.lng || 80.6480);
+            
+            broadcastRiderLocation(orderId, user._id, { lat: rLat, lng: rLng }, 0, 0);
+            riderPosRef.current = { lat: rLat, lng: rLng };
+            setRiderSelfLocation({ lat: rLat, lng: rLng });
+          }
+      } else if (newStatus === 'delivered') {
+          setIsSimulating(false);
+      }
+
       showToast(newStatus === 'delivered' ? '🎉 Order delivered! Your payment has been added to wallet.' : '✅ Status updated!');
       fetchData();
       fetchNotifications();
@@ -773,25 +842,15 @@ export default function RiderDashboard() {
                       const restLoc = order.restaurant?.location || order.restaurantAddress || {};
                       const custLoc = order.deliveryAddress || {};
 
-                      let restLat = Number(restLoc.latitude || restLoc.lat);
-                      let restLng = Number(restLoc.longitude || restLoc.lng);
-                      let custLat = Number(custLoc.latitude || custLoc.lat);
-                      let custLng = Number(custLoc.longitude || custLoc.lng);
+                      let restLat = Number(restLoc.latitude || restLoc.lat || 16.2435);
+                      let restLng = Number(restLoc.longitude || restLoc.lng || 80.6480);
+                      let custLat = Number(custLoc.latitude || custLoc.lat || 16.2340);
+                      let custLng = Number(custLoc.longitude || custLoc.lng || 80.6550);
 
-                      if (isNaN(restLat) || isNaN(restLng) || restLat === 0) {
-                          restLat = 16.2366;
-                          restLng = 80.6405;
-                      }
-
-                      if (isNaN(custLat) || isNaN(custLng) || custLat === 0) {
-                          custLat = 16.2500;
-                          custLng = 80.6500;
-                      }
-
-                      // Defend against identical fake DB coordinates so map pins don't perfectly overlap
+                      // Defend against identical fake DB coordinates
                       if (Math.abs(restLat - custLat) < 0.0001 && Math.abs(restLng - custLng) < 0.0001) {
-                          custLat += 0.02;
-                          custLng += 0.02;
+                          custLat = 16.2340; // Chinaravuru
+                          custLng = 80.6550;
                       }
 
                       const hasRestaurantCoords = true;

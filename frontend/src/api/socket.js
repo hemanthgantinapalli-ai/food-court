@@ -58,7 +58,14 @@ export const joinOrderRoom = (orderId) => {
 // Rider broadcasts their live GPS position to customer + admin
 export const broadcastRiderLocation = (orderId, riderId, location, heading, speed) => {
     if (socket.connected) {
-        socket.emit('update_location', { orderId, riderId, location, heading, speed });
+        socket.emit('riderLocation', { 
+            orderId, 
+            riderId, 
+            lat: location.lat, 
+            lng: location.lng, 
+            heading, 
+            speed 
+        });
     }
 };
 

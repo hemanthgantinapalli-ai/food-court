@@ -18,15 +18,15 @@ router.get('/stats', authenticateUser, authorizeRole('admin'), async (req, res) 
         $match: { 
           paymentStatus: { $in: ['completed', 'pending'] },
           orderStatus: { $ne: 'cancelled' }
-        } 
+        }
       },
-      { 
-        $group: { 
-          _id: null, 
+      {
+        $group: {
+          _id: null,
           revenue: { $sum: '$total' },
           restaurantCommission: { $sum: '$platformFee' },
           logisticsCommission: { $sum: '$platformCommission' }
-        } 
+        }
       },
     ]);
 
@@ -415,31 +415,35 @@ router.get('/settings', authenticateUser, authorizeRole('admin'), async (req, re
 
 router.put('/settings', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode } = req.body;
-    
+    const { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode, taxRate } = req.body;
+
     const settings = await Settings.findOneAndUpdate(
       { key: 'global_config' },
-      { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode },
+      { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode, taxRate },
       { new: true, upsert: true }
     );
-    
+
     res.status(200).json({ success: true, message: 'Settings updated successfully', data: settings });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Also provide a public route for customers to get fees (to see in Checkout)
-// We'll put this in global settings fetch for everyone
 router.get('/settings/public', async (req, res) => {
   try {
-    const settings = await Settings.findOne({ key: 'global_config' }) || { baseDeliveryFee: 30, perKmCharge: 10 };
+    const settings = await Settings.findOne({ key: 'global_config' }) || { 
+      baseDeliveryFee: 30, 
+      perKmCharge: 10,
+      minOrderForFreeDelivery: 500,
+      taxRate: 5
+    };
     res.status(200).json({ 
       success: true, 
       data: {
         baseDeliveryFee: settings.baseDeliveryFee,
         perKmCharge: settings.perKmCharge,
-        minOrderForFreeDelivery: settings.minOrderForFreeDelivery
+        minOrderForFreeDelivery: settings.minOrderForFreeDelivery,
+        taxRate: settings.taxRate || 5
       } 
     });
   } catch (error) {

@@ -101,13 +101,16 @@ export default function Header() {
 
         {/* Logo */}
         <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
-              <span className="text-white font-black text-sm">FC</span>
+          <Link to="/" className="flex items-center gap-3 shrink-0 group">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-200 group-hover:rotate-12 transition-transform duration-500">
+              <span className="text-white font-black text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>FC</span>
             </div>
-            <span className={`text-xl font-black tracking-tight ${isScrolled || !isHomePage ? 'text-slate-900' : 'text-white'}`}>
-              Food<span className="text-orange-500">Court</span>
-            </span>
+            <div className="flex flex-col">
+              <span className={`text-2xl font-black tracking-tighter leading-none ${isScrolled || !isHomePage ? 'text-slate-900' : 'text-white'}`} style={{ fontFamily: 'Outfit, sans-serif' }}>
+                Food<span className="text-orange-500"> Court</span>
+              </span>
+              <span className="text-[7px] font-black uppercase tracking-[0.4em] opacity-40 -mt-0.5">Premium Fleet</span>
+            </div>
           </Link>
 
           {/* Location Picker */}

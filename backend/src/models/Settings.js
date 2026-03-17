@@ -26,6 +26,10 @@ const settingsSchema = new mongoose.Schema({
   isMaintenanceMode: {
     type: Boolean,
     default: false
+  },
+  taxRate: {
+    type: Number,
+    default: 5
   }
 }, { timestamps: true });
 

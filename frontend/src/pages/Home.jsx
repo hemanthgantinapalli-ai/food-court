@@ -438,7 +438,7 @@ const Home = () => {
       <div className="bg-slate-950 py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <span className="text-orange-500 text-xs font-black uppercase tracking-widest">Why FoodCourt?</span>
+            <span className="text-orange-500 text-xs font-black uppercase tracking-widest">Why Food Court?</span>
             <h2 className="text-4xl font-black text-white tracking-tight mt-3">
               The <span className="text-orange-500">Premium</span> Food Experience
             </h2>
@@ -487,7 +487,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
           <div className="text-white max-w-xl">
             <h2 className="text-4xl font-black tracking-tight mb-4">
-              Get the FoodCourt App 📱
+              Get the Food Court App 📱
             </h2>
             <p className="text-orange-100 font-medium text-lg leading-relaxed mb-8">
               Order faster, track in real-time, and unlock exclusive deals.

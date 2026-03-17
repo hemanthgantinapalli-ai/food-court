@@ -143,6 +143,9 @@ export default function RestaurantSignUp() {
                     city: form.city,
                     state: form.state,
                     zipCode: form.zipCode,
+                    // Auto-assign coordinates near Tenali for demo purposes
+                    latitude: 16.235 + (Math.random() * 0.01),
+                    longitude: 80.645 + (Math.random() * 0.01),
                 },
             });
 

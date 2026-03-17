@@ -70,8 +70,8 @@ export default function AdminBI() {
                             <TrendingUp size={20} />
                         </div>
                     </div>
-                    <div className="h-72 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-72 w-full min-h-[300px]">
+                        <ResponsiveContainer width="99%" height="100%">
                             <AreaChart data={revenueTrendData}>
                                 <defs>
                                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -114,8 +114,8 @@ export default function AdminBI() {
                             <Clock size={20} />
                         </div>
                     </div>
-                    <div className="h-72 w-full relative z-10">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-72 w-full relative z-10 min-h-[300px]">
+                        <ResponsiveContainer width="99%" height="100%">
                             <BarChart data={peakHourData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
                                 <XAxis
@@ -217,8 +217,8 @@ export default function AdminBI() {
                             ))}
                         </div>
                     </div>
-                    <div className="md:w-2/3 h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="md:w-2/3 h-64 w-full min-h-[250px]">
+                        <ResponsiveContainer width="99%" height="100%">
                             <BarChart data={paymentData} layout="vertical">
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontWeight: 900, fontSize: 10 }} />

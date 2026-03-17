@@ -481,12 +481,22 @@ export default function CheckoutPage() {
                           <MapPin size={24} className={gpsCoords ? 'text-emerald-600' : 'text-orange-600'} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-black text-slate-900 truncate">
-                            {gpsCoords
-                              ? `📍 GPS: ${gpsCoords.latitude.toFixed(4)}, ${gpsCoords.longitude.toFixed(4)}`
-                              : 'Enable Live Tracking'}
+                          <div className="flex items-center gap-2">
+                             <p className="text-sm font-black text-slate-900 truncate">
+                               {gpsCoords
+                                 ? `📍 GPS: ${gpsCoords.latitude.toFixed(6)}, ${gpsCoords.longitude.toFixed(6)}`
+                                 : 'Enable Live Tracking'}
+                             </p>
+                             {gpsCoords && (
+                               <span className="flex items-center gap-1.5 bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-full border border-emerald-200 animate-pulse">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                 LIVE GPS ACTIVE
+                               </span>
+                             )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                            {gpsCoords ? 'Coordinates verified for road-accurate tracking' : 'Auto-fill & road-accurate delivery fee'}
                           </p>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Auto-fill & road-accurate fee</p>
                         </div>
                         <button
                           type="button"
@@ -584,7 +594,15 @@ export default function CheckoutPage() {
                     <p className="text-xs font-black text-slate-500 uppercase tracking-wider mb-1">Delivering to</p>
                     <p className="text-sm font-bold text-slate-900">{address.name} · {address.phone}</p>
                     <p className="text-sm text-slate-500 font-medium">{address.street}, {address.area}, {address.city} – {address.pincode}</p>
-                    {address.landmark && <p className="text-xs text-slate-400 font-medium mt-0.5">Near: {address.landmark}</p>}
+                    <div className="flex items-center gap-4 mt-1.5 flex-wrap">
+                      {address.landmark && <p className="text-xs text-slate-400 font-medium">Near: {address.landmark}</p>}
+                      {gpsCoords && (
+                        <p className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
+                          <Navigation size={10} /> 
+                          LIVE-TRACKING ENABLED
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 

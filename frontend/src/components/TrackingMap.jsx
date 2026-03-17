@@ -168,10 +168,10 @@ export default function TrackingMap({ order, isGoogleReady }) {
     useEffect(() => {
         let initPos = null;
 
-        if (order?.liveTracking?.lastLatitude) {
+        if (order?.riderLocation?.lat) {
             initPos = {
-                lat: order.liveTracking.lastLatitude,
-                lng: order.liveTracking.lastLongitude,
+                lat: order.riderLocation.lat,
+                lng: order.riderLocation.lng,
             };
         } else if (order?.rider?.currentLocation?.latitude) {
             initPos = {
@@ -185,18 +185,18 @@ export default function TrackingMap({ order, isGoogleReady }) {
             targetRef.current  = initPos;
             setDisplayPos(initPos);
         }
-    }, [order?.rider, order?.liveTracking]);
+    }, [order?.rider, order?.riderLocation]);
 
     // ─── Socket: subscribe to live location updates ───────────────────────────
 
     useEffect(() => {
         if (!order?._id) return;
 
-        const handleLocation = ({ orderId, location, heading, speed }) => {
+        const handleLocation = ({ orderId, lat, lng, heading, speed }) => {
             if (orderId !== order._id) return;
-            if (!location?.lat || !location?.lng) return;
+            if (!lat || !lng) return;
 
-            const newTarget = { lat: location.lat, lng: location.lng };
+            const newTarget = { lat, lng };
             targetRef.current = newTarget;
             setRiderHeading(heading ?? 0);
 
@@ -217,16 +217,22 @@ export default function TrackingMap({ order, isGoogleReady }) {
             }, ETA_DEBOUNCE);
         };
 
-        socket.on('rider_location_updated', handleLocation);
+        socket.on('updateRiderLocation', handleLocation);
         socket.on('rider_position_update',  (data) => {
             // Fallback: admin-style event referencing riderId
             if (data.riderId === order.rider?._id?.toString()) {
-                handleLocation({ orderId: order._id, ...data });
+                handleLocation({ 
+                    orderId: order._id, 
+                    lat: data.location.lat, 
+                    lng: data.location.lng, 
+                    heading: data.heading, 
+                    speed: data.speed 
+                });
             }
         });
 
         return () => {
-            socket.off('rider_location_updated', handleLocation);
+            socket.off('updateRiderLocation', handleLocation);
             socket.off('rider_position_update');
             if (animRef.current) cancelAnimationFrame(animRef.current);
             if (etaTimerRef.current) clearTimeout(etaTimerRef.current);

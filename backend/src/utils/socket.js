@@ -61,116 +61,129 @@ export const initSocket = (server) => {
             console.log(`📦 Socket ${socket.id} joined order room: order_${orderId}`);
         });
 
-        // ─── LIVE LOCATION UPDATE (Rider → Server → Customer + Admin) ──────────
-        socket.on('update_location', async (data) => {
-            if (!data) {
-                console.error('❌ Null/undefined payload in update_location');
+        // ─── LIVE RIDER LOCATION UPDATE (Rider → Server → Customer + Admin) ──────────
+        socket.on('riderLocation', async (data) => {
+            if (!data) return;
+
+            const { orderId, lat, lng, heading, speed } = data;
+
+            // 🔐 SECURITY: ONLY riders can update their location
+            if (!socket.isAuthenticated || socket.userRole !== 'rider') {
+                console.warn(`🚫 Unauthorized location update attempt from socket ${socket.id}`);
                 return;
             }
 
-            const { orderId, location, riderId, heading, speed } = data;
+            try {
+                // 1. Persist rider's last-known location and online status to DB (Rider Profile)
+                const riderLat = Number(lat);
+                const riderLng = Number(lng);
+                
+                await Rider.findOneAndUpdate(
+                    { user: socket.userId },
+                    {
+                        currentLocation: { latitude: riderLat, longitude: riderLng },
+                        isOnline: true, // Sync status as online
+                        lastLocationUpdate: new Date(),
+                    },
+                    { upsert: true } // Create profile if missing
+                );
 
-            // 🔐 SECURITY: If the socket is authenticated as a rider, verify they
-            // are the rider assigned to this specific order before broadcasting.
-            if (socket.isAuthenticated && socket.userRole === 'rider' && orderId) {
-                try {
-                    const order = await Order.findOne({
-                        _id: orderId,
-                        rider: socket.userId,
-                    }).lean();
+                onlineRiderLocations.set(socket.userId.toString(), {
+                    latitude:  riderLat,
+                    longitude: riderLng,
+                    heading:   Number(heading) || 0,
+                    speed:     Number(speed)   || 0,
+                    updatedAt: new Date(),
+                });
 
-                    if (!order) {
-                        socket.emit('tracking_error', {
-                            message: 'Unauthorized: You are not the rider for this order.',
-                            orderId,
-                        });
-                        console.warn(`🚫 Rider ${socket.userId} rejected — not assigned to order ${orderId}`);
-                        return;
-                    }
-                } catch (err) {
-                    console.error('Order ownership check failed:', err);
-                    return;
-                }
-            }
-
-            // 1. Persist rider's last-known location to DB + in-memory fleet map
-            if (riderId && location?.lat !== undefined && location?.lng !== undefined) {
-                try {
-                    await Rider.findOneAndUpdate(
-                        { user: riderId },
-                        {
-                            currentLocation: { latitude: location.lat, longitude: location.lng },
-                            lastLocationUpdate: new Date(),
-                        }
-                    );
-
-                    onlineRiderLocations.set(riderId.toString(), {
-                        latitude:  location.lat,
-                        longitude: location.lng,
-                        heading:   heading ?? 0,
-                        speed:     speed   ?? 0,
-                        updatedAt: new Date(),
-                    });
-
-                    // Broadcast to ALL admins for the bird's-eye fleet map
-                    io.to('admins').emit('rider_position_update', {
-                        riderId,
-                        location,
-                        heading: heading ?? 0,
-                        speed:   speed   ?? 0,
-                    });
-                } catch (err) {
-                    console.error('Error persisting rider location:', err.message);
-                }
+                // Broadcast to ALL admins for the bird's-eye fleet map
+                io.to('admins').emit('rider_position_update', {
+                    riderId: socket.userId,
+                    location: { lat: riderLat, lng: riderLng },
+                    heading: Number(heading) || 0,
+                    speed:   Number(speed)   || 0,
+                });
+            } catch (err) {
+                console.error('Error persisting rider location profile:', err.message);
             }
 
             // 2. Broadcast to the specific order room (only the customer sees this)
-            if (orderId && location) {
+            if (orderId) {
                 try {
                     await Order.findByIdAndUpdate(orderId, {
-                        'liveTracking.lastLatitude':  location.lat,
-                        'liveTracking.lastLongitude': location.lng,
-                        'liveTracking.currentSpeed':  speed   ?? 0,
-                        'liveTracking.bearing':       heading ?? 0,
+                        riderLocation: { 
+                            lat, 
+                            lng, 
+                            bearing: heading ?? 0, 
+                            speed: speed ?? 0,
+                            lastUpdated: new Date()
+                        }
+                    });
+
+                    io.to(`order_${orderId}`).emit('updateRiderLocation', {
+                        orderId,
+                        lat,
+                        lng,
+                        heading,
+                        speed,
+                        timestamp: new Date(),
                     });
                 } catch (err) {
-                    console.error('Error persisting order liveTracking:', err.message);
+                    console.error('Error persisting order riderLocation:', err.message);
                 }
-
-                io.to(`order_${orderId}`).emit('rider_location_updated', {
-                    orderId,
-                    location,
-                    heading,
-                    speed,
-                    timestamp: new Date(),
-                });
             }
         });
         // ────────────────────────────────────────────────────────────────────────
 
         // Rider announces they went online (sends initial GPS so admin map lights up)
-        socket.on('rider_online', (data) => {
+        socket.on('rider_online', async (data) => {
             if (!data) return;
             const { riderId, location } = data;
             if (riderId && location?.lat !== undefined && location?.lng !== undefined) {
-                onlineRiderLocations.set(riderId.toString(), {
-                    latitude:  location.lat,
-                    longitude: location.lng,
-                    heading:   0,
-                    speed:     0,
-                    updatedAt: new Date(),
-                });
-                io.to('admins').emit('rider_came_online', { riderId, location });
-                console.log(`🛵 Rider ${riderId} came online.`);
+                const latNum = Number(location.lat);
+                const lngNum = Number(location.lng);
+
+                // 🔄 Sync Online Status and Location to Database
+                try {
+                    await Rider.findOneAndUpdate(
+                        { user: riderId },
+                        { 
+                            isOnline: true, 
+                            currentLocation: { latitude: latNum, longitude: lngNum },
+                            lastLocationUpdate: new Date()
+                        },
+                        { upsert: true }
+                    );
+                    
+                    onlineRiderLocations.set(riderId.toString(), {
+                        latitude:  latNum,
+                        longitude: lngNum,
+                        heading:   0,
+                        speed:     0,
+                        updatedAt: new Date(),
+                    });
+                    
+                    io.to('admins').emit('rider_came_online', { riderId, location: { lat: latNum, lng: lngNum } });
+                    console.log(`🛵 Rider ${riderId} status synced: ONLINE`);
+                } catch (err) {
+                    console.error('Failed to sync rider online status:', err.message);
+                }
             }
         });
 
         // Rider goes offline — remove from fleet map
-        socket.on('rider_offline', (riderId) => {
+        socket.on('rider_offline', async (riderId) => {
             if (riderId) {
-                onlineRiderLocations.delete(riderId.toString());
-                io.to('admins').emit('rider_went_offline', { riderId });
-                console.log(`👋 Rider ${riderId} went offline.`);
+                try {
+                    // 🔄 Sync Offline Status to Database
+                    await Rider.findOneAndUpdate({ user: riderId }, { isOnline: false });
+                    
+                    onlineRiderLocations.delete(riderId.toString());
+                    io.to('admins').emit('rider_went_offline', { riderId });
+                    console.log(`👋 Rider ${riderId} status synced: OFFLINE`);
+                } catch (err) {
+                    console.error('Failed to sync rider offline status:', err.message);
+                }
             }
         });
 

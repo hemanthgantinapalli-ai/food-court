@@ -5,6 +5,7 @@ import Restaurant from '../models/Restaurant.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import Transaction from '../models/Transaction.js';
+import Settings from '../models/Settings.js';
 import { getIO } from '../utils/socket.js';
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -165,13 +166,25 @@ export const createOrder = async (req, res) => {
     }
 
     // --- Prepare Full Order Payload ---
-    const commissionRate = (targetRestaurant.commissionPercentage || 10) / 100;
+    // Fetch platform settings for dynamic calculation
+    const globalSettings = await Settings.findOne({ key: 'global_config' }) || { 
+      baseDeliveryFee: 30, 
+      perKmCharge: 10,
+      platformCommission: 20,
+      taxRate: 5
+    };
+
+    // Calculate commission rate: Use restaurant specific if available, otherwise global platform setting
+    const commissionRate = (targetRestaurant.commissionPercentage || globalSettings.platformCommission || 20) / 100;
+
     const finalOrderTotal = Number(orderPayload.total) || 0;
     // Logistics & Earnings Split (Swiggy/Zomato Professional Style)
     const dist = Number(orderPayload.distance) || 0;
     
-    // Formula per requirement: ₹30 base (up to 3km) + ₹10 per km extra
-    const calculatedDeliveryFee = dist <= 3 ? 30 : Math.round(30 + (dist - 3) * 10);
+    // Use settings for calculation
+    const baseFee = globalSettings.baseDeliveryFee || 30;
+    const kmCharge = globalSettings.perKmCharge || 10;
+    const calculatedDeliveryFee = dist <= 3 ? baseFee : Math.round(baseFee + (dist - 3) * kmCharge);
     
     // Final fee used is what came from frontend, but we use our calculation for internal sanity or if missing
     const finalDeliveryFee = Number(orderPayload.deliveryFee) || calculatedDeliveryFee;
@@ -197,6 +210,18 @@ export const createOrder = async (req, res) => {
       platformFee: platformFeeFromFood, 
       riderEarnings: riderEarnings,
       platformCommission: platformCommissionFromDelivery,
+      // ✨ Fix: Explicitly save coordinates into the order document for route calculation
+      userLocation: {
+        lat: Number(orderPayload.deliveryAddress?.latitude) || 0,
+        lng: Number(orderPayload.deliveryAddress?.longitude) || 0,
+        address: orderPayload.deliveryAddress?.street || 'Customer Location'
+      },
+      restaurantLocation: {
+        lat: Number(targetRestaurant.location?.latitude) || 0,
+        lng: Number(targetRestaurant.location?.longitude) || 0,
+        address: targetRestaurant.location?.address || 'Restaurant Location'
+      },
+      distance: dist || 0 // Sync the calculated distance into the record
     };
 
     console.log(`✨ [Create Order API] Creating order in database...`);
@@ -744,6 +769,21 @@ export const assignRiderToOrder = async (req, res) => {
     }
 
     // Populate details for notification
+    const RiderModel = mongoose.model('Rider');
+    const riderProfile = await RiderModel.findOne({ user: riderId });
+    
+    // ✨ Fix: Persist rider's initial coordinates to the Order document for tracking
+    if (riderProfile && riderProfile.currentLocation) {
+      await Order.findByIdAndUpdate(orderId, {
+        riderLocation: {
+          lat: Number(riderProfile.currentLocation.latitude),
+          lng: Number(riderProfile.currentLocation.longitude),
+          lastUpdated: new Date()
+        }
+      });
+      console.log(`📍 Initial rider location persisted to Order ${orderId}`);
+    }
+
     const fullOrder = await Order.findById(order._id)
       .populate('customer', 'name phone')
       .populate('restaurant', 'name location')
@@ -765,8 +805,6 @@ export const assignRiderToOrder = async (req, res) => {
     };
 
     // Attach current rider location if available
-    const Rider = mongoose.model('Rider');
-    const riderProfile = await Rider.findOne({ user: riderId });
     if (riderProfile && riderProfile.currentLocation) {
         statusPayload.riderLocation = {
             lat: riderProfile.currentLocation.latitude,
@@ -844,6 +882,18 @@ export const acceptOrder = async (req, res) => {
     });
 
     console.log(`💾 [Accept Order API] Saving order updates...`);
+    
+    // ✨ Fix: Persist rider's initial coordinates when accepting the order
+    const RiderModel = mongoose.model('Rider');
+    const riderProfile = await RiderModel.findOne({ user: req.userId });
+    if (riderProfile && riderProfile.currentLocation) {
+        order.riderLocation = {
+            lat: Number(riderProfile.currentLocation.latitude),
+            lng: Number(riderProfile.currentLocation.longitude),
+            lastUpdated: new Date()
+        };
+    }
+    
     await order.save();
 
     // Populate rider info for notifications

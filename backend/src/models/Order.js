@@ -136,12 +136,22 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    liveTracking: {
-      lastLatitude: Number,
-      lastLongitude: Number,
-      currentSpeed: Number,
-      etaMinutes: Number,
-      bearing: Number
+    userLocation: {
+      lat: Number,
+      lng: Number,
+      address: String
+    },
+    restaurantLocation: {
+      lat: Number,
+      lng: Number,
+      address: String
+    },
+    riderLocation: {
+      lat: Number,
+      lng: Number,
+      bearing: Number,
+      speed: Number,
+      lastUpdated: Date
     }
   },
   {

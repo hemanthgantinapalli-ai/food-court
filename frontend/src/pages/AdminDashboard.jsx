@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Wifi, ShieldCheck, Store } from 'lucide-react';
+import { Clock as DashboardClock, Wifi as DashboardWifi, ShieldCheck as DashboardShield } from 'lucide-react';
+import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Store, Signal, Shield } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -70,6 +71,14 @@ export default function AdminDashboard() {
 
   const [toasts, setToasts] = useState([]); // transient session notifications
   const [financeData, setFinanceData] = useState({ totalGrossRevenue: 0, totalCommission: 0, pendingRevenue: 0, weeklyReport: [], settlements: [], totalOrders: 0, averageOrderValue: 0 });
+  const [platformSettings, setPlatformSettings] = useState({
+    baseDeliveryFee: 30,
+    perKmCharge: 10,
+    platformCommission: 20,
+    minOrderForFreeDelivery: 500,
+    isMaintenanceMode: false
+  });
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [allTransactions, setAllTransactions] = useState([]);
   const [roleFilter, setRoleFilter] = useState('all');
 
@@ -244,7 +253,7 @@ export default function AdminDashboard() {
     fetchOnlineRiders();
 
     try {
-      const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes, financeRes] = await Promise.all([
+      const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes, financeRes, settingsRes] = await Promise.all([
         API.get('/admin/stats'),
         API.get('/admin/users'),
         API.get('/admin/restaurants'),
@@ -252,6 +261,7 @@ export default function AdminDashboard() {
         API.get('/support/my-requests'),
         API.get('/admin/riders'),
         API.get('/admin/finance'),
+        API.get('/admin/settings'),
       ]);
       setStats(statsRes.data.data);
       setUsersList(usersRes.data.data);
@@ -261,7 +271,8 @@ export default function AdminDashboard() {
       setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
       setRiderProfilesList(ridersRes.data.data);
       setFinanceData(financeRes.data.data);
-
+      setPlatformSettings(settingsRes.data.data);
+      
       fetchAllTransactions();
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -332,6 +343,19 @@ export default function AdminDashboard() {
       console.error('Export error:', error);
       // Silently log — the export may not be implemented yet on the backend
       addToast('📊 Export feature is being set up. Please try again later.', 'info');
+    }
+  };
+
+  const handleUpdateSettings = async () => {
+    setIsUpdatingSettings(true);
+    try {
+      await API.put('/admin/settings', platformSettings);
+      addToast('🚀 Global Configuration Saved Successfully!', 'success');
+    } catch (err) {
+      console.error('Failed to update settings:', err);
+      addToast('Failed to save settings. Please try again.', 'error');
+    } finally {
+      setIsUpdatingSettings(false);
     }
   };
 
@@ -427,25 +451,34 @@ export default function AdminDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-8">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">Admin <span className="text-orange-600">Panel</span></h1>
-            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2">Manage users, orders, and restaurants</p>
+        <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-xl shadow-slate-200/40 flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden group">
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-100/50 rounded-full blur-[80px] group-hover:bg-orange-200/50 transition-all duration-1000" />
+          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-100/50 rounded-full blur-[80px] group-hover:bg-emerald-200/50 transition-all duration-1000" />
+          
+          <div className="relative z-10">
+            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              Admin <span className="bg-gradient-to-r from-orange-600 to-orange-400 bg-clip-text text-transparent">Dashboard</span>
+            </h1>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-ping" />
+              Unified Control & Fleet Management
+            </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 relative z-10">
             {liveOrders.length > 0 && (
-              <div className="relative flex items-center gap-2 bg-orange-50 border border-orange-200 px-4 py-2 rounded-2xl">
-                <Bell className="text-orange-500 animate-bounce" size={18} />
-                <span className="font-black text-orange-700 text-xs uppercase tracking-widest">{liveOrders.length} Live</span>
+              <div className="relative flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-orange-100 shadow-sm shadow-orange-100/50">
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-bounce" />
+                <Bell className="text-orange-500" size={18} />
+                <span className="font-black text-orange-700 text-[10px] uppercase tracking-widest">{liveOrders.length} Pulse</span>
               </div>
             )}
-            <div className="flex items-center gap-4 bg-white/50 p-4 rounded-3xl border border-white">
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center animate-pulse">
-                <div className="w-2 h-2 bg-emerald-600 rounded-full" />
+            <div className="flex items-center gap-4 bg-slate-900/5 backdrop-blur-md p-4 rounded-[2rem] border border-white/50 shadow-inner">
+              <div className="w-12 h-12 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-100 transition-transform group-hover:rotate-12">
+                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">System Status</p>
-                <p className="font-black text-slate-900">HEALTHY</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Node</p>
+                <p className="font-black text-slate-900 text-xs">OPERATIONAL</p>
               </div>
             </div>
           </div>
@@ -454,14 +487,21 @@ export default function AdminDashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statCards.map((stat, i) => (
-            <div key={i} id={stat.id} className="bg-white rounded-[2rem] p-8 border border-white shadow-sm hover:shadow-md transition-all group">
-              <div className="flex justify-between items-start">
+            <div key={i} id={stat.id} className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden">
+              <div className={`absolute top-0 right-0 w-24 h-24 ${stat.bg} opacity-0 group-hover:opacity-10 rounded-bl-[4rem] transition-opacity duration-500`} />
+              <div className="flex justify-between items-start relative z-10">
                 <div>
-                  <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-2">{stat.label}</p>
-                  <p className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-orange-600 transition-colors">{stat.value}</p>
+                  <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-3 group-hover:text-slate-500 transition-colors">{stat.label}</p>
+                  <p className="text-4xl font-black text-slate-900 tracking-tighter group-hover:scale-105 origin-left transition-transform duration-500" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                    {stat.value}
+                  </p>
+                  <div className="mt-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
+                    <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Real-time Verified</span>
+                  </div>
                 </div>
-                <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
-                  <stat.icon size={28} />
+                <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-[1.5rem] shadow-xl flex items-center justify-center transition-all duration-700 group-hover:rotate-[15deg] group-hover:scale-110`}>
+                  <stat.icon size={32} />
                 </div>
               </div>
             </div>
@@ -470,33 +510,29 @@ export default function AdminDashboard() {
 
         {/* Main Tabs */}
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50 overflow-x-auto">
+          <div className="flex border-b border-slate-50 p-3 gap-3 bg-slate-50/50 overflow-x-auto no-scrollbar">
             {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'intelligence', label: 'Intelligence 📊' },
-              { id: 'live', label: `Live Orders${activeOrders.length > 0 ? ` (${activeOrders.length})` : ''}` },
-              { id: 'gps', label: `📍 GPS Map (${onlineRiders.length} online)` },
-              { id: 'orders', label: 'All Orders' },
-              { id: 'approvals', label: `Approvals ${(restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0 ? `(${restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length})` : ''}` },
+              { id: 'overview', label: 'Nodes' },
+              { id: 'intelligence', label: 'Intelligence' },
+              { id: 'live', label: 'Pulse' },
+              { id: 'gps', label: 'Tracking' },
+              { id: 'orders', label: 'Orders' },
+              { id: 'approvals', label: 'Audit' },
               { id: 'finance', label: 'Finance' },
-              { id: 'support', label: `Support ${supportTickets.filter(t => t.status === 'open').length > 0 ? `(${supportTickets.filter(t => t.status === 'open').length})` : ''}` },
-              { id: 'notifications', label: `Notifications ${persistentNotifications.filter(n => !n.read).length > 0 ? `(${persistentNotifications.filter(n => !n.read).length})` : ''}` },
-              { id: 'users', label: 'Users' },
-              { id: 'restaurants', label: 'Restaurants' },
-              { id: 'settings', label: 'Platform Settings ⚙️' },
+              { id: 'support', label: 'Support' },
+              { id: 'users', label: 'Entities' },
+              { id: 'restaurants', label: 'Kitchens' },
+              { id: 'settings', label: 'Nexus Settings' },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                  ? 'bg-white text-orange-600 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                className={`flex-1 min-w-[120px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all duration-500 relative group/tab ${activeTab === tab.id
+                  ? 'bg-white text-orange-600 shadow-xl shadow-slate-200/50 scale-105'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-white/70'}`}
               >
-                {(tab.id === 'live' && activeOrders.length > 0) || (tab.id === 'approvals' && (restaurantsList.filter(r => !r.isApproved).length + riderProfilesList.filter(r => r.status === 'PENDING').length) > 0) || (tab.id === 'notifications' && persistentNotifications.filter(n => !n.read).length > 0) ? (
-                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                ) : null}
-                {tab.id === 'gps' && onlineRiders.length > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {activeTab === tab.id && (
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-orange-600 rounded-full" />
                 )}
                 {tab.label}
               </button>
@@ -1604,12 +1640,17 @@ export default function AdminDashboard() {
                      </div>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-8">
+                  <div className="grid md:grid-cols-4 gap-8">
                     <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Base Delivery Fee</label>
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₹</span>
-                        <input type="number" className="w-full pl-10 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" defaultValue={30} />
+                        <input 
+                          type="number" 
+                          className="w-full pl-10 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" 
+                          value={platformSettings.baseDeliveryFee}
+                          onChange={e => setPlatformSettings({...platformSettings, baseDeliveryFee: Number(e.target.value)})}
+                        />
                       </div>
                       <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The starting fee for any delivery within 1.5km.</p>
                     </div>
@@ -1618,7 +1659,12 @@ export default function AdminDashboard() {
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Per KM Charge</label>
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₹</span>
-                        <input type="number" className="w-full pl-10 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" defaultValue={10} />
+                        <input 
+                          type="number" 
+                          className="w-full pl-10 pr-6 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" 
+                          value={platformSettings.perKmCharge}
+                          onChange={e => setPlatformSettings({...platformSettings, perKmCharge: Number(e.target.value)})}
+                        />
                       </div>
                       <p className="text-[9px] text-slate-500 font-bold mt-4 italic">Additional charge added for every extra kilometer.</p>
                     </div>
@@ -1627,25 +1673,45 @@ export default function AdminDashboard() {
                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Platform Commission</label>
                       <div className="relative">
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">%</span>
-                        <input type="number" className="w-full pl-6 pr-10 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" defaultValue={20} />
+                        <input 
+                          type="number" 
+                          className="w-full pl-6 pr-10 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" 
+                          value={platformSettings.platformCommission}
+                          onChange={e => setPlatformSettings({...platformSettings, platformCommission: Number(e.target.value)})}
+                        />
                       </div>
                       <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The percentage shared with the platform from restaurant sales.</p>
+                    </div>
+
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Tax Rate (GST)</label>
+                      <div className="relative">
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">%</span>
+                        <input 
+                          type="number" 
+                          className="w-full pl-6 pr-10 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" 
+                          value={platformSettings.taxRate || 5}
+                          onChange={e => setPlatformSettings({...platformSettings, taxRate: Number(e.target.value)})}
+                        />
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The global tax percentage applied to each order subtotal.</p>
                     </div>
                   </div>
 
                   <div className="mt-12 flex justify-end">
                     <button 
-                      onClick={() => addToast('🚀 Global Configuration Saved Successfully!', 'info')}
-                      className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-200 hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-3"
+                      onClick={handleUpdateSettings}
+                      disabled={isUpdatingSettings}
+                      className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-200 hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
                     >
-                      <ShieldCheck size={18} /> Update Configuration
+                      <DashboardShield size={18} /> {isUpdatingSettings ? 'Saving...' : 'Update Configuration'}
                     </button>
                   </div>
-                </div>
+               </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
                    <div className="p-10 bg-slate-900 rounded-[2.5rem] border border-slate-800 text-white relative overflow-hidden group">
-                      <h4 className="text-xl font-black mb-2 flex items-center gap-3"><Wifi className="text-emerald-500 animate-pulse" /> Real-time Nodes</h4>
+                      <h4 className="text-xl font-black mb-2 flex items-center gap-3"><DashboardWifi className="text-emerald-500 animate-pulse" /> Real-time Nodes</h4>
                       <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">Platform connectivity and socket states</p>
                       
                       <div className="space-y-4">
@@ -1665,7 +1731,7 @@ export default function AdminDashboard() {
                       <h4 className="text-xl font-black text-slate-900 mb-2">Automated Payouts</h4>
                       <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-8">Current Cycle: Weekly (Sunday midnight)</p>
                       <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center text-center">
-                         <Clock size={32} className="text-slate-300 mb-4" />
+                         <DashboardClock size={32} className="text-slate-300 mb-4" />
                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-relaxed">System automatically initiates settlements via RazorpayX every Sunday at 23:59 IST</p>
                       </div>
                    </div>
