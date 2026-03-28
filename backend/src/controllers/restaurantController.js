@@ -50,7 +50,8 @@ export const getRestaurants = async (req, res) => {
 
         let restaurants = await Restaurant.find(query)
             .select('name image cuisines rating location deliveryTime deliveryFee isOpen averagePrice')
-            .sort(sortQuery);
+            .sort(sortQuery)
+            .lean();
 
         // SMART FALLBACK: If specific filters return 0 but they are not critical, 
         // return more broad results (e.g. ignore searches but keep city if possible)
@@ -63,10 +64,28 @@ export const getRestaurants = async (req, res) => {
             restaurants = await Restaurant.find(fallbackQuery)
                 .select('name image cuisines rating location deliveryTime deliveryFee isOpen averagePrice')
                 .limit(10)
-                .sort({ rating: -1 });
+                .sort({ rating: -1 })
+                .lean();
         }
 
-        console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants.`);
+        // Attach menu item keywords to each restaurant for powerful client-side filtering
+        const menuItems = await MenuItem.find({ restaurant: { $in: restaurants.map(r => r._id) } })
+            .select('restaurant name category');
+
+        const menuMap = {};
+        menuItems.forEach(item => {
+            const restId = item.restaurant.toString();
+            if (!menuMap[restId]) menuMap[restId] = new Set();
+            if (item.name) menuMap[restId].add(item.name.toLowerCase());
+            if (item.category) menuMap[restId].add(item.category.toLowerCase());
+        });
+
+        restaurants = restaurants.map(r => ({
+            ...r,
+            menuKeywords: Array.from(menuMap[r._id.toString()] || [])
+        }));
+
+        console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants (with semantic menu keywords).`);
         return res.status(200).json(restaurants);
     } catch (error) {
         console.error("🔥 [Get Restaurants API] Error:", error.message);

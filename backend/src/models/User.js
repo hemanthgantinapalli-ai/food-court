@@ -42,6 +42,8 @@ const userSchema = new mongoose.Schema(
         ref: "MenuItem",
       },
     ],
+    resetPasswordOtp: { type: String },
+    resetPasswordExpires: { type: Date },
   },
   { timestamps: true }
 );

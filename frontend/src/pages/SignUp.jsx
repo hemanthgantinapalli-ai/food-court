@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../context/authStore.js';
 import AuthLayout from '../components/AuthLayout';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -12,8 +13,27 @@ export default function SignUp() {
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'customer' });
 
-  const signUp = useAuthStore((s) => s.signUp);
-
+  const { signUp, googleAuth } = useAuthStore();
+  
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+        setLoading(true);
+        // By default role can be 'customer', handles googleAuth creation/login
+        const loggedInUser = await googleAuth(credentialResponse.credential, formData.role);
+        setShowSuccess(true);
+        setTimeout(() => {
+            setShowSuccess(false);
+            if (loggedInUser.role === 'admin') navigate('/admin');
+            else if (loggedInUser.role === 'rider') navigate('/rider');
+            else if (loggedInUser.role === 'restaurant') navigate('/partner');
+            else navigate('/');
+        }, 1500);
+    } catch (err) {
+        setError(err.message || 'Google Sign Up failed');
+    } finally {
+        setLoading(false);
+    }
+  };
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -131,6 +151,28 @@ export default function SignUp() {
           )}
         </button>
       </form>
+
+      <div className="relative mt-10 mb-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs font-black uppercase tracking-widest">
+          <span className="bg-white px-4 text-slate-400">Or sign up with</span>
+        </div>
+      </div>
+
+      <div className="flex justify-center mb-8">
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={() => setError('Google Sign Up Failed')}
+          useOneTap
+          theme="outline"
+          shape="pill"
+          size="large"
+          text="signup_with"
+        />
+      </div>
+
     </AuthLayout>
   );
 }

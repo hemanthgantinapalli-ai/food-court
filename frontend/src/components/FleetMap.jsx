@@ -8,8 +8,8 @@ const mapContainerStyle = {
 };
 
 const center = {
-    lat: 20.5937, // Default center (India)
-    lng: 78.9629
+    lat: 16.2387636, // Default center (Tenali)
+    lng: 80.6368367
 };
 
 const mapOptions = {

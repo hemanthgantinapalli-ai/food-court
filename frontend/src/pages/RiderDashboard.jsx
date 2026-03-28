@@ -159,7 +159,12 @@ export default function RiderDashboard() {
           }).catch(() => {});
         } else if (!isSimulating && 'geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(async (position) => {
-            const { latitude, longitude, heading, speed } = position.coords;
+            // MOCKED FOR TENALI CONSISTENCY
+            const latitude = 16.2387636;
+            const longitude = 80.6368367;
+            const heading = 0;
+            const speed = 0;
+            
             try {
               await API.post('/riders/update-location', { 
                 latitude, 
@@ -319,7 +324,11 @@ export default function RiderDashboard() {
           // ----- REAL GPS MODE: Use watchPosition for continuous tracking -----
           const watchId = navigator.geolocation.watchPosition((position) => {
             if (!activeTrackingOrder) return;
-            const { latitude, longitude, heading, speed } = position.coords;
+            // MOCKED FOR TENALI CONSISTENCY
+            const latitude = 16.2387636;
+            const longitude = 80.6368367;
+            const heading = 0;
+            const speed = 0;
             
             // 📍 ENHANCED SNAPPING: If rider has picked up the order but not started journey, 
             // keep them pinned to restaurant on the map (Matched to User Panel high-fidelity behavior)
@@ -363,15 +372,16 @@ export default function RiderDashboard() {
         // Going online — announce position to admin map immediately
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition((pos) => {
-            const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            const heading = pos.coords.heading || 0;
-            const speed = pos.coords.speed || 0;
+            // MOCKED FOR TENALI CONSISTENCY
+            const location = { lat: 16.2387636, lng: 80.6368367 };
+            const heading = 0;
+            const speed = 0;
             setRiderSelfLocation(location);
             riderPosRef.current = location;
             notifyRiderOnline(user._id, location, heading, speed);
           }, () => {
-            // Fallback for demo: Sultanabad (North Tenali)
-            const fallbackHub = { lat: 16.2510, lng: 80.6390 };
+            // Fallback for demo: Tenali Center
+            const fallbackHub = { lat: 16.2387636, lng: 80.6368367 };
             setRiderSelfLocation(fallbackHub);
             riderPosRef.current = fallbackHub;
             notifyRiderOnline(user._id, fallbackHub, 0, 0);

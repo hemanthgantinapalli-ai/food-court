@@ -2,6 +2,9 @@ import User from "../models/User.js";
 import Rider from "../models/Rider.js";
 import Restaurant from "../models/Restaurant.js";
 import { generateToken } from "../utils/jwt.js";
+import { OAuth2Client } from "google-auth-library";
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'dummy_client_id');
 
 // ====== REGISTER USER ======
 export const register = async (req, res) => {
@@ -186,3 +189,162 @@ export const toggleFavorite = async (req, res) => {
     res.status(500).json({ message: "Error toggling favorite", error: error.message });
   }
 };
+
+// ====== FORGOT PASSWORD (OTP) ======
+import sendEmail from "../utils/email.js";
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "No account found with that email." });
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set OTP and expiry (10 minutes)
+    user.resetPasswordOtp = otp;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    // Send the email
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "FoodCourt Password Reset OTP",
+        message: `Your password reset code is: ${otp}. It is valid for 10 minutes.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #f97316; text-align: center;">FoodCourt Password Reset</h2>
+            <p>Hello ${user.name},</p>
+            <p>We received a request to reset your password. Use the code below to proceed.</p>
+            <div style="background: #f1f5f9; padding: 15px; text-align: center; border-radius: 8px; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #0f172a; margin: 20px 0;">
+              ${otp}
+            </div>
+            <p>This code will expire in <strong>10 minutes</strong>.</p>
+            <p>If you did not request a password reset, please ignore this email.</p>
+          </div>
+        `
+      });
+
+      res.status(200).json({ success: true, message: "OTP sent to email successfully." });
+    } catch (err) {
+      // Clean up if email fails
+      user.resetPasswordOtp = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      console.error("Email Error:", err);
+      return res.status(500).json({ success: false, message: "There was an error sending the email. Try again later." });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+// ====== VERIFY OTP ======
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: "Email and OTP are required." });
+    }
+
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      resetPasswordOtp: otp,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP." });
+    }
+
+    // OTP is correct!
+    res.status(200).json({ success: true, message: "OTP verified successfully." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+// ====== RESET PASSWORD ======
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      resetPasswordOtp: otp,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP. Please request a new one." });
+    }
+
+    // Update password (will be hashed in the pre-save hook)
+    user.password = newPassword;
+    
+    // Clear the OTP fields
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Password updated successfully! You can now sign in." });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+// ====== GOOGLE LOGIN ======
+export const googleLogin = async (req, res) => {
+  try {
+    const { token, role } = req.body;
+    
+    // Verify the Google token
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID || 'dummy_client_id',
+    });
+    
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    // Check if user exists
+    let user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // First time logging in with Google: create the user
+      // Role defaults to 'customer' unless specified during a google-signup flow
+      user = await User.create({
+        name,
+        email: email.toLowerCase(),
+        password: Math.random().toString(36).slice(-12) + "Gg1!", // Random secure password
+        role: role || 'customer',
+        // Optional: save picture if your schema supports it
+      });
+    }
+
+    // Generate our JWT
+    const jwtToken = generateToken(user);
+    
+    res.status(200).json({
+      token: jwtToken,
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        role: user.role, 
+        email: user.email, 
+        phone: user.phone || "", 
+        addresses: user.addresses 
+      },
+    });
+  } catch (error) {
+    console.error("🔥 [Google Login API] Error:", error.message);
+    res.status(401).json({ success: false, message: "Invalid Google Token" });
+  }
+};
+

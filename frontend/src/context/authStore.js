@@ -70,6 +70,24 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  googleAuth: async (googleToken, role = 'customer') => {
+    set({ loading: true, error: null });
+    try {
+      const response = await API.post('/auth/google', { token: googleToken, role });
+      const { token, user } = response.data;
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      set({ user, token, loading: false });
+      return user;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Google Auth failed';
+      set({ error: message, loading: false });
+      throw new Error(message);
+    }
+  },
+
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');

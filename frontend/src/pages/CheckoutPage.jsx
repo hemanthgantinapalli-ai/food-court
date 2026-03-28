@@ -112,7 +112,10 @@ export default function CheckoutPage() {
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        // MOCKED FOR TENALI CONSISTENCY
+        const latitude = 16.2387636;
+        const longitude = 80.6368367;
+        const coords = { latitude, longitude };
         setGpsCoords(coords);
         
         // Reverse geocode to fill address fields
@@ -325,11 +328,76 @@ export default function CheckoutPage() {
 
     try {
       setOrderError('');
-      await addOrder(orderPayload);
-      clearCart();
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => navigate('/payment-success'), 1500);
+      
+      // 1. Create order in Backend
+      const createdOrder = await addOrder(orderPayload);
+      
+      if (normalizedPaymentMethod === 'wallet' || normalizedPaymentMethod === 'cash') {
+          // No payment gateway needed
+          clearCart();
+          setLoading(false);
+          setSuccess(true);
+          setTimeout(() => navigate('/payment-success'), 1500);
+      } else {
+          // Razorpay flow for 'upi' and 'card'
+          const loadRazorpay = () => new Promise((resolve) => {
+              const script = document.createElement('script');
+              script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+              script.onload = () => resolve(true);
+              script.onerror = () => resolve(false);
+              document.body.appendChild(script);
+          });
+
+          const isLoaded = await loadRazorpay();
+          if (!isLoaded) {
+              setOrderError("Razorpay SDK failed to load. Are you online?");
+              setLoading(false);
+              return;
+          }
+
+          // Create order in Razorpay
+          const rpRes = await API.post('/payments/create-order', { amount: total, receipt: createdOrder.orderId });
+          const rpOrderOptions = rpRes.data.order;
+
+          const options = {
+              key: import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_placeholder', // Should be in frontend env
+              amount: rpOrderOptions.amount,
+              currency: rpOrderOptions.currency,
+              name: 'FoodCourt',
+              description: 'Order Payment',
+              order_id: rpOrderOptions.id,
+              handler: async function (response) {
+                  try {
+                      await API.post('/payments/verify', {
+                          ...response,
+                          orderId: createdOrder._id
+                      });
+                      clearCart();
+                      setLoading(false);
+                      setSuccess(true);
+                      setTimeout(() => navigate('/payment-success'), 1500);
+                  } catch(err) {
+                      console.error("Payment Verification Failed", err);
+                      setOrderError('Payment verification failed.');
+                      setLoading(false);
+                  }
+              },
+              prefill: {
+                  name: user?.name,
+                  email: user?.email,
+                  contact: address.phone
+              },
+              theme: { color: '#f97316' }
+          };
+
+          const paymentObject = new window.Razorpay(options);
+          paymentObject.on('payment.failed', function (response){
+              setOrderError(response.error.description || 'Payment Failed');
+              setLoading(false);
+          });
+          paymentObject.open();
+      }
+
     } catch (err) {
       console.error('Order create error:', err);
       setLoading(false);

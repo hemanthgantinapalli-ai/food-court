@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import AuthLayout from '../components/AuthLayout';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function SignIn() {
   const [email, setEmail] = useState('user@foodcourt.com');
@@ -11,7 +12,7 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
-  const { signIn } = useAuthStore();
+  const { signIn, googleAuth } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -38,9 +39,20 @@ export default function SignIn() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    // Mock Google Sign In for now
-    alert('Google Sign In functionality coming soon!');
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+        setLoading(true);
+        const loggedInUser = await googleAuth(credentialResponse.credential);
+        if (loggedInUser.role === 'admin') navigate('/admin');
+        else if (loggedInUser.role === 'rider') navigate('/rider');
+        else if (loggedInUser.role === 'restaurant') navigate('/partner');
+        else if (from) navigate(from, { replace: true });
+        else navigate('/');
+    } catch (err) {
+        setError(err.message || 'Google Login failed');
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
@@ -135,6 +147,27 @@ export default function SignIn() {
           )}
         </button>
       </form>
+
+      <div className="relative mt-10 mb-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-slate-200" />
+        </div>
+        <div className="relative flex justify-center text-xs font-black uppercase tracking-widest">
+          <span className="bg-white px-4 text-slate-400">Or continue with</span>
+        </div>
+      </div>
+
+      <div className="flex justify-center mb-8">
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={() => setError('Google Login Failed')}
+          useOneTap
+          theme="outline"
+          shape="pill"
+          size="large"
+          text="signin_with"
+        />
+      </div>
 
       {/* Demo Creds Hint */}
       <div className="mt-8 p-4 rounded-3xl border border-dashed flex items-center gap-4 border-orange-200 bg-orange-50/50">

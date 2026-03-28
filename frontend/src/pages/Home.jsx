@@ -149,14 +149,19 @@ const Home = () => {
   }, [restaurants]);
 
   const filtered = restaurants.filter((r) => {
+    const activeLower = activeFilter.toLowerCase();
+    const searchLower = searchQuery.toLowerCase();
+
     const matchesCategory =
       activeFilter === 'All' ||
-      r.cuisines?.some((c) => c.toLowerCase() === activeFilter.toLowerCase());
+      r.cuisines?.some((c) => c.toLowerCase().includes(activeLower)) ||
+      r.menuKeywords?.some((k) => k.includes(activeLower));
 
     const matchesSearch =
       !searchQuery ||
-      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.cuisines?.some((c) => (c || '').toLowerCase().includes(searchQuery.toLowerCase()));
+      r.name.toLowerCase().includes(searchLower) ||
+      r.cuisines?.some((c) => (c || '').toLowerCase().includes(searchLower)) ||
+      r.menuKeywords?.some((k) => k.includes(searchLower));
 
     const matchesFast = !fastDelivery || (r.deliveryTime || 30) <= 30;
     const currentRating = parseFloat(r.rating || 4.5);
