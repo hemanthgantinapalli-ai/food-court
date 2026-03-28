@@ -7,6 +7,23 @@ const settingsSchema = new mongoose.Schema({
     unique: true,
     default: 'global_config'
   },
+  // Requested Core Fields
+  commissionPercentage: {
+    type: Number,
+    required: true,
+    default: 15
+  },
+  deliveryFee: {
+    type: Number,
+    required: true,
+    default: 30
+  },
+  taxPercentage: {
+    type: Number,
+    required: true,
+    default: 5
+  },
+  // Advanced features already present in the system
   baseDeliveryFee: {
     type: Number,
     default: 30
@@ -15,21 +32,21 @@ const settingsSchema = new mongoose.Schema({
     type: Number,
     default: 10
   },
-  platformCommission: {
-    type: Number,
-    default: 20
-  },
-  minOrderForFreeDelivery: {
-    type: Number,
-    default: 500
-  },
   isMaintenanceMode: {
     type: Boolean,
     default: false
   },
-  taxRate: {
+  maxDeliveryDistance: {
     type: Number,
-    default: 5
+    default: 15
+  },
+  autoRiderAssign: {
+    type: Boolean,
+    default: true
+  },
+  liveTrackingToggle: {
+    type: Boolean,
+    default: true
   }
 }, { timestamps: true });
 

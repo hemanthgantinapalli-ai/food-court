@@ -52,6 +52,7 @@ export default function TrackOrderPage() {
     const [reviewComment, setReviewComment] = useState('');
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
     const [toastMsg, setToastMsg] = useState('');
+    const [platformSettings, setPlatformSettings] = useState({ liveTrackingToggle: true });
 
     const showToast = (msg) => {
         setToastMsg(msg);
@@ -61,14 +62,25 @@ export default function TrackOrderPage() {
     const getRiderLocation = () => {
         if (liveRiderPos) return liveRiderPos;
         if (order?.riderLocation?.lat) {
-            return { latitude: order.riderLocation.lat, longitude: order.riderLocation.lng };
+            return { 
+                latitude: order.riderLocation.lat, 
+                longitude: order.riderLocation.lng,
+                heading: order.riderLocation.bearing || 0,
+                speed: order.riderLocation.speed || 0
+            };
         }
         if (order?.riderProfile?.currentLocation?.latitude) {
-            return order.riderProfile.currentLocation;
+            const loc = order.riderProfile.currentLocation;
+            return {
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                heading: loc.heading || 0,
+                speed: loc.speed || 0
+            };
         }
         if (order?.rider) {
             // High-quality fallback for assigned rider with no GPS yet (Morrispet)
-            return LOCATIONS.RIDER;
+            return { ...LOCATIONS.RIDER, heading: 0, speed: 0 };
         }
 
         const rest = order?.restaurant;
@@ -81,6 +93,20 @@ export default function TrackOrderPage() {
     };
 
     const riderLoc = getRiderLocation();
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await API.get('/admin/settings/public');
+                if (res.data.success) {
+                    setPlatformSettings(res.data.data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch platform settings:', err);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     useEffect(() => {
         const urlOrderId = searchParams.get('orderId');
@@ -108,43 +134,51 @@ export default function TrackOrderPage() {
             }
         };
         fetchLatestOrder();
+    }, [user, searchParams]);
 
-        if (user) {
+    useEffect(() => {
+        if (user && order?._id) {
             connectSocket(user._id);
-            socket.on('order_status_update', (data) => {
-                if (order && (data.orderId === order._id || data.orderId === order.orderId)) {
-                    setOrder(prev => ({ ...prev, orderStatus: data.status }));
-                }
-            });
+            socket.emit('joinOrder', order._id);
 
-            const handleLocationUpdate = (data) => {
-                if (!order || (data.orderId !== order._id && data.orderId !== order.orderId)) return;
-                if (data.lat && data.lng) {
-                    setLiveRiderPos({ latitude: data.lat, longitude: data.lng });
+            const handleStatusUpdate = (data) => {
+                if (data.orderId === order._id || data.orderId === order.orderId) {
+                    setOrder(prev => ({ ...prev, orderStatus: data.status }));
                 }
             };
 
-            socket.on('updateRiderLocation', handleLocationUpdate);
+            const handleLocationUpdate = (data) => {
+                // Room logic isolates to this order. Map lat/lng directly from coordinates payload
+                if (data && data.lat && data.lng) {
+                    setLiveRiderPos({ 
+                        latitude: data.lat, 
+                        longitude: data.lng,
+                        heading: data.heading || 0,
+                        speed: data.speed || 0
+                    });
+                }
+            };
+
+            socket.on('order_status_update', handleStatusUpdate);
+            socket.on('locationUpdate', handleLocationUpdate);
             socket.on('rider_position_update', (data) => {
-                // Keep this for admin-level updates if needed, but primary is updateRiderLocation
-                if (order && data.riderId === order.rider?._id?.toString()) {
-                    setLiveRiderPos({ latitude: data.location.lat, longitude: data.location.lng });
+                if (data.riderId === order.rider?._id?.toString()) {
+                    setLiveRiderPos({ 
+                        latitude: data.location.lat, 
+                        longitude: data.location.lng,
+                        heading: data.heading,
+                        speed: data.speed
+                    });
                 }
             });
-        }
 
-        return () => {
-            socket.off('order_status_update');
-            socket.off('updateRiderLocation');
-            socket.off('rider_position_update');
-        };
-    }, [user, searchParams, order?._id]);
-
-    useEffect(() => {
-        if (order?._id && user) {
-            socket.emit('join_order', order._id);
+            return () => {
+                socket.off('order_status_update', handleStatusUpdate);
+                socket.off('locationUpdate', handleLocationUpdate);
+                socket.off('rider_position_update');
+            };
         }
-    }, [order?._id, user]);
+    }, [user, order?._id, order?.orderId]);
 
     // Calculate ETA
     useEffect(() => {
@@ -242,7 +276,20 @@ export default function TrackOrderPage() {
                     </div>
                 ) : (
                     <div className="absolute inset-0 z-0">
-                        <LeafletTrackingMap order={order} />
+                        {platformSettings?.liveTrackingToggle !== false ? (
+                            <LeafletTrackingMap order={order} />
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-10 p-10 text-center">
+                                <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mb-6 border border-white/10 shadow-2xl">
+                                    <ShieldCheck className="text-orange-500" size={40} />
+                                </div>
+                                <h3 className="text-2xl font-black text-white mb-2 tracking-tighter uppercase italic">Privacy Shield Active</h3>
+                                <p className="text-white/40 font-bold text-xs max-w-xs leading-relaxed uppercase tracking-widest">
+                                    Real-time GPS telemetry is currently restricted by platform policy. 
+                                    Please monitor the status timeline below for updates.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -355,4 +402,3 @@ export default function TrackOrderPage() {
         </div>
     );
 }
-

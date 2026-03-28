@@ -121,10 +121,27 @@ export default function CheckoutPage() {
           const data = await res.json();
           if (data && data.address) {
             const addr = data.address;
+            
+            // Build a better street string
+            const streetParts = [
+              addr.house_number,
+              addr.building,
+              addr.road,
+              addr.pedestrian
+            ].filter(Boolean);
+            
+            const areaParts = [
+              addr.neighbourhood,
+              addr.suburb,
+              addr.residential,
+              addr.industrial,
+              addr.hamlet
+            ].filter(Boolean);
+
             setAddress(prev => ({
               ...prev,
-              street: addr.road || addr.suburb || prev.street,
-              area: addr.neighbourhood || addr.residential || addr.suburb || prev.area,
+              street: streetParts.join(', ') || addr.suburb || prev.street,
+              area: areaParts.join(', ') || addr.city_district || prev.area,
               city: addr.city || addr.town || addr.village || prev.city,
               pincode: addr.postcode || prev.pincode,
               lat: coords.latitude,
@@ -176,7 +193,7 @@ export default function CheckoutPage() {
   // Show base fee as placeholder if location not available, else calculate dynamically
   const deliveryFee = subtotal > 0 ? (distanceKm !== null ? calculateDynamicFee(distanceKm) : 30) : 0;
   const deliveryNote = distanceKm !== null ? `Distance: ${distanceKm.toFixed(1)}km` : 'Standard delivery fee';
-  const tax = Math.round(subtotal * 0.05);
+  const tax = Math.round(subtotal * (platformSettings.taxRate || 5) / 100);
   const total = subtotal + deliveryFee + tax - (discount || 0);
   // Always read from live user state (getProfile refreshes this on mount)
   const walletBalance = user?.wallet?.balance ?? 0;
@@ -278,6 +295,16 @@ export default function CheckoutPage() {
         // GPS coordinates for live map tracking
         latitude: gpsCoords?.latitude || null,
         longitude: gpsCoords?.longitude || null,
+      },
+      userLocation: {
+        lat: gpsCoords?.latitude || address.lat,
+        lng: gpsCoords?.longitude || address.lng,
+        address: `${address.street}, ${address.area || ''}`.trim().replace(/,$/, '')
+      },
+      restaurantLocation: {
+        lat: restLocation?.latitude || restLocation?.lat,
+        lng: restLocation?.longitude || restLocation?.lng,
+        address: restLocation?.address || ''
       },
       paymentMethod: normalizedPaymentMethod,
       items: items.map((i) => ({
@@ -538,11 +565,11 @@ export default function CheckoutPage() {
                           gestureHandling={'greedy'}
                         >
                           <AdvancedMarker position={{lat: restLocation.latitude, lng: restLocation.longitude}}>
-                              <img src="https://cdn-icons-png.flaticon.com/512/3448/3448607.png" style={{width: 38, height: 38}} alt="restaurant" />
+                              <img src="/markers/restaurant.png" style={{width: 42, height: 42}} alt="restaurant" />
                           </AdvancedMarker>
 
                           <AdvancedMarker position={{lat: gpsCoords.latitude, lng: gpsCoords.longitude}}>
-                              <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" style={{width: 38, height: 38}} alt="home" />
+                              <img src="/markers/user.png" style={{width: 38, height: 38}} alt="home" />
                           </AdvancedMarker>
                         </Map>
 

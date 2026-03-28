@@ -1,23 +1,13 @@
 /**
  * LeafletTrackingMap.jsx — FREE Live Tracking Map (Leaflet + OpenStreetMap + OSRM)
  *
- * Features:
+ * HYPER-REALISTIC VERSION:
  *  • 100% Free — No API key, no billing, no Google
  *  • Three custom markers: Restaurant 🍳, Customer 🏠, Rider 🛵
- *  • Smooth rider icon movement via LERP interpolation (requestAnimationFrame)
- *  • Rotating rider icon based on heading/bearing
- *  • Road-following route polyline via OSRM (free routing engine)
- *  • Live ETA calculation based on distance and average speed
- *  • Socket.io subscription for real-time location updates
- *  • Order-status-aware: route flips from restaurant → customer on pickup
+ *  • Hyper-smooth rider icon movement via LERP interpolation + requestAnimationFrame
+ *  • Neon Breadcrumb Trails (path history)
+ *  • Live Radar Pulse & Glassmorphic UI overlays
  */
-// ─── Precision Tenali Coordinates (Reference Points) ────────────────────────
-const LOCATIONS = {
-    RESTAURANT: { lat: 16.2435, lng: 80.6480 }, // Ramalingeswara Pet (Center)
-    CUSTOMER:   { lat: 16.2340, lng: 80.6550 }, // Chinaravuru (South-East)
-    RIDER:      { lat: 16.2510, lng: 80.6390 }  // Sultanabad (North)
-};
-const TENALI_CENTER = LOCATIONS.RESTAURANT;
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -30,7 +20,7 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 import { socket } from '../api/socket';
-import { Clock, MapPin } from 'lucide-react';
+import { Clock, MapPin, Navigation } from 'lucide-react';
 
 // Fix Leaflet's broken default icon path in bundlers
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -38,6 +28,38 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl, iconUrl, shadowUrl });
+
+// ─── ADD STYLES FOR ANIMATIONS ────────────────────────────────────────────────
+if (typeof document !== 'undefined') {
+    const styleTag = document.createElement('style');
+    styleTag.innerHTML = `
+        @keyframes radar-pulse {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+        .radar-pulse-ring {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(59, 130, 246, 0.4);
+            border-radius: 50%;
+            animation: radar-pulse 2s infinite ease-out;
+            pointer-events: none;
+        }
+        .animate-marching-ants {
+            stroke-dasharray: 10, 10;
+            animation: marching-ants 20s linear infinite;
+        }
+        @keyframes marching-ants {
+            from { stroke-dashoffset: 200; }
+            to { stroke-dashoffset: 0; }
+        }
+        .leaflet-marker-icon {
+            transition: transform 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+    `;
+    document.head.appendChild(styleTag);
+}
 
 // ─── Custom marker icons via divIcon ─────────────────────────────────────────
 const makeIcon = (emoji, size = 38) =>
@@ -56,142 +78,82 @@ const makeIcon = (emoji, size = 38) =>
         popupAnchor: [0, -size / 2],
     });
 
-const makeRiderIcon = (heading = 0, etaMins = null) =>
+const makeRiderIcon = (heading = 0, etaMins = null, speed = 0) =>
     L.divIcon({
         className: '',
         html: `
             <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+                ${speed > 0 ? '<div class="radar-pulse-ring"></div>' : ''}
                 ${etaMins ? `
                     <div style="
-                        background: #1e293b; 
+                        background: rgba(15, 23, 42, 0.95); 
+                        backdrop-filter: blur(8px);
                         color: white; 
-                        padding: 4px 10px; 
-                        border-radius: 8px; 
+                        padding: 4px 12px; 
+                        border-radius: 10px; 
                         font-size: 10px; 
-                        font-weight: 900; 
+                        font-weight: 950; 
                         white-space: nowrap;
-                        margin-bottom: 8px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                        margin-bottom: 12px;
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
                         border: 1px solid rgba(255,255,255,0.1);
-                        letter-spacing: 0.05em;
-                    ">ETA : ${etaMins} MINS</div>
+                        letter-spacing: 0.1em;
+                        z-index: 10;
+                        animation: bounce 2s infinite;
+                    ">ETA: ${etaMins} MINS</div>
                 ` : ''}
                 <div style="
-                    font-size:36px;
+                    font-size:38px;
                     line-height:1;
-                    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+                    filter: drop-shadow(0 0 15px rgba(59,130,246,0.6));
                     transform: rotate(${heading}deg);
-                    transition: transform 0.4s ease-out;
+                    transition: transform 0.6s ease-out;
+                    z-index: 5;
                 ">🛵</div>
             </div>
         `,
-        iconSize: [120, 80], // Large enough for the ETA label
-        iconAnchor: [60, 70],
-        popupAnchor: [0, -70],
+        iconSize: [140, 100], 
+        iconAnchor: [70, 80],
+        popupAnchor: [0, -80],
     });
 
-const restaurantIcon = makeIcon('🍽️', 40);
-const customerIcon   = makeIcon('🏠', 36);
-
 const makeDynamicRestaurantIcon = (status, imageUrl) => {
-    const isPreparing = ['confirmed', 'preparing'].includes(status);
-    const isReady = status === 'ready';
-    
-    // Status-based state indicators
-    const borderColor = isPreparing ? '#f97316' : (isReady ? '#10b981' : '#f97316');
-    const glowColor = isPreparing ? 'rgba(249,115,22,0.4)' : (isReady ? 'rgba(16,185,129,0.3)' : 'rgba(249,115,22,0.2)');
-    
-    // Fallback emoji if no image
-    const fallbackEmoji = isPreparing ? '🥘' : (isReady ? '🛍️' : '🍳');
-    
-    const content = imageUrl 
-        ? `<img src="${imageUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" />`
-        : `<span style="font-size:24px;">${fallbackEmoji}</span>`;
-
-    return L.divIcon({
-        className: '',
-        html: `
-            <div style="position:relative; width: 62px; height: 75px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                <svg width="62" height="75" viewBox="0 0 62 75" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute; top:0; left:0; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
-                    <path d="M31 75L10 45C5 38 0 31 0 20C0 9 9 0 31 0C53 0 62 9 62 20C62 31 57 38 52 45L31 75Z" fill="white"/>
-                    <path d="M31 71L12 43C7 36 2 30 2 20C2 10 10 2 31 2C52 2 60 10 60 20C60 30 55 36 50 43L31 71Z" fill="${borderColor}"/>
-                </svg>
-                <div class="${isPreparing ? 'animate-bounce' : ''}" style="
-                    position:relative;
-                    z-index:2;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    background: white; 
-                    border-radius: 50%; 
-                    width: 46px;
-                    height: 46px;
-                    margin-top: -18px;
-                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-                    overflow: hidden;
-                ">${content}</div>
-                ${isPreparing ? `<div style="position:absolute; top:-20px; background:white; color:${borderColor}; font-[900]; font-size:9px; padding:4px 8px; border-radius:8px; border:2px solid ${borderColor}; white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.1); letter-spacing:0.05em;">PREPARING</div>` : ''}
-            </div>
-        `,
-        iconSize: [62, 75],
-        iconAnchor: [31, 75],
-        popupAnchor: [0, -75],
+    return L.icon({
+        iconUrl: '/markers/restaurant.png',
+        iconSize: [50, 50],
+        iconAnchor: [25, 50],
+        popupAnchor: [0, -50],
+        className: 'restaurant-marker-pulse'
     });
 };
 
 const makeDynamicCustomerIcon = () => {
-    return L.divIcon({
-        className: '',
-        html: `
-            <div style="position:relative; width: 44px; height: 54px; display: flex; align-items: center; justify-content: center;">
-                <svg width="44" height="54" viewBox="0 0 44 54" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute; top:0; left:0; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
-                    <path d="M22 54L7 32C3 27 0 22 0 14C0 6 6 0 22 0C38 0 44 6 44 14C44 22 41 27 37 32L22 54Z" fill="#1e293b"/>
-                </svg>
-                <div style="
-                    position:relative;
-                    z-index:2;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    background: white; 
-                    border-radius: 50%; 
-                    width: 30px;
-                    height: 30px;
-                    margin-top: -16px;
-                ">
-                    <span style="font-size:18px;">🏠</span>
-                </div>
-            </div>
-        `,
-        iconSize: [44, 54],
-        iconAnchor: [22, 54],
-        popupAnchor: [0, -54],
+    return L.icon({
+        iconUrl: '/markers/user.png',
+        iconSize: [45, 45],
+        iconAnchor: [22, 45],
+        popupAnchor: [0, -45],
     });
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const LERP_FACTOR    = 0.06; // Smoother and slower live follow
+const LERP_FACTOR    = 0.08; 
 const DIST_THRESHOLD = 0.00001;
 const OSRM_BASE      = 'https://router.project-osrm.org/route/v1/driving';
 
-// ─── Sub-component: Fit bounds to all active points ────────────────────────
+// ─── Sub-component: Fit bounds ──────────────────────────────────────────────
 function FitBoundsToMarkers({ points }) {
     const map = useMap();
     useEffect(() => {
         const validPoints = points.filter(p => p && p.lat && p.lng && (p.lat !== 0 || p.lng !== 0));
         if (validPoints.length > 0) {
             const bounds = L.latLngBounds(validPoints.map(p => [p.lat, p.lng]));
-            // Add padding so markers/routes aren't cut off
-            map.fitBounds(bounds, { padding: [60, 60], animate: true, maxZoom: 16 });
+            map.fitBounds(bounds, { padding: [100, 100], animate: true, maxZoom: 16 });
         }
     }, [points, map]);
     return null;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-/**
- * @param {object} order - Populated order object from API
- */
 export default function LeafletTrackingMap({ order }) {
     const animRef     = useRef(null);
     const displayRef  = useRef(null);
@@ -200,33 +162,29 @@ export default function LeafletTrackingMap({ order }) {
 
     const [displayPos, setDisplayPos]       = useState(null);
     const [riderHeading, setRiderHeading]   = useState(0);
-    const [routePoints, setRoutePoints]     = useState([]);   // [[lat,lng], ...]
-    const [eta, setEta]                     = useState(null); // { text, distance }
+    const [riderSpeed, setRiderSpeed]       = useState(0);
+    const [routePoints, setRoutePoints]     = useState([]);   
+    const [eta, setEta]                     = useState(null); 
     const [mapReady, setMapReady]           = useState(false);
+    const [history, setHistory]             = useState([]); // For breadcrumbs
 
-    // ─── Derive static positions ──────────────────────────────────────────────
     const rest = order?.restaurant;
     const cust = order?.deliveryAddress;
 
-    // Use order data if available, otherwise fall back to user's precision requested coordinates
     const restaurantPos = {
-        lat: Number(rest?.location?.latitude || rest?.latitude || 0) || LOCATIONS.RESTAURANT.lat,
-        lng: Number(rest?.location?.longitude || rest?.longitude || 0) || LOCATIONS.RESTAURANT.lng,
+        lat: Number(order?.restaurantLocation?.lat || rest?.location?.latitude || rest?.latitude || 0) || 16.2435,
+        lng: Number(order?.restaurantLocation?.lng || rest?.location?.longitude || rest?.longitude || 0) || 80.6480,
     };
     const customerPos = {
-        lat: Number(cust?.latitude || cust?.lat || 0) || LOCATIONS.CUSTOMER.lat,
-        lng: Number(cust?.longitude || cust?.lng || 0) || LOCATIONS.CUSTOMER.lng,
+        lat: Number(order?.userLocation?.lat || cust?.latitude || cust?.lat || 0) || 16.2340,
+        lng: Number(order?.userLocation?.lng || cust?.longitude || cust?.lng || 0) || 80.6550,
     };
 
     const isPickedUp  = ['picked_up', 'on_the_way', 'delivered'].includes(order?.orderStatus);
     const hasRiderAssigned = !!order?.rider;
-    const isPrePickup = ['placed', 'confirmed', 'preparing', 'ready'].includes(order?.orderStatus);
 
-    // Initial center defaults to restaurant if no rider display pos
-    const mapCenter   = displayPos
-        ?? (restaurantPos.lat ? restaurantPos : { lat: 17.385, lng: 78.4867 });
+    const mapCenter   = displayPos ?? restaurantPos;
 
-    // ─── OSRM Route Fetch ─────────────────────────────────────────────────────
     const fetchRoute = useCallback(async (origin, dest, phase) => {
         if (!origin?.lat || !dest?.lat) return;
         try {
@@ -236,27 +194,15 @@ export default function LeafletTrackingMap({ order }) {
             if (data.routes?.[0]?.geometry?.coordinates) {
                 const pts = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
                 setRoutePoints(pts);
-
-                // Calculate ETA from distance + avg speed 30km/h
                 const distKm  = data.routes[0].distance / 1000;
-                // ETA at 30km/h = (dist / 30) * 60 = dist * 2
-                const etaMins = Math.max(2, Math.round((distKm / 30) * 60)); // Min 2 mins
-                
-                let text = `${etaMins} min`;
-                if (phase === 'delivery' && etaMins <= 1) text = 'Arriving now!';
-                
-                setEta({
-                    text: text,
-                    distance: `${distKm.toFixed(1)} km`,
-                    phase: phase
-                });
+                const etaMins = Math.max(2, Math.round((distKm / 30) * 60)); 
+                let text = `${etaMins} MIN`;
+                if (phase === 'delivery' && etaMins <= 1) text = 'ARRIVING!';
+                setEta({ text, distance: `${distKm.toFixed(1)} KM`, phase });
             }
-        } catch (err) {
-            console.error('OSRM route fetch failed:', err);
-        }
+        } catch (err) { console.error('OSRM fail:', err); }
     }, []);
 
-    // ─── Animation Loop (LERP) ────────────────────────────────────────────────
     const animate = useCallback(() => {
         if (!displayRef.current || !targetRef.current) return;
         const cur = displayRef.current;
@@ -279,11 +225,7 @@ export default function LeafletTrackingMap({ order }) {
         } else if (order?.rider?.currentLocation?.latitude) {
             initPos = { lat: order.rider.currentLocation.latitude, lng: order.rider.currentLocation.longitude };
         } else if (isPickedUp) {
-            // 📍 CRITICAL: If picked up, rider must be at restaurant
             initPos = restaurantPos;
-        } else if (order?.rider) {
-            // Priority Fallback: Sultanabad Hub for starting riders
-            initPos = LOCATIONS.RIDER;
         }
 
         if (initPos && initPos.lat !== 0) {
@@ -292,203 +234,122 @@ export default function LeafletTrackingMap({ order }) {
             setDisplayPos(initPos);
         }
         setMapReady(true);
-    }, [order?.rider, order?.riderLocation, order?.orderStatus, restaurantPos.lat]);
+    }, [order?.rider, order?.orderStatus]);
 
-    // ─── Socket: subscribe to live location updates ───────────────────────────
     useEffect(() => {
         if (!order?._id) return;
-
-        const handleLocation = ({ orderId, lat, lng, heading, speed }) => {
-            if (orderId !== order._id) return;
+        const handleLocation = ({ lat, lng, heading, speed }) => {
             if (!lat || !lng) return;
-
             const newTarget = { lat, lng };
             targetRef.current = newTarget;
             setRiderHeading(heading ?? 0);
+            setRiderSpeed(speed ?? 0);
+            setHistory(prev => [[lat, lng], ...prev].slice(0, 8)); // History for trail
 
             if (!displayRef.current) {
                 displayRef.current = newTarget;
                 setDisplayPos(newTarget);
             }
 
-            // Restart LERP animation
             if (animRef.current) cancelAnimationFrame(animRef.current);
             animRef.current = requestAnimationFrame(animate);
 
-            // 🚀 High-Frequency Route Sync during 'on_the_way'
             if (etaTimerRef.current) clearTimeout(etaTimerRef.current);
-            const refreshInterval = order.orderStatus === 'on_the_way' ? 2000 : 8000;
-
             etaTimerRef.current = setTimeout(() => {
-                const isGoingToCust = ['picked_up', 'on_the_way'].includes(order.orderStatus);
-                fetchRoute(newTarget, isGoingToCust ? customerPos : restaurantPos, isGoingToCust ? 'delivery' : 'pickup');
-            }, refreshInterval);
+                fetchRoute(newTarget, isPickedUp ? customerPos : restaurantPos, isPickedUp ? 'delivery' : 'pickup');
+            }, 2000);
         };
-
-        socket.on('updateRiderLocation', handleLocation);
+        socket.on('locationUpdate', handleLocation);
         socket.on('rider_position_update', (data) => {
             if (data.riderId === order.rider?._id?.toString()) {
-                handleLocation({ 
-                    orderId: order._id, 
-                    lat: data.location.lat, 
-                    lng: data.location.lng, 
-                    heading: data.heading, 
-                    speed: data.speed 
-                });
+                handleLocation({ lat: data.location.lat, lng: data.location.lng, heading: data.heading, speed: data.speed });
             }
         });
-
         return () => {
-            socket.off('updateRiderLocation', handleLocation);
-            socket.off('rider_position_update');
+            socket.off('locationUpdate'); socket.off('rider_position_update');
             if (animRef.current) cancelAnimationFrame(animRef.current);
             if (etaTimerRef.current) clearTimeout(etaTimerRef.current);
         };
-    }, [order?._id, order?.rider, animate, fetchRoute, restaurantPos, customerPos]);
+    }, [order?._id, order?.rider, animate, fetchRoute, isPickedUp, restaurantPos, customerPos]);
 
-    // ─── Determine Route Logic When Component Mounts or Status Changes ────
     useEffect(() => {
         if (!mapReady || order?.orderStatus === 'delivered') return;
-
         const currentPos = displayRef.current || restaurantPos;
-        if (isPickedUp) {
-            // Phase 3: Rider -> Customer
-            fetchRoute(currentPos, customerPos, 'delivery');
-        } else if (hasRiderAssigned && displayPos) {
-            // Phase 2: Rider -> Restaurant
-            fetchRoute(currentPos, restaurantPos, 'pickup');
-        } else {
-            // Phase 1: No rider yet, show Restaurant -> Customer distance
-            fetchRoute(restaurantPos, customerPos, 'cooking');
-        }
+        if (isPickedUp) fetchRoute(currentPos, customerPos, 'delivery');
+        else if (hasRiderAssigned && displayPos) fetchRoute(currentPos, restaurantPos, 'pickup');
+        else fetchRoute(restaurantPos, customerPos, 'cooking');
     }, [order?.orderStatus, mapReady, hasRiderAssigned]);
 
-    const riderIcon = makeRiderIcon(riderHeading, eta?.text?.split(' ')[0]);
-
-    if (!mapReady) {
-        return (
-            <div className="flex items-center justify-center h-full bg-slate-50 rounded-[2.5rem]">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading Map…</p>
-                </div>
-            </div>
-        );
-    }
+    if (!mapReady) return null;
 
     return (
-        <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden">
+        <div className="relative w-full h-full rounded-[3rem] overflow-hidden shadow-2xl border border-white">
             <MapContainer
                 center={[mapCenter.lat, mapCenter.lng]}
                 zoom={15}
                 style={{ width: '100%', height: '100%' }}
-                zoomControl={true}
+                zoomControl={false}
                 attributionControl={false}
             >
-                {/* Free OpenStreetMap tiles */}
-                <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                />
-
-                {/* Dynamically frame the map instead of just centering */}
+                <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
                 <FitBoundsToMarkers points={[restaurantPos, customerPos, displayPos]} />
 
-                {/* 🍳 Restaurant Marker */}
-                {restaurantPos.lat !== 0 && (
-                    <Marker position={[restaurantPos.lat, restaurantPos.lng]} icon={makeDynamicRestaurantIcon(order?.orderStatus, order?.restaurant?.image)}>
-                        {['confirmed', 'preparing'].includes(order?.orderStatus) && (
-                            <Popup minWidth={150} closeButton={false} autoPan={false}>
-                                <div className="text-center font-black py-1">
-                                    <p className="text-orange-600 text-[10px] uppercase tracking-widest mb-1">Chef is Cooking</p>
-                                    <p className="text-slate-900 text-xs text-nowrap">🔥 Preparing your food</p>
-                                </div>
-                            </Popup>
-                        )}
-                    </Marker>
+                {/* Trail */}
+                {history.length > 1 && (
+                    <Polyline positions={history} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.3, dashArray: '5, 10' }} />
                 )}
 
-                {/* 🏠 Customer Marker */}
-                {customerPos.lat !== 0 && (
-                    <Marker position={[customerPos.lat, customerPos.lng]} icon={makeDynamicCustomerIcon()}>
-                        <Popup>
-                            <strong>🏠 Your Delivery Location</strong>
-                            <br /><small>Drop-off Point</small>
-                        </Popup>
-                    </Marker>
-                )}
-
-                {/* 🛵 Rider Marker — smoothly interpolated + rotated */}
+                {/* Markers */}
+                <Marker position={[restaurantPos.lat, restaurantPos.lng]} icon={makeDynamicRestaurantIcon(order?.orderStatus, order?.restaurant?.image)} />
+                <Marker position={[customerPos.lat, customerPos.lng]} icon={makeDynamicCustomerIcon()} />
                 {displayPos && (
-                    <Marker
-                        position={[displayPos.lat, displayPos.lng]}
-                        icon={riderIcon}
-                    >
-                        <Popup>
-                            <strong>🛵 {order?.rider?.name ?? 'Your Rider'}</strong>
-                            <br /><small>{order?.orderStatus === 'delivered' ? 'Delivered successfully' : `Heading: ${Math.round(riderHeading)}°`}</small>
-                        </Popup>
-                    </Marker>
+                    <Marker 
+                        position={[
+                            displayPos.lat === customerPos.lat ? displayPos.lat + 0.00005 : displayPos.lat, 
+                            displayPos.lng === customerPos.lng ? displayPos.lng + 0.00005 : displayPos.lng
+                        ]} 
+                        icon={makeRiderIcon(riderHeading, eta?.text?.split(' ')[0], riderSpeed)} 
+                    />
                 )}
 
-                {/* Route Polyline (Active Marching Ants Style) */}
+                {/* Route */}
                 {routePoints.length > 0 && (
                     <Polyline
                         positions={routePoints}
                         pathOptions={{
                             color: order?.orderStatus === 'delivered' ? '#10b981' : '#3b82f6', 
-                            weight: 6,
-                            opacity: 0.9,
-                            lineJoin: 'round',
-                            lineCap: 'round',
-                            dashArray: order?.orderStatus === 'delivered' ? null : '10, 10',
-                            className: order?.orderStatus === 'delivered' ? '' : 'animate-marching-ants'
+                            weight: 8, opacity: 0.8, lineJoin: 'round', lineCap: 'round', className: 'animate-marching-ants'
                         }}
                     />
                 )}
             </MapContainer>
 
-            {/* ── Live GPS Badge ── */}
-            <div className={`absolute top-4 left-4 z-[1000] flex items-center gap-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border ${displayPos ? 'border-orange-200' : 'border-slate-200'}`}>
-                <div className={`w-2 h-2 rounded-full ${displayPos ? 'bg-orange-500 animate-pulse' : 'bg-slate-400'}`} />
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-900">
-                    {displayPos ? 'Live Rider GPS Active' : 'Rider Pending / Preparing'}
+            {/* UI Overlays */}
+            <div className="absolute top-6 left-6 z-[1000] flex items-center gap-3 bg-white/80 backdrop-blur-xl px-5 py-3 rounded-full shadow-2xl border border-white">
+                <div className={`w-3 h-3 rounded-full ${displayPos ? 'bg-blue-500 animate-pulse' : 'bg-slate-300'}`} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">
+                    {displayPos ? 'REAL-TIME SATELLITE TRACKING' : 'CONNECTING TO COURIER...'}
                 </span>
             </div>
 
-            {/* Free Map Badge */}
-            <div className="absolute top-4 right-4 z-[1000] flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-full shadow-lg">
-                <span className="text-[8px] font-black uppercase tracking-widest">🆓 Free Map</span>
-            </div>
-
-            {/* ── ETA / Distance Overlay ── */}
             {eta && order?.orderStatus !== 'delivered' && (
-                <div className="absolute bottom-6 left-4 right-4 z-[1000]">
-                    <div className="bg-slate-950/90 backdrop-blur-xl px-6 py-5 rounded-[2rem] shadow-2xl border border-white/10 flex justify-between items-center text-white">
+                <div className="absolute bottom-6 left-6 right-6 z-[1000]">
+                    <div className="bg-slate-900/95 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-white/10 flex justify-between items-center text-white">
                         <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 ${eta.phase === 'cooking' ? 'animate-pulse' : ''}`}>
-                                <Clock className={eta.phase === 'cooking' ? 'text-slate-300' : 'text-orange-400'} size={22} />
+                            <div className="w-10 h-10 bg-blue-500/20 rounded-2xl flex items-center justify-center border border-blue-500/30">
+                                <Clock className="text-blue-400" size={20} />
                             </div>
                             <div>
-                                <p className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-0.5">
-                                    {order?.orderStatus === 'picked_up' ? 'Rider at Restaurant - Order Checked' : 
-                                     eta.phase === 'cooking' ? 'Preparation + Transit Time' : 
-                                     (eta.phase === 'delivery' ? 'Arriving at your door' : 'Rider reaching restaurant')}
-                                </p>
-                                <p className={`text-2xl font-black leading-none ${eta.phase === 'cooking' ? 'text-slate-100' : 'text-orange-400'}`}>
-                                    {order?.orderStatus === 'picked_up' ? 'READY' : eta.text}
+                                <p className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-0.5">EST. ARRIVAL</p>
+                                <p className="text-2xl font-black text-white leading-none tracking-tighter">
+                                    {eta.text}
                                 </p>
                             </div>
                         </div>
-                        <div className="h-10 w-px bg-white/10" />
+                        <div className="h-8 w-px bg-white/10" />
                         <div className="text-right">
-                            <div className="flex items-center gap-1 text-slate-400 justify-end mb-0.5">
-                                <MapPin size={10} />
-                                <p className="text-[8px] font-black uppercase tracking-[0.2em]">
-                                    {eta.phase === 'cooking' ? 'Rest. to You' : 'Remaining Distance'}
-                                </p>
-                            </div>
-                            <p className="font-black text-white text-sm">{eta.distance}</p>
+                            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">DISTANCE</p>
+                            <p className="font-black text-xl text-blue-400">{eta.distance}</p>
                         </div>
                     </div>
                 </div>

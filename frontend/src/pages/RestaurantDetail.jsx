@@ -296,7 +296,7 @@ export default function RestaurantDetail() {
                         gestureHandling={'none'} // static map feel
                       >
                         <AdvancedMarker position={{lat: restaurant.location.latitude, lng: restaurant.location.longitude}}>
-                            <img src="https://cdn-icons-png.flaticon.com/512/3448/3448607.png" style={{width: 38, height: 38}} alt="restaurant" />
+                            <img src="/markers/restaurant.png" style={{width: 42, height: 42}} alt="restaurant" />
                         </AdvancedMarker>
                       </Map>
                     </div>

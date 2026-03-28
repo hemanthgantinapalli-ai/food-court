@@ -37,8 +37,17 @@ const riderSchema = new mongoose.Schema(
       default: false,
     },
     currentLocation: {
-      latitude: Number,
-      longitude: Number,
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0] // [longitude, latitude]
+      },
+      heading: { type: Number, default: 0 },
+      speed: { type: Number, default: 0 },
     },
     rating: {
       type: Number,
@@ -70,6 +79,8 @@ const riderSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+riderSchema.index({ currentLocation: '2dsphere' });
 
 const Rider = mongoose.model('Rider', riderSchema);
 export default Rider;

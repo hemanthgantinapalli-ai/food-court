@@ -236,7 +236,7 @@ router.get('/orders', authenticateUser, authorizeRole('admin'), async (req, res)
   try {
     const orders = await Order.find()
       .populate('customer', 'name phone')
-      .populate('restaurant', 'name')
+      .populate('restaurant', 'name location')
       .populate('rider', 'name')
       .sort({ createdAt: -1 })
       .limit(50);
@@ -405,7 +405,12 @@ router.get('/settings', authenticateUser, authorizeRole('admin'), async (req, re
   try {
     let settings = await Settings.findOne({ key: 'global_config' });
     if (!settings) {
-      settings = await Settings.create({ key: 'global_config' });
+      settings = await Settings.create({ 
+        key: 'global_config',
+        commissionPercentage: 15,
+        deliveryFee: 30,
+        taxPercentage: 5
+      });
     }
     res.status(200).json({ success: true, data: settings });
   } catch (error) {
@@ -415,11 +420,19 @@ router.get('/settings', authenticateUser, authorizeRole('admin'), async (req, re
 
 router.put('/settings', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode, taxRate } = req.body;
+    const { 
+      commissionPercentage, deliveryFee, taxPercentage,
+      baseDeliveryFee, perKmCharge, isMaintenanceMode,
+      maxDeliveryDistance, autoRiderAssign, liveTrackingToggle
+    } = req.body;
 
     const settings = await Settings.findOneAndUpdate(
       { key: 'global_config' },
-      { baseDeliveryFee, perKmCharge, platformCommission, minOrderForFreeDelivery, isMaintenanceMode, taxRate },
+      { 
+        commissionPercentage, deliveryFee, taxPercentage,
+        baseDeliveryFee, perKmCharge, isMaintenanceMode,
+        maxDeliveryDistance, autoRiderAssign, liveTrackingToggle
+      },
       { new: true, upsert: true }
     );
 
@@ -432,18 +445,18 @@ router.put('/settings', authenticateUser, authorizeRole('admin'), async (req, re
 router.get('/settings/public', async (req, res) => {
   try {
     const settings = await Settings.findOne({ key: 'global_config' }) || { 
-      baseDeliveryFee: 30, 
-      perKmCharge: 10,
-      minOrderForFreeDelivery: 500,
-      taxRate: 5
+      commissionPercentage: 15,
+      deliveryFee: 30,
+      taxPercentage: 5,
+      maxDeliveryDistance: 15
     };
     res.status(200).json({ 
       success: true, 
       data: {
-        baseDeliveryFee: settings.baseDeliveryFee,
-        perKmCharge: settings.perKmCharge,
-        minOrderForFreeDelivery: settings.minOrderForFreeDelivery,
-        taxRate: settings.taxRate || 5
+        commissionPercentage: settings.commissionPercentage,
+        deliveryFee: settings.deliveryFee,
+        taxPercentage: settings.taxPercentage,
+        maxDeliveryDistance: settings.maxDeliveryDistance || 15
       } 
     });
   } catch (error) {

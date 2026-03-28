@@ -36,8 +36,9 @@ pids
 *.seed
 
 # Dependencies
-package-lock.json
-yarn.lock
+# Keep locks for professional projects
+# package-lock.json
+# yarn.lock
 
 # Testing
 coverage/

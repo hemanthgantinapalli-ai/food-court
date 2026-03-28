@@ -56,16 +56,20 @@ export const initSocket = (server) => {
         });
 
         // Join a specific order room for tracking updates
-        socket.on('join_order', (orderId) => {
-            socket.join(`order_${orderId}`);
-            console.log(`📦 Socket ${socket.id} joined order room: order_${orderId}`);
+        socket.on('joinOrder', (orderId) => {
+            socket.join(orderId);
+            console.log(`📦 Socket ${socket.id} joined order room: ${orderId}`);
         });
 
         // ─── LIVE RIDER LOCATION UPDATE (Rider → Server → Customer + Admin) ──────────
-        socket.on('riderLocation', async (data) => {
+        socket.on('locationUpdate', async (data) => {
             if (!data) return;
 
-            const { orderId, lat, lng, heading, speed } = data;
+            const { orderId, coordinates } = data;
+            const lat = coordinates?.lat;
+            const lng = coordinates?.lng;
+            const heading = coordinates?.heading;
+            const speed = coordinates?.speed;
 
             // 🔐 SECURITY: ONLY riders can update their location
             if (!socket.isAuthenticated || socket.userRole !== 'rider') {
@@ -81,11 +85,16 @@ export const initSocket = (server) => {
                 await Rider.findOneAndUpdate(
                     { user: socket.userId },
                     {
-                        currentLocation: { latitude: riderLat, longitude: riderLng },
-                        isOnline: true, // Sync status as online
+                        currentLocation: { 
+                            type: 'Point', 
+                            coordinates: [riderLng, riderLat],
+                            heading: Number(heading) || 0,
+                            speed: Number(speed) || 0
+                        },
+                        isOnline: true, 
                         lastLocationUpdate: new Date(),
                     },
-                    { upsert: true } // Create profile if missing
+                    { upsert: true } 
                 );
 
                 onlineRiderLocations.set(socket.userId.toString(), {
@@ -108,7 +117,7 @@ export const initSocket = (server) => {
             }
 
             // 2. Broadcast to the specific order room (only the customer sees this)
-            if (orderId) {
+            if (orderId && coordinates) {
                 try {
                     await Order.findByIdAndUpdate(orderId, {
                         riderLocation: { 
@@ -120,14 +129,7 @@ export const initSocket = (server) => {
                         }
                     });
 
-                    io.to(`order_${orderId}`).emit('updateRiderLocation', {
-                        orderId,
-                        lat,
-                        lng,
-                        heading,
-                        speed,
-                        timestamp: new Date(),
-                    });
+                    io.to(orderId).emit('locationUpdate', coordinates);
                 } catch (err) {
                     console.error('Error persisting order riderLocation:', err.message);
                 }
@@ -135,13 +137,14 @@ export const initSocket = (server) => {
         });
         // ────────────────────────────────────────────────────────────────────────
 
-        // Rider announces they went online (sends initial GPS so admin map lights up)
         socket.on('rider_online', async (data) => {
             if (!data) return;
-            const { riderId, location } = data;
+            const { riderId, location, heading, speed } = data;
             if (riderId && location?.lat !== undefined && location?.lng !== undefined) {
                 const latNum = Number(location.lat);
                 const lngNum = Number(location.lng);
+                const headingNum = Number(heading) || 0;
+                const speedNum = Number(speed) || 0;
 
                 // 🔄 Sync Online Status and Location to Database
                 try {
@@ -149,7 +152,12 @@ export const initSocket = (server) => {
                         { user: riderId },
                         { 
                             isOnline: true, 
-                            currentLocation: { latitude: latNum, longitude: lngNum },
+                            currentLocation: { 
+                                type: 'Point', 
+                                coordinates: [lngNum, latNum],
+                                heading: headingNum,
+                                speed: speedNum
+                            },
                             lastLocationUpdate: new Date()
                         },
                         { upsert: true }
@@ -158,13 +166,18 @@ export const initSocket = (server) => {
                     onlineRiderLocations.set(riderId.toString(), {
                         latitude:  latNum,
                         longitude: lngNum,
-                        heading:   0,
-                        speed:     0,
+                        heading:   headingNum,
+                        speed:     speedNum,
                         updatedAt: new Date(),
                     });
                     
-                    io.to('admins').emit('rider_came_online', { riderId, location: { lat: latNum, lng: lngNum } });
-                    console.log(`🛵 Rider ${riderId} status synced: ONLINE`);
+                    io.to('admins').emit('rider_came_online', { 
+                        riderId, 
+                        location: { lat: latNum, lng: lngNum },
+                        heading: headingNum,
+                        speed: speedNum
+                    });
+                    console.log(`🛵 Rider ${riderId} status synced: ONLINE (Heading: ${headingNum}, Speed: ${speedNum})`);
                 } catch (err) {
                     console.error('Failed to sync rider online status:', err.message);
                 }
@@ -212,5 +225,5 @@ export const getIO = () => {
 export const emitToUser    = (userId, event, data) => io?.to(userId).emit(event, data);
 export const emitToAdmins  = (event,  data)         => io?.to('admins').emit(event, data);
 export const emitToRiders  = (event,  data)         => io?.to('riders').emit(event, data);
-export const emitToOrder   = (orderId, event, data) => io?.to(`order_${orderId}`).emit(event, data);
+export const emitToOrder   = (orderId, event, data) => io?.to(orderId).emit(event, data);
 

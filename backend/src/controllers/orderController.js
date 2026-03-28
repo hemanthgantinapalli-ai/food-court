@@ -12,336 +12,122 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 export const createOrder = async (req, res) => {
   try {
-    console.log(`📦 [Create Order API] Request from user: ${req.userId}`);
-    const { deliveryAddress, paymentMethod } = req.body;
-    console.log(`📥 [Create Order API] Payload received (partial):`, { deliveryAddress, paymentMethod });
+    const { deliveryAddress, paymentMethod, items: bodyItems } = req.body;
+    
+    // 1. Fetch Cart
+    const cart = await Cart.findOne({ user: req.userId }).populate('items.menuItem');
+    
+    let items = [];
+    let restaurantId = null;
 
-    // Get cart
-    console.log(`🛒 [Create Order API] Fetching cart for user: ${req.userId}...`);
-    const cart = await Cart.findOne({ user: req.userId }).populate('restaurant');
-
-    let orderPayload;
-    if (!cart || cart.items.length === 0) {
-      console.log(`⚠️ [Create Order API] Cart is empty or not found. Checking request body for items...`);
-      const bodyData = req.body;
-      const { items, subtotal, tax, deliveryFee: bodyDeliveryFee, discount, discountCode, total, restaurant } = bodyData;
-      if (!items || items.length === 0) {
-        console.log(`❌ [Create Order API] No items found in cart or request body. Aborting.`);
-        return res.status(400).json({ success: false, message: 'Cart is empty and no items provided' });
-      }
-
-      const normalizedPaymentMethod = paymentMethod === 'cod' ? 'cash' : paymentMethod;
-      console.log(`💳 [Create Order API] Payment method normalized to: ${normalizedPaymentMethod}`);
-
-      orderPayload = {
-        customer: req.userId,
-        restaurant: isValidObjectId(restaurant) ? restaurant : null,
-        items: items.map((item) => {
-          const mId = item.menuItem || item._id;
-          return {
-            menuItem: isValidObjectId(mId) ? mId : null,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            addOns: item.addOns || [],
-          };
-        }),
-        deliveryAddress: deliveryAddress || {},
-        subtotal: subtotal || 0,
-        tax: tax || 0,
-        deliveryFee: bodyDeliveryFee || 0,
-        discount: discount || 0,
-        discountCode: discountCode || '',
-        total: total || 0,
-        paymentMethod: normalizedPaymentMethod,
-      };
-    } else {
-      console.log(`🛒 [Create Order API] Cart found with ${cart.items.length} items. Merging with checkout data...`);
-      // Re-fetch cart with populated items for names
-      const fullCart = await Cart.findOne({ user: req.userId }).populate('items.menuItem');
-
-      if (!fullCart) {
-        console.log(`❌ [Create Order API] Failed to re-fetch full cart.`);
-        return res.status(404).json({ success: false, message: 'Cart not found' });
-      }
-
-      // PRIORITIZE Body values for dynamic fields (fee, total, address) determined at checkout
-      const body = req.body;
-      orderPayload = {
-        customer: req.userId,
-        restaurant: fullCart.restaurant?._id || fullCart.restaurant || body.restaurant || null,
-        items: fullCart.items.map((item) => ({
-          menuItem: item.menuItem?._id || item.menuItem,
-          name: item.menuItem?.name || 'Unknown Item',
-          quantity: item.quantity,
-          price: item.price || item.menuItem?.price || 0,
-          addOns: item.addOns,
-        })),
-        deliveryAddress: body.deliveryAddress || {},
-        subtotal: body.subtotal || fullCart.subtotal,
-        tax: body.tax || fullCart.tax,
-        deliveryFee: body.deliveryFee !== undefined ? body.deliveryFee : fullCart.deliveryFee,
-        discount: body.discount || fullCart.discount,
-        discountCode: body.discountCode || fullCart.discountCode,
-        total: body.total || fullCart.total,
-        paymentMethod: body.paymentMethod || paymentMethod,
-      };
+    if (cart && cart.items.length > 0) {
+      items = cart.items.map(item => ({
+        menuItem: item.menuItem._id,
+        name: item.menuItem.name,
+        quantity: item.quantity,
+        price: item.price
+      }));
+      restaurantId = cart.restaurant;
+    } else if (bodyItems && bodyItems.length > 0) {
+      items = bodyItems;
+      restaurantId = req.body.restaurantId;
     }
 
-    // Ensure restaurant is set. If missing at top level, try inferring from items.
-    if (!orderPayload.restaurant && orderPayload.items?.length > 0) {
-      console.log(`🔎 [Create Order API] Restaurant missing from payload. Inferring from first item...`);
-      const ItemModel = mongoose.model('MenuItem');
-      const firstItem = await ItemModel.findById(orderPayload.items[0].menuItem);
-      if (firstItem && firstItem.restaurant) {
-        orderPayload.restaurant = firstItem.restaurant;
-      }
+    if (items.length === 0 || !restaurantId) {
+      return res.status(400).json({ success: false, message: 'Cart is empty or restaurant missing' });
     }
 
-    if (!orderPayload.restaurant) {
-      console.log(`❌ [Create Order API] Order creation aborted: No restaurant linked.`);
-      return res.status(400).json({ success: false, message: 'Restaurant ID is required' });
+    // 2. Fetch Fresh Settings & Restaurant data
+    const [settings, restaurant] = await Promise.all([
+      Settings.findOne({ key: 'global_config' }),
+      Restaurant.findById(restaurantId)
+    ]);
+
+    if (!restaurant || !restaurant.isOpen) {
+      return res.status(400).json({ success: false, message: 'Restaurant is currently closed or not found' });
     }
 
-    // Check if restaurant is open
-    const targetRestaurant = await Restaurant.findById(orderPayload.restaurant);
-    if (!targetRestaurant) {
-      console.log(`❌ [Create Order API] Restaurant ${orderPayload.restaurant} not found in DB.`);
-      return res.status(404).json({ success: false, message: 'Restaurant not found' });
-    }
+    // 3. Financial Calculations (Backend standard)
+    const commRate = (restaurant.commissionPercentage || settings?.commissionPercentage || 15) / 100;
+    const taxRate = (settings?.taxPercentage || 5) / 100;
+    const deliveryFee = settings?.deliveryFee || 30;
 
-    console.log(`🕒 [Create Order API] Checking status for ${targetRestaurant.name}. isOpen: ${targetRestaurant.isOpen}`);
+    const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tax = Math.round(totalAmount * taxRate);
+    const commission = Math.round(totalAmount * commRate);
+    const finalAmount = totalAmount + tax + deliveryFee;
 
-    if (!targetRestaurant.isOpen) {
-      console.log(`⚠️ [Create Order API] Restaurant is manually closed.`);
-      return res.status(400).json({ success: false, message: `"${targetRestaurant.name}" is currently not accepting orders. Please try another restaurant.` });
-    }
-
-    // Real-time Opening Hours check (Timezone aware: IST)
-    const now = new Date();
-    const istOptions = {
-      timeZone: "Asia/Kolkata",
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit'
-    };
-    const currentTime = new Intl.DateTimeFormat('en-GB', istOptions).format(now);
-
-    const { open, close } = targetRestaurant.openingHours || { open: '00:00', close: '23:59' };
-
-    console.log(`⏰ [Create Order API] Time Check - IST Now: ${currentTime}, Range: ${open} - ${close}`);
-
-    if (currentTime < open || currentTime > close) {
-      console.log(`⚠️ [Create Order API] Outside operating hours.`);
-      return res.status(400).json({ success: false, message: `"${targetRestaurant.name}" is currently closed. Operating hours: ${open} to ${close}` });
-    }
-
-    // --- Wallet Deduction (Atomic-ish) ---
-    const isWallet = (paymentMethod || '').toLowerCase() === 'wallet';
-    let user = null;
-    let deductionSucceeded = false;
-
+    // 4. Wallet Check if needed
+    const isWallet = paymentMethod === 'wallet';
     if (isWallet) {
-      console.log(`💳 [Create Order API] Wallet payment detected. Processing debit...`);
-      user = await User.findById(req.userId);
-      if (!user) return res.status(404).json({ success: false, message: "User not found for wallet debit" });
-
-      const walletBalance = user.wallet?.balance || 0;
-      const orderTotal = Number(orderPayload.total);
-
-      if (walletBalance < orderTotal) {
-        console.error(`❌ [Create Order API] Insufficient balance: ${walletBalance} < ${orderTotal}`);
-        return res.status(400).json({ success: false, message: `Insufficient wallet balance. Your balance is ₹${walletBalance}, but the order total is ₹${orderTotal}.` });
+      const user = await User.findById(req.userId);
+      if ((user.wallet?.balance || 0) < finalAmount) {
+        return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
       }
-
-      try {
-        user.wallet.balance -= orderTotal;
-        await user.save();
-        deductionSucceeded = true;
-        console.log(`✅ [Create Order API] Wallet debited successfully. New balance: ${user.wallet.balance}`);
-      } catch (debitError) {
-        console.error(`🔥 [Create Order API] Wallet debit failed:`, debitError.message);
-        return res.status(500).json({ success: false, message: "Failed to process wallet deduction." });
-      }
+      user.wallet.balance -= finalAmount;
+      await user.save();
     }
 
-    // --- Prepare Full Order Payload ---
-    // Fetch platform settings for dynamic calculation
-    const globalSettings = await Settings.findOne({ key: 'global_config' }) || { 
-      baseDeliveryFee: 30, 
-      perKmCharge: 10,
-      platformCommission: 20,
-      taxRate: 5
-    };
-
-    // Calculate commission rate: Use restaurant specific if available, otherwise global platform setting
-    const commissionRate = (targetRestaurant.commissionPercentage || globalSettings.platformCommission || 20) / 100;
-
-    const finalOrderTotal = Number(orderPayload.total) || 0;
-    // Logistics & Earnings Split (Swiggy/Zomato Professional Style)
-    const dist = Number(orderPayload.distance) || 0;
-    
-    // Use settings for calculation
-    const baseFee = globalSettings.baseDeliveryFee || 30;
-    const kmCharge = globalSettings.perKmCharge || 10;
-    const calculatedDeliveryFee = dist <= 3 ? baseFee : Math.round(baseFee + (dist - 3) * kmCharge);
-    
-    // Final fee used is what came from frontend, but we use our calculation for internal sanity or if missing
-    const finalDeliveryFee = Number(orderPayload.deliveryFee) || calculatedDeliveryFee;
-    
-    // Total order subtotal (food only)
-    const orderSubtotal = Number(orderPayload.subtotal) || (finalOrderTotal - finalDeliveryFee);
-
-    // Rider Earnings: Rider gets 100% of the delivery fee (Standard Swiggy model for small distances)
-    const riderEarnings = finalDeliveryFee;
-    const platformCommissionFromDelivery = 0; // Everything goes to rider for logistics
-
-    // Platform Fee (Restaurant Commission - e.g. 10%)
-    const platformFeeFromFood = Math.round(orderSubtotal * (isNaN(commissionRate) ? 0.1 : commissionRate));
-    const partnerEarnings = orderSubtotal - platformFeeFromFood;
-
-    // Add additional fields to payload before creation
-    const finalOrderPayload = {
-      ...orderPayload,
+    // 5. Create Order
+    const order = await Order.create({
       customer: req.userId,
-      deliveryFee: finalDeliveryFee, // Use strictly validated/calculated fee
-      paymentStatus: isWallet ? 'completed' : (orderPayload.paymentMethod === 'cash' ? 'pending' : 'pending'),
-      partnerEarnings: partnerEarnings,
-      platformFee: platformFeeFromFood, 
-      riderEarnings: riderEarnings,
-      platformCommission: platformCommissionFromDelivery,
-      // ✨ Fix: Explicitly save coordinates into the order document for route calculation
+      restaurant: restaurantId,
+      items,
+      deliveryAddress,
+      totalAmount,
+      commission,
+      deliveryFee,
+      tax,
+      finalAmount,
+      paymentMethod,
+      paymentStatus: isWallet ? 'completed' : 'pending',
+      orderStatus: 'placed',
       userLocation: {
-        lat: Number(orderPayload.deliveryAddress?.latitude) || 0,
-        lng: Number(orderPayload.deliveryAddress?.longitude) || 0,
-        address: orderPayload.deliveryAddress?.street || 'Customer Location'
+        lat: deliveryAddress?.latitude || 0,
+        lng: deliveryAddress?.longitude || 0,
+        address: deliveryAddress?.street || ''
       },
       restaurantLocation: {
-        lat: Number(targetRestaurant.location?.latitude) || 0,
-        lng: Number(targetRestaurant.location?.longitude) || 0,
-        address: targetRestaurant.location?.address || 'Restaurant Location'
-      },
-      distance: dist || 0 // Sync the calculated distance into the record
-    };
-
-    console.log(`✨ [Create Order API] Creating order in database...`);
-    let order;
-    try {
-      order = await Order.create(finalOrderPayload);
-      console.log(`✅ [Create Order API] Order created successfully: ${order._id}`);
-    } catch (createError) {
-      console.error(`🔥 [Create Order API] Order creation failed:`, createError.message);
-
-      // Rollback wallet if it was deducted
-      if (deductionSucceeded && user) {
-        try {
-          user.wallet.balance += orderTotal;
-          await user.save();
-          console.log(`♻️ [Create Order API] Wallet refunded due to creation failure.`);
-        } catch (refundError) {
-          console.error(`🚨 [CRITICAL] Wallet refund failed! User charged but no order created.`, refundError.message);
-        }
+        lat: restaurant.location?.latitude || 0,
+        lng: restaurant.location?.longitude || 0,
+        address: restaurant.location?.address || ''
       }
+    });
 
-      return res.status(500).json({
-        success: false,
-        message: "Failed to create order record.",
-        error: createError.message,
-        details: createError.errors ? Object.keys(createError.errors).map(k => createError.errors[k].message).join(', ') : createError.message
-      });
-    }
-
-    // --- Post-Order tasks (Non-blocking / Background) ---
+    // 6. Post-order processing (Silent)
     (async () => {
       try {
-        console.log(`🧹 [Create Order API] Background tasks starting for order: ${order._id}`);
-
-        // 1. Transaction Record for Wallet
+        await Cart.findOneAndUpdate({ user: req.userId }, { items: [], total: 0 });
+        
         if (isWallet) {
-          try {
-            await Transaction.create({
-              user: req.userId,
-              amount: orderTotal,
-              type: 'debit',
-              paymentMethod: 'wallet',
-              status: 'success',
-              description: `Paid for Order #${order.orderId || order._id.toString().slice(-6)}`,
-              order: order._id,
-              transactionId: `TXN-W-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-            });
-            console.log(`[Background] Transaction record created`);
-          } catch (tError) {
-            console.error(`[Background] Transaction creation failed:`, tError.message);
-          }
-        }
-
-        // 2. Clear Cart
-        await Cart.findOneAndUpdate({ user: req.userId }, { items: [], subtotal: 0, tax: 0, deliveryFee: 0, discount: 0, total: 0 });
-        console.log(`[Background] Cart cleared`);
-
-        // 3. Notifications & Sockets
-        const io = getIO();
-        const populatedOrder = await Order.findById(order._id)
-          .populate('customer', 'name phone')
-          .populate('restaurant', 'name location owner');
-
-        if (populatedOrder) {
-          const orderIdShort = order.orderId || order._id.toString().slice(-6);
-
-          await Notification.create({
+          await Transaction.create({
             user: req.userId,
-            title: 'Order Placed!',
-            message: `Your order #${orderIdShort} has been placed successfully.`,
-            orderId: order._id,
-            type: 'info'
-          });
-
-          if (populatedOrder.restaurant?.owner) {
-            await Notification.create({
-              user: populatedOrder.restaurant.owner,
-              title: 'New Order Received! 🔔',
-              message: `New order #${orderIdShort} from ${populatedOrder.customer?.name || 'Customer'}.`,
-              orderId: order._id,
-              type: 'info'
-            });
-
-            const socketPayload = {
-              _id: populatedOrder._id,
-              orderId: populatedOrder.orderId,
-              customerName: populatedOrder.customer?.name,
-              restaurantName: populatedOrder.restaurant?.name,
-              total: populatedOrder.total,
-              orderStatus: populatedOrder.orderStatus,
-            };
-            io.to(populatedOrder.restaurant.owner.toString()).emit('new_restaurant_order', socketPayload);
-          }
-
-          io.to('admins').emit('new_order', populatedOrder);
-          io.to(req.userId).emit('order_status_update', {
-            orderId: order._id,
-            status: 'placed',
-            message: 'Your order has been placed successfully! 🍕'
+            amount: finalAmount,
+            type: 'debit',
+            description: `Order #${order.orderId}`,
+            order: order._id
           });
         }
-        console.log(`✅ [Background] All tasks finished for order: ${order._id}`);
-      } catch (bgError) {
-        console.error(`⚠️ [Background Tasks Error]:`, bgError.message);
-      }
+
+        const io = getIO();
+        const notification = await Notification.create({
+          userId: req.userId,
+          title: 'Order Placed! 🍱',
+          message: `Your order #${order.orderId || order._id.toString().slice(-6)} has been placed!`,
+          type: 'order_update',
+          orderId: order._id
+        });
+
+        io.to(req.userId).emit('new_notification', notification);
+        if (restaurant.owner) {
+          io.to(restaurant.owner.toString()).emit('new_order', order);
+        }
+      } catch (e) { console.error('BG Error:', e); }
     })();
 
-    // --- Final Response ---
-    return res.status(201).json({
-      success: true,
-      message: 'Order created successfully. Waiting for restaurant approval.',
-      data: order,
-    });
+    res.status(201).json({ success: true, data: order });
   } catch (error) {
-    console.error('🔥 [Create Order API] Critical Unhandled Failure:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create order',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -534,7 +320,11 @@ export const updateOrderStatus = async (req, res) => {
       // --- Revenue Distribution Hub ---
       // 1. Fetch restaurant with specific commission percentage
       const restaurant = await Restaurant.findById(order.restaurant).populate('owner');
-      const commissionRate = (restaurant?.commissionPercentage ?? 10) / 100;
+      
+      // Fetch global settings to use commission from config if restaurant has no specific setting
+      const globalSettings = await Settings.findOne({ key: 'global_config' }) || { platformCommission: 20 };
+      
+      const commissionRate = (restaurant?.commissionPercentage ?? globalSettings.platformCommission ?? 10) / 100;
 
       // Calculate split amounts
       // Note: Commission is traditionally on the food subtotal, not the delivery fee
@@ -606,7 +396,7 @@ export const updateOrderStatus = async (req, res) => {
 
           // Notify Admin of earnings
           await Notification.create({
-            user: adminUser._id,
+            userId: adminUser._id,
             title: 'Commission Earned! 💰',
             message: `You earned ₹${commissionAmount} commission from Order #${order.orderId || order._id.toString().slice(-6)}`,
             orderId: order._id,
@@ -636,6 +426,44 @@ export const updateOrderStatus = async (req, res) => {
     // --- Notifications & Sockets ---
 
     if (status === 'confirmed') {
+      // --- Auto Rider Assignment Logic (Nearest-First) ---
+      const settings = await Settings.findOne({ key: 'global_config' });
+      if (settings?.autoRiderAssign && !order.rider) {
+        const RiderModel = mongoose.model('Rider');
+        const restLat = Number(order.restaurantLocation?.lat);
+        const restLng = Number(order.restaurantLocation?.lng);
+
+        if (restLat && restLng) {
+          // Find the nearest online rider within 10km
+          const nearestRiderProfiles = await RiderModel.find({
+            isOnline: true,
+            currentLocation: {
+              $near: {
+                $geometry: { type: "Point", coordinates: [restLng, restLat] },
+                $maxDistance: 10000 // 10 Kilometers
+              }
+            }
+          }).limit(10); // Check top 10 nearest
+
+          // From the nearest online riders, pick the first one that is also 'isAvailable' in User model
+          let assignedRiderId = null;
+          for (const profile of nearestRiderProfiles) {
+            const riderUser = await User.findOne({ _id: profile.user, role: 'rider', isAvailable: true });
+            if (riderUser) {
+              assignedRiderId = riderUser._id;
+              break;
+            }
+          }
+
+          if (assignedRiderId) {
+            order.rider = assignedRiderId;
+            order.orderStatus = 'assigned';
+            await order.save();
+            console.log(`🤖 [Auto Assign] Order ${order.orderId} assigned to nearest rider: ${assignedRiderId}`);
+          }
+        }
+      }
+
       const fullOrderForAdmin = await Order.findById(order._id)
         .populate('customer', 'name phone')
         .populate('restaurant', 'name location');
@@ -692,7 +520,7 @@ export const updateOrderStatus = async (req, res) => {
     if (notificationMessage && customerId) {
       // Create persistent notification for Customer
       await Notification.create({
-        user: customerId,
+        userId: customerId,
         title: 'Order Update',
         message: notificationMessage,
         orderId: order._id,
@@ -706,9 +534,9 @@ export const updateOrderStatus = async (req, res) => {
       const restaurant = await Restaurant.findById(order.restaurant);
       if (restaurant && restaurant.owner) {
         await Notification.create({
-          user: restaurant.owner,
+          userId: restaurant.owner,
           title: 'Order Status Update',
-          message: `Order #${order.orderId || order._id.toString().slice(-6)} status changed to ${status.replace('_', ' ')}`,
+          message: `Order #${order.orderId || order._id.toString().slice(-6)} status: ${status.replace('_', ' ')}`,
           orderId: order._id,
           type: 'info'
         });
@@ -719,8 +547,8 @@ export const updateOrderStatus = async (req, res) => {
     // Notify Rider about status change (if not updated by them)
     if (order.rider && req.userRole !== 'rider') {
       await Notification.create({
-        user: order.rider,
-        title: 'Order Update',
+        userId: order.rider,
+        title: 'Delivery Update',
         message: `Order #${order.orderId || order._id.toString().slice(-6)} status: ${status.replace('_', ' ')}`,
         orderId: order._id,
         type: 'info'
@@ -814,8 +642,8 @@ export const assignRiderToOrder = async (req, res) => {
 
     if (customerId) {
       await Notification.create({
-        user: customerId,
-        title: 'Rider Assigned',
+        userId: customerId,
+        title: 'Rider Assigned! 🛵',
         message: assignmentMessage,
         orderId: fullOrder._id,
         type: 'info'
@@ -825,9 +653,9 @@ export const assignRiderToOrder = async (req, res) => {
 
     // Notify Rider
     await Notification.create({
-      user: riderId,
+      userId: riderId,
       title: 'New Delivery Assigned! 🛵',
-      message: `You have been assigned to order #${fullOrder.orderId || fullOrder._id.toString().slice(-6)}`,
+      message: `You've been assigned order #${fullOrder.orderId || fullOrder._id.toString().slice(-6)}`,
       orderId: fullOrder._id,
       type: 'success'
     });
@@ -874,6 +702,7 @@ export const acceptOrder = async (req, res) => {
 
     console.log(`🔄 [Accept Order API] Assigning order to rider...`);
     order.rider = req.userId;
+    order.orderStatus = 'Assigned';
 
     order.statusHistory.push({
       status: order.orderStatus,
@@ -913,16 +742,16 @@ export const acceptOrder = async (req, res) => {
 
     // Notification for Rider
     await Notification.create({
-      user: req.userId,
+      userId: req.userId,
       title: 'Order Accepted! 🛵',
-      message: `You have successfully accepted order #${order.orderId || order._id.toString().slice(-6)}`,
+      message: `You have accepted order #${order.orderId || order._id.toString().slice(-6)}`,
       orderId: order._id,
       type: 'success'
     });
 
     await Notification.create({
-      user: customerId,
-      title: 'Rider Assigned',
+      userId: customerId,
+      title: 'Rider Assigned! 🛵',
       message: acceptMessage,
       orderId: order._id,
       type: 'info'

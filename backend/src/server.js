@@ -1,8 +1,17 @@
 import express from "express";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 import cors from "cors";
-import connectDB from "./config/database.js";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import helmet from 'helmet';
+import compression from 'compression';
+import { createServer } from 'http';
 
+import { initSocket } from './utils/socket.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+
+// --- Routes ---
 import authRoutes from "./routes/authRoutes.js";
 import restaurantRoutes from "./routes/restaurantRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
@@ -19,34 +28,33 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
-import { createServer } from 'http';
-import { initSocket } from './utils/socket.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import helmet from 'helmet';
-import compression from 'compression';
+
+dotenv.config();
+
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Connected: cluster0.cki06oc.mongodb.net'))
+  .catch((err) => console.error('🔥 Error connecting to MongoDB:', err.message));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config();
-connectDB();
-
 const app = express();
 
+// --- Middleware ---
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for simplicity, or configure it properly for production
+  contentSecurityPolicy: false,
 }));
 app.use(compression());
 app.use(cors());
 
-// Stripe webhooks require the raw body. Mount webhook route with raw parser before json parser.
+// Stripe raw body parser
 app.use('/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
 
 app.use(express.json());
-
-// Serve static files from public/uploads
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
+// --- API Endpoints ---
+app.get("/api/health", (req, res) => res.json({ status: "ok", message: "FoodCourt API is online 🚀" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/restaurants", restaurantRoutes);
@@ -63,15 +71,13 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
-// Keep webhook route at /webhook for Stripe
 
-// --- SERVE FRONTEND IN PRODUCTION ---
+// --- Production Frontend Serving ---
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../../frontend/dist');
   app.use(express.static(distPath));
 
   app.get('*', (req, res) => {
-    // Only serve index.html if the request isn't for an API route
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(distPath, 'index.html'));
     }
@@ -82,6 +88,11 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// --- Errors ---
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// --- Initialization ---
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 initSocket(httpServer);
@@ -89,3 +100,4 @@ initSocket(httpServer);
 httpServer.listen(PORT, '0.0.0.0', () =>
   console.log(`🚀 Server running on http://localhost:${PORT}`)
 );
+

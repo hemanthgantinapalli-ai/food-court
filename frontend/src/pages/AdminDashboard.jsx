@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Clock as DashboardClock, Wifi as DashboardWifi, ShieldCheck as DashboardShield } from 'lucide-react';
-import { Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Store, Signal, Shield } from 'lucide-react';
+import { Clock, Wifi, ShieldCheck, Users, ShoppingCart, TrendingUp, Building, ArrowUpRight, AlertCircle, Bell, Truck, Plus, Trash2, Edit3, X, CheckCircle, Eye, EyeOff, ArrowRight, DollarSign, MapPin, Navigation, Store, Signal, Shield } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -10,6 +9,17 @@ import { socket, connectSocket } from '../api/socket.js';
 import AdminBI from '../components/AdminBI';
 import ImageUploadField from '../components/ImageUploadField';
 import LeafletFleetMap from '../components/LeafletFleetMap';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet default icon paths
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({ iconRetinaUrl, iconUrl, shadowUrl });
+
 
 
 // Calculate distance in km
@@ -184,9 +194,9 @@ export default function AdminDashboard() {
       });
 
       // Live rider GPS from socket (admin gets all updates)
-      socket.on('rider_position_update', ({ riderId, location }) => {
+      socket.on('rider_position_update', ({ riderId, location, heading, speed }) => {
         setOnlineRiders(prev => prev.map(r =>
-          r.userId?.toString() === riderId ? { ...r, location } : r
+          r.userId?.toString() === riderId ? { ...r, location, heading, speed } : r
         ));
       });
 
@@ -469,7 +479,7 @@ export default function AdminDashboard() {
               <div className="relative flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-orange-100 shadow-sm shadow-orange-100/50">
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-bounce" />
                 <Bell className="text-orange-500" size={18} />
-                <span className="font-black text-orange-700 text-[10px] uppercase tracking-widest">{liveOrders.length} Pulse</span>
+                <span className="font-black text-orange-700 text-[10px] uppercase tracking-widest">{liveOrders.length} Feed</span>
               </div>
             )}
             <div className="flex items-center gap-4 bg-slate-900/5 backdrop-blur-md p-4 rounded-[2rem] border border-white/50 shadow-inner">
@@ -477,7 +487,7 @@ export default function AdminDashboard() {
                 <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Node</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">System Status</p>
                 <p className="font-black text-slate-900 text-xs">OPERATIONAL</p>
               </div>
             </div>
@@ -512,17 +522,17 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex border-b border-slate-50 p-3 gap-3 bg-slate-50/50 overflow-x-auto no-scrollbar">
             {[
-              { id: 'overview', label: 'Nodes' },
-              { id: 'intelligence', label: 'Intelligence' },
-              { id: 'live', label: 'Pulse' },
-              { id: 'gps', label: 'Tracking' },
-              { id: 'orders', label: 'Orders' },
-              { id: 'approvals', label: 'Audit' },
+              { id: 'overview', label: 'Overview' },
+              { id: 'intelligence', label: 'Analytics' },
+              { id: 'live', label: 'Live Feed' },
+              { id: 'gps', label: 'Fleet Map' },
+              { id: 'orders', label: 'All Orders' },
+              { id: 'approvals', label: 'Approvals' },
               { id: 'finance', label: 'Finance' },
               { id: 'support', label: 'Support' },
-              { id: 'users', label: 'Entities' },
-              { id: 'restaurants', label: 'Kitchens' },
-              { id: 'settings', label: 'Nexus Settings' },
+              { id: 'users', label: 'Users' },
+              { id: 'restaurants', label: 'Restaurants' },
+              { id: 'settings', label: 'Settings' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -549,7 +559,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-4">
                       <AlertCircle className="text-amber-600" size={24} />
                       <div>
-                        <p className="font-black text-amber-900 uppercase tracking-widest text-xs">{stats.unapprovedRestaurants} Kitchens Pending Approval</p>
+                        <p className="font-black text-amber-900 uppercase tracking-widest text-xs">{stats.unapprovedRestaurants} Restaurants Pending Approval</p>
                         <p className="text-[10px] text-amber-600 font-bold uppercase mt-0.5">They won't appear on the home page until verified.</p>
                       </div>
                     </div>
@@ -603,7 +613,7 @@ export default function AdminDashboard() {
                         <ArrowUpRight size={14} className="text-orange-500 group-hover:text-white" />
                       </button>
                       <button onClick={() => setActiveTab('restaurants')} className="w-full flex items-center justify-between p-4 bg-purple-50 rounded-2xl border border-purple-100 group hover:bg-purple-600 transition-all">
-                        <span className="text-[10px] font-black uppercase text-purple-700 group-hover:text-white">Kitchen Portal</span>
+                        <span className="text-[10px] font-black uppercase text-purple-700 group-hover:text-white">Restaurant Portal</span>
                         <ArrowUpRight size={14} className="text-purple-500 group-hover:text-white" />
                       </button>
                       <Link to="/admin/menu" className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-2xl border border-blue-100 group hover:bg-blue-600 transition-all">
@@ -695,7 +705,7 @@ export default function AdminDashboard() {
                 {/* Map Panel */}
                 {onlineRiders.filter(r => r.location).length > 0 ? (
                   <div className="relative rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-sm" style={{ height: '480px' }}>
-                    <LeafletFleetMap riders={onlineRiders} />
+                    <LeafletFleetMap riders={onlineRiders} activeOrders={activeOrders} />
                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg z-[1000] border border-slate-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                       <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                       Live Fleet Tracker
@@ -1704,14 +1714,14 @@ export default function AdminDashboard() {
                       disabled={isUpdatingSettings}
                       className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-200 hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
                     >
-                      <DashboardShield size={18} /> {isUpdatingSettings ? 'Saving...' : 'Update Configuration'}
+                      <ShieldCheck size={18} /> {isUpdatingSettings ? 'Saving...' : 'Update Configuration'}
                     </button>
                   </div>
                </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
                    <div className="p-10 bg-slate-900 rounded-[2.5rem] border border-slate-800 text-white relative overflow-hidden group">
-                      <h4 className="text-xl font-black mb-2 flex items-center gap-3"><DashboardWifi className="text-emerald-500 animate-pulse" /> Real-time Nodes</h4>
+                      <h4 className="text-xl font-black mb-2 flex items-center gap-3"><Wifi className="text-emerald-500 animate-pulse" /> Real-time Nodes</h4>
                       <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-8">Platform connectivity and socket states</p>
                       
                       <div className="space-y-4">
@@ -1731,7 +1741,7 @@ export default function AdminDashboard() {
                       <h4 className="text-xl font-black text-slate-900 mb-2">Automated Payouts</h4>
                       <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-8">Current Cycle: Weekly (Sunday midnight)</p>
                       <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center text-center">
-                         <DashboardClock size={32} className="text-slate-300 mb-4" />
+                         <Clock size={32} className="text-slate-300 mb-4" />
                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-relaxed">System automatically initiates settlements via RazorpayX every Sunday at 23:59 IST</p>
                       </div>
                    </div>
@@ -2062,44 +2072,61 @@ export default function AdminDashboard() {
           <div className="relative bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col md:flex-row h-[80vh] md:h-[600px]">
             {/* Left: Map */}
             <div className="flex-1 relative bg-slate-100">
-              <Map
-                defaultCenter={assignModal.restaurantCoords ? { lat: assignModal.restaurantCoords.lat, lng: assignModal.restaurantCoords.lng } : { lat: 20.5937, lng: 78.9629 }}
-                defaultZoom={14}
-                mapId="DEMO_MAP_ID"
-                className="h-full w-full z-0"
-                gestureHandling={'greedy'}
-                disableDefaultUI={true}
+              <MapContainer
+                center={assignModal.restaurantCoords ? [assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng] : [20.5937, 78.9629]}
+                zoom={14}
+                style={{ height: '100%', width: '100%', zIndex: 0 }}
+                zoomControl={false}
               >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; OpenStreetMap contributors'
+                />
+
                 {/* Restaurant Marker */}
                 {assignModal.restaurantCoords && (
-                  <AdvancedMarker 
-                    position={{ lat: assignModal.restaurantCoords.lat, lng: assignModal.restaurantCoords.lng }}
-                  >
-                    <div className="bg-white p-2 rounded-2xl shadow-xl border-2 border-orange-500 scale-110 animate-bounce">
-                      <Store className="text-orange-500" size={24} />
-                    </div>
-                  </AdvancedMarker>
+                  <Marker 
+                    position={[assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng]}
+                    icon={L.divIcon({
+                      className: 'custom-div-icon',
+                      html: `<div class="bg-white p-2 rounded-2xl shadow-xl border-2 border-orange-500 flex items-center justify-center" style="width:40px; height:40px; transform:translate(-10px, -10px)">
+                              <span style="font-size:24px">🏪</span>
+                             </div>`,
+                      iconSize: [40, 40],
+                      iconAnchor: [20, 20]
+                    })}
+                  />
                 )}
 
                 {/* Riders on Map */}
                 {onlineRiders.filter(r => r.location).map(rider => (
-                  <AdvancedMarker 
+                  <Marker 
                     key={rider.userId} 
-                    position={{ lat: rider.location.lat, lng: rider.location.lng }}
-                    onClick={() => handleAssignRiderFromModal(rider.userId)}
+                    position={[rider.location.lat, rider.location.lng]}
+                    eventHandlers={{
+                      click: () => handleAssignRiderFromModal(rider.userId),
+                    }}
+                    icon={L.divIcon({
+                      className: 'custom-div-icon',
+                      html: `<div class="relative group cursor-pointer" style="transform:translate(-20px, -20px)">
+                              <div class="absolute -inset-4 bg-orange-500/20 rounded-full animate-ping"></div>
+                              <div class="relative bg-white p-2 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center" style="width:36px; height:36px">
+                                <span style="font-size:20px">🚚</span>
+                              </div>
+                            </div>`,
+                      iconSize: [36, 36],
+                      iconAnchor: [18, 18]
+                    })}
                   >
-                    <div className="relative group cursor-pointer">
-                      <div className="absolute -inset-4 bg-orange-500/20 rounded-full animate-ping group-hover:bg-orange-500/40 transition-all" />
-                      <div className="relative bg-white p-2 rounded-xl shadow-lg border border-slate-100 group-hover:border-orange-500 group-hover:scale-110 transition-all">
-                        <Truck className="text-slate-600 group-hover:text-orange-500" size={20} />
+                    <Popup>
+                      <div className="font-black text-[10px] uppercase tracking-widest text-slate-900">
+                        {rider.name} <br/>
+                        {calculateDistance(assignModal.restaurantCoords?.lat, assignModal.restaurantCoords?.lng, rider.location.lat, rider.location.lng)?.toFixed(1)} km away
                       </div>
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl">
-                        {rider.name} • {calculateDistance(assignModal.restaurantCoords?.lat, assignModal.restaurantCoords?.lng, rider.location.lat, rider.location.lng)?.toFixed(1)} km
-                      </div>
-                    </div>
-                  </AdvancedMarker>
+                    </Popup>
+                  </Marker>
                 ))}
-              </Map>
+              </MapContainer>
               
               <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg z-[1000] border border-slate-100">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">

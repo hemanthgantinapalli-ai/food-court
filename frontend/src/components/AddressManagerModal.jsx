@@ -140,10 +140,25 @@ export default function AddressManagerModal({ isOpen, onClose, existingAddress =
                   .then(data => {
                     if (data && data.address) {
                       const addr = data.address;
+                      const streetParts = [
+                        addr.house_number,
+                        addr.building,
+                        addr.road,
+                        addr.pedestrian
+                      ].filter(Boolean);
+                      
+                      const areaParts = [
+                        addr.neighbourhood,
+                        addr.suburb,
+                        addr.residential,
+                        addr.industrial,
+                        addr.hamlet
+                      ].filter(Boolean);
+
                       window.dispatchEvent(new CustomEvent('updateAddressFields', { 
                         detail: {
-                          street: addr.road || addr.suburb || '',
-                          area: addr.neighbourhood || addr.residential || addr.suburb || '',
+                          street: streetParts.join(', ') || addr.suburb || '',
+                          area: areaParts.join(', ') || addr.city_district || '',
                           city: addr.city || addr.town || addr.village || '',
                           zipCode: addr.postcode || ''
                         }
@@ -156,7 +171,7 @@ export default function AddressManagerModal({ isOpen, onClose, existingAddress =
                <PanToCenter displayPos={position} />
                {position && (
                   <AdvancedMarker position={position}>
-                   <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" style={{width: 38, height: 38}} alt="pin" />
+                   <img src="/markers/user.png" style={{width: 44, height: 44}} alt="pin" />
                   </AdvancedMarker>
                )}
              </Map>

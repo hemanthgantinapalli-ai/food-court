@@ -27,6 +27,7 @@ function freePort(port) {
 }
 
 freePort(5000);
+freePort(5173);
 freePort(5174);
 
 console.log('✅ Ports cleared. Starting servers...');

@@ -12,6 +12,7 @@ export const errorHandler = (err, req, res, next) => {
 };
 
 export const notFoundHandler = (req, res) => {
+  console.error(`❌ 404 NOT FOUND: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
     message: 'Route not found',

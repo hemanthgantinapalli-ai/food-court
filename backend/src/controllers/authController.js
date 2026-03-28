@@ -1,42 +1,30 @@
 import User from "../models/User.js";
 import Rider from "../models/Rider.js";
 import Restaurant from "../models/Restaurant.js";
-import MenuItem from "../models/MenuItem.js";
 import { generateToken } from "../utils/jwt.js";
 
 // ====== REGISTER USER ======
 export const register = async (req, res) => {
   try {
-    console.log("📝 [Register API] Request received with body:", req.body);
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone } = req.body;
 
-    // Validate Input
     if (!name || !email || !password) {
-      console.log("❌ [Register API] Missing required fields (name, email, or password)");
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({ message: "Name, email, and password are required" });
     }
 
-    console.log("🔍 [Register API] Checking if user exists:", email);
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: email.toLowerCase() });
     if (userExists) {
-      console.log("⚠️ [Register API] User already exists:", email);
-      return res.status(400).json({ message: "User exists" });
+      return res.status(400).json({ message: "User already exists" });
     }
 
-    console.log("✨ [Register API] Creating new user");
-    const user = await User.create({ name, email, password, role });
-
-    console.log("✅ [Register API] User created successfully:", user._id);
-
+    const user = await User.create({ name, email, password: password, role: role || 'customer', phone });
     const token = generateToken(user);
-    console.log("🔑 [Register API] JWT Token generated for:", user.email);
 
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, role: user.role, email: user.email },
+      user: { id: user._id, name: user.name, role: user.role, email: user.email, phone: user.phone },
     });
   } catch (error) {
-    console.error("🔥 [Register API] Server Error:", error.message);
     res.status(500).json({ message: "Server error during registration", error: error.message });
   }
 };
@@ -44,40 +32,29 @@ export const register = async (req, res) => {
 // ====== LOGIN USER ======
 export const login = async (req, res) => {
   try {
-    console.log("📝 [Login API] Request received for email:", req.body.email);
     const { email, password } = req.body;
 
-    // Validate Input
     if (!email || !password) {
-      console.log("❌ [Login API] Missing email or password");
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    console.log("🔍 [Login API] Looking up user by email:", email);
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      console.log("⚠️ [Login API] User not found:", email);
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    console.log("🔐 [Login API] Comparing passwords for:", email);
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      console.log("❌ [Login API] Password mismatch for:", email);
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    console.log("✅ [Login API] Password matched. Generating token...");
     const token = generateToken(user);
-
-    console.log("🚀 [Login API] Login successful for:", email);
     res.status(200).json({
       token,
-      user: { id: user._id, name: user.name, role: user.role, email: user.email },
+      user: { id: user._id, name: user.name, role: user.role, email: user.email, phone: user.phone, addresses: user.addresses },
     });
   } catch (error) {
-    console.error("🔥 [Login API] Server Error:", error.message);
     res.status(500).json({ message: "Server error during login", error: error.message });
   }
 };
@@ -91,7 +68,7 @@ export const getProfile = async (req, res) => {
       .select("-password");
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(401).json({ success: false, message: "User not found" });
     }
 
     let riderData = null;
@@ -123,30 +100,68 @@ export const getProfile = async (req, res) => {
   }
 };
 
+// ====== UPDATE USER PROFILE ======
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, street, area, city, pincode } = req.body;
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: "User not found" });
+    }
+
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    
+    // Handle primary address update
+    if (street || city || pincode) {
+        if (!user.addresses) user.addresses = [];
+        const mainAddr = user.addresses[0] || {};
+        user.addresses[0] = {
+            ...mainAddr,
+            street: street || mainAddr.street,
+            area: area || mainAddr.area,
+            city: city || mainAddr.city,
+            zipCode: pincode || mainAddr.zipCode,
+            label: 'Home'
+        };
+        user.markModified('addresses');
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        addresses: user.addresses
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error updating profile", error: error.message });
+  }
+};
+
 // ====== TOGGLE FAVORITE FOOD ======
 export const toggleFavoriteFood = async (req, res) => {
   try {
     const { foodId } = req.body;
     const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const index = user.favoriteFoods.indexOf(foodId);
-    if (index === -1) {
-      user.favoriteFoods.push(foodId);
-    } else {
-      user.favoriteFoods.splice(index, 1);
-    }
+    if (index === -1) user.favoriteFoods.push(foodId);
+    else user.favoriteFoods.splice(index, 1);
 
     await user.save();
     const updatedUser = await User.findById(req.userId).populate("favoriteFoods", "name price description image isVeg restaurant");
 
-    res.status(200).json({
-      message: "Favorites updated",
-      favoriteFoods: updatedUser.favoriteFoods,
-    });
+    res.status(200).json({ message: "Favorites updated", favoriteFoods: updatedUser.favoriteFoods });
   } catch (error) {
     res.status(500).json({ message: "Error toggling favorite food", error: error.message });
   }
@@ -157,72 +172,17 @@ export const toggleFavorite = async (req, res) => {
   try {
     const { restaurantId } = req.body;
     const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const index = user.favorites.indexOf(restaurantId);
-    if (index === -1) {
-      user.favorites.push(restaurantId);
-    } else {
-      user.favorites.splice(index, 1);
-    }
+    if (index === -1) user.favorites.push(restaurantId);
+    else user.favorites.splice(index, 1);
 
     await user.save();
     const updatedUser = await User.findById(req.userId).populate("favorites", "name image rating cuisines location");
 
-    res.status(200).json({
-      message: "Favorites updated",
-      favorites: updatedUser.favorites,
-    });
+    res.status(200).json({ message: "Favorites updated", favorites: updatedUser.favorites });
   } catch (error) {
     res.status(500).json({ message: "Error toggling favorite", error: error.message });
-  }
-};
-
-// ====== UPDATE USER PROFILE ======
-export const updateProfile = async (req, res) => {
-  try {
-    const { name, phone, addresses } = req.body;
-    const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (name) user.name = name;
-    if (phone) user.phone = phone;
-    if (addresses) user.addresses = addresses;
-
-    await user.save();
-
-    let riderData = null;
-    let restaurants = [];
-
-    if (user.role === 'rider') {
-      riderData = await Rider.findOne({ user: user._id });
-    } else if (user.role === 'restaurant') {
-      restaurants = await Restaurant.find({ owner: user._id });
-    }
-
-    res.status(200).json({
-      message: "Profile updated successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone || "",
-        addresses: user.addresses || [],
-        wallet: user.wallet || { balance: 0 },
-        favorites: user.favorites || [],
-        favoriteFoods: user.favoriteFoods || [],
-        riderData,
-        restaurants,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Error updating profile", error: error.message });
   }
 };

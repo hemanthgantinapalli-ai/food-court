@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, Suspense, lazy } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -14,34 +14,42 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import QuickRoleSwitcher from "./components/QuickRoleSwitcher";
 import CartConflictModal from "./components/CartConflictModal";
 import { useAuthStore } from "./context/authStore";
-// Google Maps removed — now using free Leaflet + OpenStreetMap
 
-// ---------- Customer Pages ----------
-import Home from "./pages/Home";
-import SignIn from "./pages/SignIn";
-import SignUp from "./pages/SignUp";
-import RestaurantDetail from "./pages/RestaurantDetail";
-import CartPage from "./pages/CartPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import ProfilePage from "./pages/ProfilePage";
-import OffersPage from "./pages/OffersPage";
-import TrackOrderPage from "./pages/TrackOrderPage";
-import OrderHistoryPage from "./pages/OrderHistoryPage";
-import OrderDetailPage from "./pages/OrderDetailPage";
-import CustomerDashboard from "./pages/CustomerDashboard";
-import ForgotPassword from "./pages/ForgotPassword";
+// ---------- Loading component ----------
+const LoadingPage = () => (
+  <div className="flex items-center justify-center min-h-[60vh] flex-col gap-4">
+    <div className="w-12 h-12 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin"></div>
+    <p className="text-slate-400 font-medium animate-pulse">Loading Deliciousness...</p>
+  </div>
+);
 
-// ---------- Role Dashboards (no shared Header/Footer) ----------
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminMenu from "./pages/AdminMenu";
-import AdminSignIn from "./pages/AdminSignIn";
-import AdminSignUp from "./pages/AdminSignUp";
-import RiderDashboard from "./pages/RiderDashboard";
-import RiderSignIn from "./pages/RiderSignIn";
-import RestaurantSignIn from "./pages/RestaurantSignIn";
-import RestaurantSignUp from "./pages/RestaurantSignUp";
-import PartnerDashboard from "./pages/PartnerDashboard";
+// ---------- Customer Pages (Lazy Loaded) ----------
+const Home = lazy(() => import("./pages/Home"));
+const SignIn = lazy(() => import("./pages/SignIn"));
+const SignUp = lazy(() => import("./pages/SignUp"));
+const RestaurantDetail = lazy(() => import("./pages/RestaurantDetail"));
+const CartPage = lazy(() => import("./pages/CartPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const OffersPage = lazy(() => import("./pages/OffersPage"));
+const TrackOrderPage = lazy(() => import("./pages/TrackOrderPage"));
+const OrderHistoryPage = lazy(() => import("./pages/OrderHistoryPage"));
+const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
+const CustomerDashboard = lazy(() => import("./pages/CustomerDashboard"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+
+// ---------- Role Dashboards (Lazy Loaded) ----------
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminMenu = lazy(() => import("./pages/AdminMenu"));
+const AdminSignIn = lazy(() => import("./pages/AdminSignIn"));
+const AdminSignUp = lazy(() => import("./pages/AdminSignUp"));
+const RiderDashboard = lazy(() => import("./pages/RiderDashboard"));
+const RiderSignIn = lazy(() => import("./pages/RiderSignIn"));
+const RestaurantSignIn = lazy(() => import("./pages/RestaurantSignIn"));
+const RestaurantSignUp = lazy(() => import("./pages/RestaurantSignUp"));
+const PartnerDashboard = lazy(() => import("./pages/PartnerDashboard"));
 
 // ─── Scroll To Top ────────────────────────────────────────────────
 const ScrollToTop = () => {
@@ -53,7 +61,10 @@ const ScrollToTop = () => {
 };
 
 // ─── Paths that should NOT show the consumer Header/Footer ────────
-const DASHBOARD_PATHS = ["/admin", "/admin/menu", "/admin/login", "/admin/signup", "/rider", "/rider/login", "/partner", "/restaurant/login", "/restaurant/signup"];
+const DASHBOARD_PATHS = [
+  "/admin", "/admin/menu", "/admin/login", "/admin/signup", 
+  "/rider", "/rider/login", "/partner", "/restaurant/login", "/restaurant/signup"
+];
 
 // ─── Inner App (inside Router context) ───────────────────────────
 function AppInner() {
@@ -79,121 +90,129 @@ function AppInner() {
         {!isDashboard && <Header />}
 
         <main className="grow">
-          <Routes>
+          <Suspense fallback={<LoadingPage />}>
+            <Routes>
 
-            {/* ── Public Routes ─────────────────────────────── */}
-            <Route path="/" element={<Home />} />
-            <Route path="/signin" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+              {/* ── Public Routes ─────────────────────────────── */}
+              <Route path="/" element={<Home />} />
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
 
-            {/* Role-Specific Login Pages */}
-            <Route path="/admin/login" element={<AdminSignIn />} />
-            <Route path="/admin/signup" element={<AdminSignUp />} />
-            <Route path="/rider/login" element={<RiderSignIn />} />
-            <Route path="/restaurant/login" element={<RestaurantSignIn />} />
-            <Route path="/restaurant/signup" element={<RestaurantSignUp />} />
+              {/* Role-Specific Login Pages */}
+              <Route path="/admin/login" element={<AdminSignIn />} />
+              <Route path="/admin/signup" element={<AdminSignUp />} />
+              <Route path="/rider/login" element={<RiderSignIn />} />
+              <Route path="/restaurant/login" element={<RestaurantSignIn />} />
+              <Route path="/restaurant/signup" element={<RestaurantSignUp />} />
 
-            <Route path="/restaurant/:id" element={<RestaurantDetail />} />
-            <Route path="/offers" element={<OffersPage />} />
-            {/* Cart is public — guest can browse; login is only required at checkout */}
-            <Route path="/cart" element={<CartPage />} />
-            {/* Track order is public — shareable links work without login */}
-            <Route path="/track-order" element={<TrackOrderPage />} />
+              <Route path="/restaurant/:id" element={<RestaurantDetail />} />
+              <Route path="/offers" element={<OffersPage />} />
+              {/* Cart is public — guest can browse; login is only required at checkout */}
+              <Route path="/cart" element={<CartPage />} />
+              {/* Track order is public — shareable links work without login */}
+              <Route path="/track-order" element={<TrackOrderPage />} />
 
-            {/* ── Customer-Only Routes ──────────────────────── */}
-            <Route
-              path="/checkout"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <CheckoutPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/payment-success"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <PaymentSuccess />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <ProfilePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <CustomerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/orders"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <OrderHistoryPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/order/:orderId"
-              element={
-                <ProtectedRoute allowedRoles={[]}>
-                  <OrderDetailPage />
-                </ProtectedRoute>
-              }
-            />
+              {/* ── Customer-Only Routes ──────────────────────── */}
+              <Route
+                path="/checkout"
+                element={
+                  <ProtectedRoute allowedRoles={["customer"]}>
+                    <CheckoutPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/payment-success"
+                element={
+                  <ProtectedRoute allowedRoles={["customer"]}>
+                    <PaymentSuccess />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute allowedRoles={["customer", "admin", "rider", "restaurant"]}>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={["customer"]}>
+                    <CustomerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/orders"
+                element={
+                  <ProtectedRoute allowedRoles={["customer"]}>
+                    <OrderHistoryPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute allowedRoles={["customer", "admin", "rider", "restaurant"]}>
+                    <NotificationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/order/:orderId"
+                element={
+                  <ProtectedRoute allowedRoles={["customer", "admin"]}>
+                    <OrderDetailPage />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ── Admin Dashboard (no consumer Header/Footer) ── */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/menu"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminMenu />
-                </ProtectedRoute>
-              }
-            />
+              {/* ── Admin Dashboard (no consumer Header/Footer) ── */}
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/menu"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <AdminMenu />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ── Rider Dashboard (no consumer Header/Footer) ── */}
-            <Route
-              path="/rider"
-              element={
-                <ProtectedRoute allowedRoles={["rider"]}>
-                  <RiderDashboard />
-                </ProtectedRoute>
-              }
-            />
-            {/* ── Restaurant Partner Dashboard (no consumer Header/Footer) ── */}
-            <Route
-              path="/partner"
-              element={
-                <ProtectedRoute allowedRoles={["restaurant"]}>
-                  <PartnerDashboard />
-                </ProtectedRoute>
-              }
-            />
+              {/* ── Rider Dashboard (no consumer Header/Footer) ── */}
+              <Route
+                path="/rider"
+                element={
+                  <ProtectedRoute allowedRoles={["rider"]}>
+                    <RiderDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              {/* ── Restaurant Partner Dashboard (no consumer Header/Footer) ── */}
+              <Route
+                path="/partner"
+                element={
+                  <ProtectedRoute allowedRoles={["restaurant"]}>
+                    <PartnerDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
+              {/* ── Catch-all 404 ─────────────────────────────── */}
+              <Route path="*" element={<Navigate to="/" replace />} />
 
-
-            {/* ── Catch-all 404 ─────────────────────────────── */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-
-          </Routes>
+            </Routes>
+          </Suspense>
         </main>
 
         {/* Consumer Footer — hidden on all dashboard routes */}
@@ -216,4 +235,4 @@ export default function App() {
       <AppInner />
     </Router>
   );
-}
+}

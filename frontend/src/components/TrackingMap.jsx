@@ -285,7 +285,7 @@ export default function TrackingMap({ order, isGoogleReady }) {
                         onClick={() => setSelectedMarker('restaurant')}
                         zIndex={10}
                     >
-                        <img src="https://cdn-icons-png.flaticon.com/512/3448/3448609.png" style={{width: 42, height: 42}} alt="restaurant" />
+                        <img src="/markers/restaurant.png" style={{width: 48, height: 48}} alt="restaurant" />
                     </AdvancedMarker>
                 )}
                 {selectedMarker === 'restaurant' && (
@@ -304,7 +304,7 @@ export default function TrackingMap({ order, isGoogleReady }) {
                         onClick={() => setSelectedMarker('home')}
                         zIndex={10}
                     >
-                        <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" style={{width: 38, height: 38}} alt="home" />
+                        <img src="/markers/user.png" style={{width: 44, height: 44}} alt="home" />
                     </AdvancedMarker>
                 )}
                 {selectedMarker === 'home' && (

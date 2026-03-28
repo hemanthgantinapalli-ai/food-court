@@ -42,8 +42,8 @@ router.get('/online', authenticateUser, authorizeRole('admin'), async (req, res)
         } : rider.currentLocation ? {
           lat: rider.currentLocation.latitude,
           lng: rider.currentLocation.longitude,
-          heading: 0,
-          speed: 0,
+          heading: rider.currentLocation.heading || 0,
+          speed: rider.currentLocation.speed || 0,
           updatedAt: rider.updatedAt,
         } : null,
       };
@@ -398,24 +398,48 @@ router.put('/:riderId/verify', authenticateUser, authorizeRole('admin'), async (
 // Rider updates their live coordinates
 router.post('/update-location', authenticateUser, authorizeRole('rider'), async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
+    const { latitude, longitude, heading, speed } = req.body;
     
     if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
     }
 
-    console.log(`📍 [Rider Location] Updating location for rider: ${req.userId} → ${latitude}, ${longitude}`);
+    console.log(`📍 [Rider Location] Updating location for rider: ${req.userId} → ${latitude}, ${longitude} (Heading: ${heading}, Speed: ${speed})`);
 
     await Rider.findOneAndUpdate(
       { user: req.userId },
-      { currentLocation: { latitude, longitude } }
+      { 
+        currentLocation: { 
+          latitude, 
+          longitude,
+          heading: Number(heading) || 0,
+          speed: Number(speed) || 0
+        } 
+      }
     );
 
     // Notify active customers linked to this rider
     const activeOrders = await Order.find({
       rider: req.userId,
-      orderStatus: 'on_the_way'
+      orderStatus: { $in: ['on_the_way', 'picked_up', 'ready', 'Assigned', 'Arrived', 'Picked Up'] }
     });
+
+    // Persistent DB Lock: Update active orders in DB too so customer refresh doesn't jitter
+    await Order.updateMany(
+      { 
+        rider: req.userId, 
+        orderStatus: { $in: ['on_the_way', 'picked_up', 'ready', 'Assigned', 'Arrived', 'Picked Up'] } 
+      },
+      { 
+        riderLocation: { 
+          lat: latitude, 
+          lng: longitude, 
+          bearing: Number(heading) || 0,
+          speed: Number(speed) || 0,
+          lastUpdated: new Date() 
+        } 
+      }
+    );
 
     const io = getIO();
     activeOrders.forEach(order => {
@@ -423,11 +447,20 @@ router.post('/update-location', authenticateUser, authorizeRole('rider'), async 
       const payload = {
         orderId: order._id,
         location: { lat: latitude, lng: longitude },
+        heading: Number(heading) || 0,
+        speed: Number(speed) || 0,
         timestamp: new Date()
       };
       
       io.to(order.customer.toString()).emit('rider_location_updated', payload);
       io.to(`order_${order._id}`).emit('rider_location_updated', payload);
+      // Also broadcast to admins
+      io.to('admins').emit('rider_position_update', {
+        riderId: req.userId,
+        location: { lat: latitude, lng: longitude },
+        heading: Number(heading) || 0,
+        speed: Number(speed) || 0,
+      });
     });
 
     res.status(200).json({ success: true, message: 'Location updated' });

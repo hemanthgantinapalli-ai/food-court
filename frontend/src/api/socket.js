@@ -49,30 +49,26 @@ export const joinRoleRoom = (role) => {
 // Join a specific order's room to receive live tracking updates
 export const joinOrderRoom = (orderId) => {
     if (socket.connected) {
-        socket.emit('join_order', orderId);
+        socket.emit('joinOrder', orderId);
     } else {
-        socket.once('connect', () => socket.emit('join_order', orderId));
+        socket.once('connect', () => socket.emit('joinOrder', orderId));
     }
 };
 
 // Rider broadcasts their live GPS position to customer + admin
 export const broadcastRiderLocation = (orderId, riderId, location, heading, speed) => {
     if (socket.connected) {
-        socket.emit('riderLocation', { 
+        socket.emit('locationUpdate', { 
             orderId, 
-            riderId, 
-            lat: location.lat, 
-            lng: location.lng, 
-            heading, 
-            speed 
+            coordinates: { lat: location.lat, lng: location.lng, heading, speed } 
         });
     }
 };
 
 // Rider announces they went online (sends GPS immediately so admin map updates)
-export const notifyRiderOnline = (riderId, location) => {
+export const notifyRiderOnline = (riderId, location, heading = 0, speed = 0) => {
     if (socket.connected) {
-        socket.emit('rider_online', { riderId, location });
+        socket.emit('rider_online', { riderId, location, heading, speed });
     }
 };
 

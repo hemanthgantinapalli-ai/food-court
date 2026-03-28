@@ -230,12 +230,7 @@ export default function Header() {
           {user && (
             <Link
               id="notifications-header-btn"
-              to={
-                user.role === 'admin' ? '/admin?tab=notifications' :
-                  user.role === 'rider' ? '/rider?tab=notifications' :
-                    user.role === 'restaurant' ? '/partner?tab=notifications' :
-                      '/dashboard?tab=notifications'
-              }
+              to="/notifications"
               className={`relative p-2.5 rounded-xl transition-all ${isScrolled || !isHomePage
                 ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
                 : 'text-white/70 hover:text-white'

@@ -43,75 +43,6 @@ const cleanLabel = (label) => {
   return label.replace(/^and\s+/i, '').replace(/\.+$/, '').trim();
 };
 
-const FALLBACK_RESTAURANTS = [
-  {
-    _id: '69a5bdb2d6f8c7e3b91a1061',
-    name: '[DEMO] Smoke House',
-    image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80',
-    rating: 4.8,
-    cuisines: ['American', 'Burgers', 'BBQ'],
-    deliveryTime: 25,
-    deliveryFee: 0,
-    averagePrice: 450,
-    location: { address: '42 Gourmet Street', city: 'Mumbai', latitude: 19.0760, longitude: 72.8777 }
-  },
-  {
-    _id: '69a5bdb2d6f8c7e3b91a1062',
-    name: '[DEMO] Sakura Japanese',
-    image: 'https://images.unsplash.com/photo-1617196034183-421b4040ed20?w=600&q=80',
-    rating: 4.9,
-    cuisines: ['Japanese', 'Sushi', 'Ramen'],
-    deliveryTime: 30,
-    deliveryFee: 49,
-    averagePrice: 800,
-    location: { address: '12 Tokyo Tower', city: 'Mumbai', latitude: 19.0820, longitude: 72.8888 }
-  },
-  {
-    _id: '69a5bdb2d6f8c7e3b91a1063',
-    name: '[DEMO] Bella Italia',
-    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80',
-    rating: 4.7,
-    cuisines: ['Italian', 'Pizza', 'Pasta'],
-    deliveryTime: 20,
-    deliveryFee: 0,
-    averagePrice: 600,
-    location: { address: '8 Naples Way', city: 'Mumbai', latitude: 19.0900, longitude: 72.8999 }
-  },
-  {
-    _id: '69a5bdb2d6f8c7e3b91a1064',
-    name: '[DEMO] Spice Garden',
-    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80',
-    rating: 4.4,
-    cuisines: ['Indian', 'Curry', 'Biryani'],
-    deliveryTime: 35,
-    deliveryFee: 29,
-    averagePrice: 350,
-    location: { address: '15 Curry Lane', city: 'Mumbai', latitude: 19.1000, longitude: 72.9000 }
-  },
-  {
-    _id: '69a5bdb2d6f8c7e3b91a1065',
-    name: '[DEMO] Green Bowl',
-    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80',
-    rating: 4.5,
-    cuisines: ['Healthy', 'Salads', 'Vegan'],
-    deliveryTime: 20,
-    deliveryFee: 0,
-    averagePrice: 300,
-    location: { address: '3 Green Terrace', city: 'Mumbai', latitude: 19.1100, longitude: 72.9111 }
-  },
-  {
-    _id: '69a5bdb2d6f8c7e3b91a1066',
-    name: '[DEMO] Dragon Palace',
-    image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=600&q=80',
-    rating: 4.7,
-    cuisines: ['Chinese', 'Dim Sum', 'Noodles'],
-    deliveryTime: 40,
-    deliveryFee: 39,
-    averagePrice: 550,
-    location: { address: '9 Silk Road', city: 'Mumbai', latitude: 19.1200, longitude: 72.9222 }
-  },
-];
-
 const Home = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
@@ -153,15 +84,15 @@ const Home = () => {
           API.get('/restaurants/recommendations').catch(e => ({ data: { data: [] } }))
         ]);
 
-        const list = Array.isArray(resResponse.data) ? resResponse.data : (resResponse.data?.data || []);
-        setRestaurants(list);
-        setRecommendations(recResponse.data?.data || []);
-      } catch (error) {
-        console.error('[Home] API Error:', error);
-        setRestaurants(FALLBACK_RESTAURANTS);
-      } finally {
-        setLoading(false);
-      }
+            const list = Array.isArray(resResponse.data) ? resResponse.data : (resResponse.data?.data || []);
+            setRestaurants(list);
+            setRecommendations(recResponse.data?.data || []);
+          } catch (error) {
+            console.error('[Home] API Error:', error);
+            setRestaurants([]);
+          } finally {
+            setLoading(false);
+          }
     };
 
     fetchRestaurants();
@@ -271,32 +202,34 @@ const Home = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="sticky top-20 z-40 bg-white/70 backdrop-blur-2xl pt-6 pb-8 -mx-6 px-6 mb-10 border-b border-slate-100/80 flex flex-col gap-8 shadow-sm group">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-            <div id="restaurant-section" className="animate-fade-up">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="h-0.5 w-12 bg-orange-500 rounded-full" />
+      {/* ── Sticky Filter & Category Bar ─────────────────────────────── */}
+      <div className="sticky top-16 z-40 w-full bg-white/90 backdrop-blur-2xl border-b border-slate-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 pt-5 pb-4 flex flex-col gap-5">
+          {/* Title + Sort Controls */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div id="restaurant-section">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="h-0.5 w-10 bg-orange-500 rounded-full" />
                 <span className="text-[10px] font-black uppercase tracking-[0.4em] text-orange-600">
                   Top Curation for Tenali
                 </span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-slate-950 leading-none">
-                Discover <span className="text-orange-600 block md:inline">Culinary Excellence</span>
+              <h2 className="text-2xl md:text-3xl font-black tracking-tighter text-slate-950 leading-none">
+                Discover <span className="text-orange-600">Culinary Excellence</span>
               </h2>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => setFastDelivery(!fastDelivery)}
-                className={`group flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${fastDelivery ? 'bg-orange-500 text-white shadow-2xl shadow-orange-500/30' : 'bg-slate-50 text-slate-500 hover:bg-white hover:border-orange-500/30 border border-slate-100'}`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${fastDelivery ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-100 text-slate-500 hover:bg-orange-50 border border-slate-200 hover:border-orange-300'}`}
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${fastDelivery ? 'bg-white animate-pulse' : 'bg-orange-500'}`} />
                 ⚡ Fast
               </button>
               <button
                 onClick={() => setHighRating(!highRating)}
-                className={`group flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${highRating ? 'bg-orange-500 text-white shadow-2xl shadow-orange-500/30' : 'bg-slate-50 text-slate-500 hover:bg-white hover:border-orange-500/30 border border-slate-100'}`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${highRating ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-100 text-slate-500 hover:bg-orange-50 border border-slate-200 hover:border-orange-300'}`}
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${highRating ? 'bg-white animate-pulse' : 'bg-yellow-400'}`} />
                 ⭐ 4.5+
@@ -305,48 +238,49 @@ const Home = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="appearance-none pl-6 pr-12 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest bg-slate-950 text-white border border-transparent outline-none cursor-pointer hover:bg-slate-900 transition-all shadow-xl"
+                  className="appearance-none pl-5 pr-10 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest bg-slate-950 text-white outline-none cursor-pointer hover:bg-slate-800 transition-all"
                 >
                   <option value="none">SORTS</option>
                   <option value="rating">Top Rated</option>
                   <option value="deliveryTime">Fastest first</option>
                   <option value="priceLowHigh">Value for money</option>
                 </select>
-                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none" size={14} />
+                <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400 pointer-events-none" size={12} />
               </div>
             </div>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth">
-            {[
-              { label: 'All', emoji: '🌎' },
-              { label: 'Samosas', emoji: '🥟' },
-              { label: 'Ramen', emoji: '🍜' },
-              { label: 'Beverages', emoji: '🥤' },
-              { label: 'Biryani', emoji: '🥘' },
-              { label: 'Burgers', emoji: '🍔' },
-              { label: 'Chicken', emoji: '🍗' }
-            ].map((cat) => (
-              <button
-                key={cat.label}
-                onClick={() => applyFilter(cat.label)}
-                className={`group flex items-center gap-3 px-6 py-4 rounded-2xl transition-all duration-500 shrink-0 ${activeFilter === cat.label
-                    ? 'bg-slate-950 text-white shadow-2xl translate-y-[-4px]'
-                    : 'bg-white border border-slate-100 text-slate-600 hover:border-orange-500 hover:bg-orange-50/50 hover:translate-y-[-2px]'
+          {/* Category Pills */}
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
+              { [
+                { label: 'All', emoji: '🌎' },
+                { label: 'Samosas', emoji: '🥟' },
+                { label: 'Ramen', emoji: '🍜' },
+                { label: 'Beverages', emoji: '🥤' },
+                { label: 'Biryani', emoji: '🥘' },
+                { label: 'Burgers', emoji: '🍔' },
+                { label: 'Chicken', emoji: '🍗' }
+              ].map((cat) => (
+                <button
+                  key={cat.label}
+                  onClick={() => applyFilter(cat.label)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-full transition-all duration-300 shrink-0 text-[10px] font-black uppercase tracking-widest border-2 ${
+                    activeFilter === cat.label
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-xl shadow-orange-100'
+                      : 'bg-white text-slate-500 border-slate-100 hover:border-orange-200 hover:bg-orange-50/50'
                   }`}
-              >
-                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${activeFilter === cat.label ? 'bg-orange-500 rotate-12' : 'bg-slate-50'}`}>
-                  <span className={`text-lg md:text-xl transition-transform duration-500 group-hover:scale-110 ${activeFilter === cat.label ? 'scale-110' : ''}`}>
-                    {cat.emoji}
-                  </span>
-                </div>
-                <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-inherit whitespace-nowrap">
+                >
+                  <span className="text-base">{cat.emoji}</span>
                   {cat.label}
-                </span>
-              </button>
-            ))}
+                </button>
+              ))}
           </div>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-10">
+
+
 
         {!loading && !searchQuery && activeFilter === 'All' && restaurants.length > 3 && (
           <div className="mb-20 animate-fade-up">

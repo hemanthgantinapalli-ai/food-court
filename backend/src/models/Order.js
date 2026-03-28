@@ -45,15 +45,37 @@ const orderSchema = new mongoose.Schema(
       longitude: Number,
       label: String,
     },
-    subtotal: Number,
-    tax: Number,
-    deliveryFee: Number,
+    // Financial Breakdown (Requested standard fields)
+    totalAmount: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+    commission: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+    deliveryFee: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+    tax: {
+      type: Number,
+      required: true,
+      default: 0
+    },
     discount: {
       type: Number,
-      default: 0,
+      default: 0
     },
-    discountCode: String,
-    total: Number,
+    finalAmount: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+
     paymentMethod: {
       type: String,
       enum: ['card', 'upi', 'wallet', 'cash'],
@@ -73,10 +95,11 @@ const orderSchema = new mongoose.Schema(
         'confirmed',
         'preparing',
         'ready',
+        'assigned',
         'picked_up',
         'on_the_way',
         'delivered',
-        'cancelled',
+        'cancelled'
       ],
       default: 'placed',
     },
@@ -90,6 +113,7 @@ const orderSchema = new mongoose.Schema(
         note: String,
       },
     ],
+    // Logistics & Meta
     estimatedDeliveryTime: Date,
     actualDeliveryTime: Date,
     specialInstructions: String,
@@ -114,23 +138,6 @@ const orderSchema = new mongoose.Schema(
     refundReason: {
       type: String,
       default: '',
-    },
-    // Revenue sharing & Logistics
-    partnerEarnings: {
-      type: Number,
-      default: 0,
-    },
-    platformFee: {
-      type: Number,
-      default: 0,
-    },
-    riderEarnings: {
-      type: Number,
-      default: 0,
-    },
-    platformCommission: {
-      type: Number,
-      default: 0,
     },
     distance: {
       type: Number,

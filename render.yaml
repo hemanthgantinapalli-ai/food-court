@@ -1,0 +1,30 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: food-court-api
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        fromConfig: mongodb_uri
+      - key: JWT_SECRET
+        generateValue: true
+
+  # Frontend Static Site
+  - type: static
+    name: food-court-client
+    env: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://food-court-api.onrender.com/api # Replace with your actual backend URL

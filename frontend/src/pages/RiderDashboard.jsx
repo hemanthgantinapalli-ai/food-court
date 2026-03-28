@@ -141,22 +141,32 @@ export default function RiderDashboard() {
     let dbInterval;
     let socketInterval;
 
-    const activeTrackingOrder = assignedOrders.find(o => ['ready', 'picked_up', 'on_the_way', 'confirmed', 'preparing'].includes(o.orderStatus));
+    const activeTrackingOrder = assignedOrders.find(o => ['ready', 'picked_up', 'on_the_way', 'confirmed', 'preparing', 'assigned'].includes(o.orderStatus));
 
     if (isOnline && user?.role === 'rider') {
       // 1. Database Sync (Persistent location update)
-      // Faster sync during active simulation/journey (5s) vs idle (30s)
-      const syncInterval = isSimulating ? 5000 : 30000;
+      // Faster sync during active simulation/journey (2-3s) vs idle (8-10s)
+      const syncInterval = isSimulating ? 3000 : 10000;
       dbInterval = setInterval(() => {
         if (isSimulating && riderPosRef.current) {
           // Sync simulated position to DB so user refresh doesn't jump rider back
-          const { lat, lng } = riderPosRef.current;
-          API.post('/riders/update-location', { latitude: lat, longitude: lng }).catch(() => {});
+          const { lat, lng, heading } = riderPosRef.current;
+          API.post('/riders/update-location', { 
+            latitude: lat, 
+            longitude: lng,
+            heading: heading || 0,
+            speed: 35 // Simulated speed
+          }).catch(() => {});
         } else if (!isSimulating && 'geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(async (position) => {
-            const { latitude, longitude } = position.coords;
+            const { latitude, longitude, heading, speed } = position.coords;
             try {
-              await API.post('/riders/update-location', { latitude, longitude });
+              await API.post('/riders/update-location', { 
+                latitude, 
+                longitude,
+                heading: heading || 0,
+                speed: speed || 0
+              });
             } catch (err) { console.error('DB Location Sync Fail:', err); }
           }, () => {}, { enableHighAccuracy: false });
         }
@@ -164,7 +174,7 @@ export default function RiderDashboard() {
 
       // 2. Real-time Socket Broadcast (Ultra-high frequency for smooth map movement)
       if (activeTrackingOrder) {
-        socket.emit('join_order', activeTrackingOrder._id);
+        socket.emit('joinOrder', activeTrackingOrder._id);
 
         socketInterval = setInterval(() => {
           if (!activeTrackingOrder) return;
@@ -174,25 +184,34 @@ export default function RiderDashboard() {
             const restLoc = activeTrackingOrder.restaurant?.location || activeTrackingOrder.restaurantAddress || {};
             const custLoc = activeTrackingOrder.deliveryAddress || {};
 
-            let restLat = Number(restLoc.latitude || restLoc.lat || 16.2435);
-            let restLng = Number(restLoc.longitude || restLoc.lng || 80.6480);
-            let custLat = Number(custLoc.latitude || custLoc.lat || 16.2340);
-            let custLng = Number(custLoc.longitude || custLoc.lng || 80.6550);
+            let restLat = Number(activeTrackingOrder.restaurantLocation?.lat || restLoc.latitude || restLoc.lat || 16.2435);
+            let restLng = Number(activeTrackingOrder.restaurantLocation?.lng || restLoc.longitude || restLoc.lng || 80.6480);
+            let custLat = Number(activeTrackingOrder.userLocation?.lat || custLoc.latitude || custLoc.lat || 16.2340);
+            let custLng = Number(activeTrackingOrder.userLocation?.lng || custLoc.longitude || custLoc.lng || 80.6550);
             
-            // ─── Precision Tenali Hubs (Matched to User Text) ───
-            const HUB_RIDER = { lat: 16.2510, lng: 80.6390 }; // Sultanabad (North)
-            const HUB_REST  = { lat: 16.2435, lng: 80.6480 }; // Ramalingeswara Pet (Center)
-            const HUB_CUST  = { lat: 16.2340, lng: 80.6550 }; // Chinaravuru (South-East)
+            // 🛡️ DYNAMIC COORD SNAPPING (Hyper-Realistic Demo Logic)
+            // If the rider and customer/restaurant are too close (same device testing), 
+            // we artificially offset the rider start point so the simulation has a road to travel.
+            const isTooClose = Math.abs(restLat - custLat) < 0.005; // ~500m
+            
+            // Hardcoded Demo Hubs only as fallback for "distance" feel
+            const DEMO_START_SPOT = { lat: 16.2387636, lng: 80.6368367 }; // Rama Krishna Plaza, Chenchupet
+            
+            const HUB_RIDER = (isSimulating && isTooClose && !riderPosRef.current?.lat) 
+                ? DEMO_START_SPOT 
+                : (riderPosRef.current || DEMO_START_SPOT); 
 
-            // 🛡️ Ensure points are not identical for pathfinding
-            if (Math.abs(restLat - custLat) < 0.0001 && Math.abs(restLng - custLng) < 0.0001) {
-                custLat = HUB_CUST.lat; 
-                custLng = HUB_CUST.lng;
+            const HUB_REST  = { lat: restLat, lng: restLng }; 
+            const HUB_CUST  = { lat: custLat, lng: custLng }; 
+            
+            // Avoid marker stacking (Jitter)
+            if (Math.abs(restLat - custLat) < 0.00001) {
+              custLat += 0.0001;
             }
 
             const isMovingToCustomer = activeTrackingOrder.orderStatus === 'on_the_way';
             const isAtRestaurant     = activeTrackingOrder.orderStatus === 'picked_up';
-            const isMovingToPickup   = !isMovingToCustomer && !isAtRestaurant;
+            const isMovingToPickup   = activeTrackingOrder.orderStatus === 'assigned' || (!isMovingToCustomer && !isAtRestaurant);
             
             const currentTarget = (isMovingToCustomer || isAtRestaurant) ? 'dropoff' : 'pickup';
 
@@ -345,15 +364,17 @@ export default function RiderDashboard() {
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition((pos) => {
             const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const heading = pos.coords.heading || 0;
+            const speed = pos.coords.speed || 0;
             setRiderSelfLocation(location);
             riderPosRef.current = location;
-            notifyRiderOnline(user._id, location);
+            notifyRiderOnline(user._id, location, heading, speed);
           }, () => {
             // Fallback for demo: Sultanabad (North Tenali)
             const fallbackHub = { lat: 16.2510, lng: 80.6390 };
             setRiderSelfLocation(fallbackHub);
             riderPosRef.current = fallbackHub;
-            notifyRiderOnline(user._id, fallbackHub);
+            notifyRiderOnline(user._id, fallbackHub, 0, 0);
           });
         }
       } else {
@@ -485,7 +506,7 @@ export default function RiderDashboard() {
   if (loading && assignedOrders.length === 0) return <Loader />;
 
   const completedDeliveries = assignedOrders.filter((o) => ['delivered', 'cancelled'].includes(o.orderStatus));
-  const activeDeliveries = assignedOrders.filter((o) => ['confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way'].includes(o.orderStatus));
+  const activeDeliveries = assignedOrders.filter((o) => ['confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way', 'assigned'].includes(o.orderStatus));
 
   const statusBadge = (status) => {
     const map = {
@@ -902,6 +923,8 @@ export default function RiderDashboard() {
                                 restaurantPos={{ lat: restLat, lng: restLng }}
                                 customerPos={{ lat: custLat, lng: custLng }}
                                 orderStatus={order.orderStatus}
+                                restaurantName={order.restaurant?.name || order.restaurantName || "Restaurant"}
+                                customerAddress={order.deliveryAddress?.street || order.deliveryAddress?.area || "Customer Address"}
                               />
 
                               {/* Map Status Badge */}
@@ -978,30 +1001,35 @@ export default function RiderDashboard() {
                               </div>
 
                               <div className="flex gap-3 flex-wrap justify-end">
-                                {(order.orderStatus === 'confirmed' || order.orderStatus === 'preparing') && (
+                                {(order.orderStatus === 'confirmed' || order.orderStatus === 'preparing' || order.orderStatus === 'ready') && (
                                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 flex items-center gap-2">
                                     <Clock size={12} className="animate-spin" style={{ animationDuration: '3s' }} />
                                     Waiting for Kitchen
                                   </div>
                                 )}
-                                {order.orderStatus === 'ready' && (
-                                  <button onClick={() => handleStatusUpdate(order._id, 'picked_up')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2">
-                                    <Package size={14} /> Confirm Pickup
+                                {(order.orderStatus === 'Assigned') && (
+                                  <button onClick={() => handleStatusUpdate(order._id, 'Arrived')} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg flex items-center gap-2">
+                                    <Navigation size={14} /> Navigate to Restaurant
                                   </button>
                                 )}
-                                {order.orderStatus === 'picked_up' && (
+                                {(order.orderStatus === 'Arrived' || order.orderStatus === 'ready') && (
+                                  <button onClick={() => handleStatusUpdate(order._id, 'Picked Up')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2">
+                                    <Package size={14} /> Picked Up
+                                  </button>
+                                )}
+                                {(order.orderStatus === 'Picked Up' || order.orderStatus === 'picked_up') && (
                                   <button onClick={() => handleStatusUpdate(order._id, 'on_the_way')} className="px-6 py-3 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-100 flex items-center gap-2">
-                                    <Navigation size={14} /> Start Journey
+                                    <Navigation size={14} /> Navigate to Customer
                                   </button>
                                 )}
-                                {((order.orderStatus === 'picked_up' || order.orderStatus === 'on_the_way')) && (
+                                {((order.orderStatus === 'on_the_way')) && (
                                   <button onClick={async (e) => {
                                       e.stopPropagation();
                                       await handleStatusUpdate(order._id, 'delivered');
                                       setIsSimulating(false);
                                       simulationProgress.current = 0;
                                   }} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2">
-                                    <CheckCircle size={14} /> Mark Delivered
+                                    <CheckCircle size={14} /> Confirm Delivery
                                   </button>
                                 )}
                                 <Link to={`/order/${order._id}`} className="px-5 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all">Details</Link>
