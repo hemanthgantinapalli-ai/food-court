@@ -70,14 +70,17 @@ export const getRestaurants = async (req, res) => {
 
         // Attach menu item keywords to each restaurant for powerful client-side filtering
         const menuItems = await MenuItem.find({ restaurant: { $in: restaurants.map(r => r._id) } })
-            .select('restaurant name category');
+            .select('restaurant name category')
+            .lean();
 
         const menuMap = {};
         menuItems.forEach(item => {
-            const restId = item.restaurant.toString();
-            if (!menuMap[restId]) menuMap[restId] = new Set();
-            if (item.name) menuMap[restId].add(item.name.toLowerCase());
-            if (item.category) menuMap[restId].add(item.category.toLowerCase());
+            if (item.restaurant) {
+                const restId = item.restaurant.toString();
+                if (!menuMap[restId]) menuMap[restId] = new Set();
+                if (item.name) menuMap[restId].add(item.name.toLowerCase());
+                if (item.category) menuMap[restId].add(item.category.toLowerCase());
+            }
         });
 
         restaurants = restaurants.map(r => ({
@@ -85,11 +88,11 @@ export const getRestaurants = async (req, res) => {
             menuKeywords: Array.from(menuMap[r._id.toString()] || [])
         }));
 
-        console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants (with semantic menu keywords).`);
+        console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants for city: ${city || 'Global'}`);
         return res.status(200).json(restaurants);
     } catch (error) {
-        console.error("🔥 [Get Restaurants API] Error:", error.message);
-        return res.status(500).json({ success: false, message: error.message });
+        console.error("🔥 [Get Restaurants API] Error:", error);
+        return res.status(500).json({ success: false, message: "Error fetching restaurants. Please try again later." });
     }
 };
 
@@ -188,7 +191,8 @@ export const getRecommendedRestaurants = async (req, res) => {
             const topRated = await Restaurant.find({ isApproved: true })
                 .sort({ rating: -1 })
                 .limit(4)
-                .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+                .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
+                .lean();
             return res.json({ success: true, data: topRated, isGuest: true });
         }
 
@@ -196,13 +200,15 @@ export const getRecommendedRestaurants = async (req, res) => {
         const lastOrders = await Order.find({ customer: userId })
             .sort({ createdAt: -1 })
             .limit(10)
-            .populate('restaurant');
+            .populate('restaurant')
+            .lean();
 
-        if (lastOrders.length === 0) {
+        if (!lastOrders || lastOrders.length === 0) {
             // New user with no orders? Return high rated or trending
             const trending = await Restaurant.find({ isApproved: true, rating: { $gte: 4.5 } })
                 .limit(4)
-                .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+                .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
+                .lean();
             return res.json({ success: true, data: trending, message: 'Trending near you' });
         }
 
@@ -216,33 +222,43 @@ export const getRecommendedRestaurants = async (req, res) => {
             }
         });
 
-        // Get top 2 preferred cuisines
+        // Get top preferred cuisines
         const topCuisines = Object.entries(cuisineCounts)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 2)
             .map(([cuisine]) => cuisine);
 
+        // Filter valid restaurant IDs to avoid CastError in $nin
+        const previousRestaurantIds = lastOrders
+            .map(o => o.restaurant?._id)
+            .filter(id => id != null);
+
         // Find restaurants with these cuisines that user hasn't ordered from RECENTLY
-        const recommendations = await Restaurant.find({
+        let recommendations = await Restaurant.find({
             isApproved: true,
             cuisines: { $in: topCuisines },
-            _id: { $nin: lastOrders.map(o => o.restaurant?._id) } // Suggest something fresh
+            _id: { $nin: previousRestaurantIds } // Suggest something fresh
         })
             .sort({ rating: -1 })
             .limit(4)
-            .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
+            .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
+            .lean();
 
         // Fallback if no fresh recommendations found in those cuisines
-        if (recommendations.length < 2) {
-            const fallback = await Restaurant.find({ isApproved: true, rating: { $gte: 4.2 } })
+        if (!recommendations || recommendations.length < 2) {
+            recommendations = await Restaurant.find({ 
+                isApproved: true, 
+                rating: { $gte: 4.2 },
+                _id: { $nin: previousRestaurantIds }
+            })
                 .limit(4)
-                .select('name image cuisines rating location deliveryTime deliveryFee isOpen');
-            return res.json({ success: true, data: fallback });
+                .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
+                .lean();
         }
 
         res.json({ success: true, data: recommendations });
     } catch (error) {
-        console.error("🔥 [AI Recommendations API] Error:", error.message);
+        console.error("🔥 [AI Recommendations API] Error:", error);
         res.status(500).json({ success: false, message: 'Recommendation engine temporary offline' });
     }
 };
