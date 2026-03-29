@@ -30,7 +30,7 @@ export const createOrder = async (req, res) => {
       restaurantId = cart.restaurant;
     } else if (bodyItems && bodyItems.length > 0) {
       items = bodyItems;
-      restaurantId = req.body.restaurantId;
+      restaurantId = req.body.restaurantId || req.body.restaurant;
     }
 
     if (items.length === 0 || !restaurantId) {
@@ -318,102 +318,111 @@ export const updateOrderStatus = async (req, res) => {
       order.actualDeliveryTime = new Date();
 
       // --- Revenue Distribution Hub ---
-      // 1. Fetch restaurant with specific commission percentage
-      const restaurant = await Restaurant.findById(order.restaurant).populate('owner');
-      
-      // Fetch global settings to use commission from config if restaurant has no specific setting
-      const globalSettings = await Settings.findOne({ key: 'global_config' }) || { platformCommission: 20 };
-      
-      const commissionRate = (restaurant?.commissionPercentage ?? globalSettings.platformCommission ?? 10) / 100;
-
-      // Calculate split amounts
-      // Note: Commission is traditionally on the food subtotal, not the delivery fee
-      const subtotal = order.subtotal || (order.total - (order.deliveryFee || 0));
-      const commissionAmount = Math.round(subtotal * commissionRate);
-      const riderEarnings = order.deliveryFee || 40;
-      const partnerEarnings = subtotal - commissionAmount;
-
-      console.log(`💰 [Earnings] Total: ${order.total} | Subtotal: ${subtotal} | Commission (${restaurant?.commissionPercentage}%): ${commissionAmount}`);
-
-      // 2. Credit Restaurant Partner Wallet (Earnings for food)
-      if (restaurant && restaurant.owner) {
-        const owner = restaurant.owner;
-        owner.wallet = owner.wallet || { balance: 0 };
-        owner.wallet.balance += partnerEarnings;
-        await owner.save();
-
-        await Transaction.create({
-          user: owner._id,
-          amount: partnerEarnings,
-          type: 'credit',
-          paymentMethod: 'system',
-          status: 'success',
-          description: `Earnings for Order #${order.orderId || order._id.toString().slice(-6)}`,
-          order: order._id,
-          transactionId: `EARN-P-${Date.now()}`
-        });
-      }
-
-      // 3. Credit Rider Wallet (Delivery Fee)
-      if (order.rider) {
-        const rider = await User.findById(order.rider);
-        if (rider) {
-          rider.wallet = rider.wallet || { balance: 0 };
-          rider.wallet.balance += riderEarnings;
-          await rider.save();
-
-          await Transaction.create({
-            user: rider._id,
-            amount: riderEarnings,
-            type: 'credit',
-            paymentMethod: 'system',
-            status: 'success',
-            description: `Delivery fee for Order #${order.orderId || order._id.toString().slice(-6)}`,
-            order: order._id,
-            transactionId: `EARN-R-${Date.now()}`
-          });
-        }
-      }
-
-      // 4. NEW: Credit Admin Wallet (Platform Profit)
       try {
-        const adminUser = await User.findOne({ role: 'admin' });
-        if (adminUser) {
-          adminUser.wallet = adminUser.wallet || { balance: 0 };
-          adminUser.wallet.balance += commissionAmount;
-          await adminUser.save();
+        // 1. Fetch restaurant with specific commission percentage
+        const restaurantId = order.restaurant?._id || order.restaurant;
+        const restaurant = await Restaurant.findById(restaurantId).populate('owner');
+        
+        // Fetch global settings to use commission from config if restaurant has no specific setting
+        const globalSettings = await Settings.findOne({ key: 'global_config' }) || { platformCommission: 20 };
+        
+        const commissionRate = (Number(restaurant?.commissionPercentage) || Number(globalSettings.platformCommission) || 10) / 100;
 
-          await Transaction.create({
-            user: adminUser._id,
-            amount: commissionAmount,
-            type: 'credit',
-            paymentMethod: 'system',
-            status: 'success',
-            description: `Platform Commission (${restaurant?.commissionPercentage}%) - Order #${order.orderId || order._id.toString().slice(-6)}`,
-            order: order._id,
-            transactionId: `COMM-A-${Date.now()}`
-          });
+        // Calculate split amounts
+        // Note: Commission is traditionally on the food subtotal, not the delivery fee
+        const subtotal = Number(order.totalAmount) || Number(order.subtotal) || (Math.max(0, (Number(order.finalAmount) || Number(order.total) || 0) - (Number(order.deliveryFee) || 0)));
+        const commissionAmount = Math.round(subtotal * commissionRate);
+        const riderEarnings = Number(order.deliveryFee) || 40;
+        const partnerEarnings = Math.max(0, subtotal - commissionAmount);
 
-          // Notify Admin of earnings
-          await Notification.create({
-            userId: adminUser._id,
-            title: 'Commission Earned! 💰',
-            message: `You earned ₹${commissionAmount} commission from Order #${order.orderId || order._id.toString().slice(-6)}`,
-            orderId: order._id,
-            type: 'success'
-          });
-          io.to('admins').emit('platform_earnings_update', { amount: commissionAmount, balance: adminUser.wallet.balance });
+        console.log(`💰 [Earnings Build] Subtotal: ${subtotal} | Commission (${(commissionRate * 100).toFixed(0)}%): ${commissionAmount} | Rider: ${riderEarnings} | Partner: ${partnerEarnings}`);
 
-          console.log(`🏦 [Admin Earnings] Credited ₹${commissionAmount} to admin: ${adminUser.email}`);
+        // 2. Credit Restaurant Partner Wallet
+        if (restaurant && restaurant.owner && typeof restaurant.owner === 'object') {
+          try {
+            const owner = restaurant.owner;
+            owner.wallet = owner.wallet || { balance: 0 };
+            owner.wallet.balance = (Number(owner.wallet.balance) || 0) + partnerEarnings;
+            await owner.save();
+
+            await Transaction.create({
+              user: owner._id,
+              amount: partnerEarnings,
+              type: 'credit',
+              paymentMethod: 'system',
+              status: 'success',
+              description: `Earnings for Order #${order.orderId || order._id.toString().slice(-6)}`,
+              order: order._id,
+              transactionId: `EARN-P-${Date.now()}-${order._id.toString().slice(-4)}`
+            });
+            console.log(`✅ [Earnings] Credited ₹${partnerEarnings} to partner: ${owner.email}`);
+          } catch (err) { console.error('❌ Failed to credit restaurant partner:', err.message); }
         }
-      } catch (adminErr) {
-        console.error('❌ Failed to credit admin commission:', adminErr.message);
+
+        // 3. Credit Rider Wallet
+        if (order.rider) {
+          try {
+            const riderDoc = await User.findById(order.rider);
+            if (riderDoc) {
+              riderDoc.wallet = riderDoc.wallet || { balance: 0 };
+              riderDoc.wallet.balance = (Number(riderDoc.wallet.balance) || 0) + riderEarnings;
+              await riderDoc.save();
+
+              await Transaction.create({
+                user: riderDoc._id,
+                amount: riderEarnings,
+                type: 'credit',
+                paymentMethod: 'system',
+                status: 'success',
+                description: `Delivery fee for Order #${order.orderId || order._id.toString().slice(-6)}`,
+                order: order._id,
+                transactionId: `EARN-R-${Date.now()}-${order._id.toString().slice(-4)}`
+              });
+              console.log(`✅ [Earnings] Credited ₹${riderEarnings} to rider: ${riderDoc.email}`);
+            }
+          } catch (err) { console.error('❌ Failed to credit rider:', err.message); }
+        }
+
+        // 4. Credit Admin Wallet (Platform Profit)
+        try {
+          const adminUser = await User.findOne({ role: 'admin' });
+          if (adminUser) {
+            adminUser.wallet = adminUser.wallet || { balance: 0 };
+            adminUser.wallet.balance = (Number(adminUser.wallet.balance) || 0) + commissionAmount;
+            await adminUser.save();
+
+            await Transaction.create({
+              user: adminUser._id,
+              amount: commissionAmount,
+              type: 'credit',
+              paymentMethod: 'system',
+              status: 'success',
+              description: `Platform Commission (${(commissionRate * 100).toFixed(0)}%) - Order #${order.orderId || order._id.toString().slice(-6)}`,
+              order: order._id,
+              transactionId: `COMM-A-${Date.now()}-${order._id.toString().slice(-4)}`
+            });
+
+            // Notify Admin
+            await Notification.create({
+              userId: adminUser._id,
+              title: 'Commission Earned! 💰',
+              message: `You earned ₹${commissionAmount} commission from Order #${order.orderId || order._id.toString().slice(-6)}`,
+              orderId: order._id,
+              type: 'success'
+            });
+            io.to('admins').emit('platform_earnings_update', { amount: commissionAmount, balance: adminUser.wallet.balance });
+            console.log(`✅ [Earnings] Credited ₹${commissionAmount} to admin: ${adminUser.email}`);
+          }
+        } catch (adminErr) {
+          console.error('❌ Failed to credit admin commission:', adminErr.message);
+        }
+      } catch (distErr) {
+        console.error('❌ Critical Error in Revenue Distribution:', distErr.message);
       }
 
       // 5. Reset Rider Availability
       if (order.rider) {
-        await User.findByIdAndUpdate(order.rider, { isAvailable: true });
-        console.log(`🏍️ [Rider Status] Rider ${order.rider} is now available for new orders.`);
+        await User.findByIdAndUpdate(order.rider, { isAvailable: true }).catch(err => console.error('Failed to reset rider availability:', err));
       }
     }
 
