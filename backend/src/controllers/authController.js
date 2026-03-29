@@ -4,7 +4,7 @@ import Restaurant from "../models/Restaurant.js";
 import { generateToken } from "../utils/jwt.js";
 import { OAuth2Client } from "google-auth-library";
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'dummy_client_id');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com');
 
 // ====== REGISTER USER ======
 export const register = async (req, res) => {
@@ -307,7 +307,7 @@ export const googleLogin = async (req, res) => {
     // Verify the Google token
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID || 'dummy_client_id',
+      audience: process.env.GOOGLE_CLIENT_ID || '490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com',
     });
     
     const payload = ticket.getPayload();
