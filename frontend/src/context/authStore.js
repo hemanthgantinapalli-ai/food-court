@@ -38,13 +38,8 @@ export const useAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await API.post('/auth/register', userData);
-      const { token, user } = response.data;
-
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-
-      set({ user, token, loading: false });
-      return user;
+      set({ loading: false });
+      return response.data;
     } catch (error) {
       const message = error.response?.data?.message || 'Registration failed';
       set({ error: message, loading: false });

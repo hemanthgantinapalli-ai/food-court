@@ -28,6 +28,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import User from "./models/User.js";
 
 dotenv.config();
 
@@ -55,6 +56,26 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // --- API Endpoints ---
 app.get("/api/health", (req, res) => res.json({ status: "ok", message: "FoodCourt API is online 🚀" }));
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    console.log("BODY:", req.body);
+    const { name, email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+    const user = new User({ name, email, password });
+    await user.save();
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (err) {
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/restaurants", restaurantRoutes);

@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../context/authStore.js';
 import AuthLayout from '../components/AuthLayout';
-import { GoogleLogin } from '@react-oauth/google';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -15,7 +14,7 @@ export default function SignUp() {
 
   const { signUp, googleAuth } = useAuthStore();
   
-  const handleGoogleSuccess = async (credentialResponse) => {
+  const handleCredentialResponse = async (credentialResponse) => {
     try {
         setLoading(true);
         // By default role can be 'customer', handles googleAuth creation/login
@@ -34,6 +33,26 @@ export default function SignUp() {
         setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (window.google && document.getElementById("googleSignInButton")) {
+        window.google.accounts.id.initialize({
+          client_id: "490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com",
+          callback: handleCredentialResponse,
+        });
+
+        window.google.accounts.id.renderButton(
+          document.getElementById("googleSignInButton"),
+          { theme: "outline", size: "large" }
+        );
+
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -47,7 +66,7 @@ export default function SignUp() {
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        navigate('/');
+        navigate('/signin');
       }, 2000);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Failed to create account. Please try again.';
@@ -162,15 +181,7 @@ export default function SignUp() {
       </div>
 
       <div className="flex justify-center mb-8">
-        <GoogleLogin
-          onSuccess={handleGoogleSuccess}
-          onError={() => setError('Google Sign Up Failed')}
-          useOneTap
-          theme="outline"
-          shape="pill"
-          size="large"
-          text="signup_with"
-        />
+        <div id="googleSignInButton"></div>
       </div>
 
     </AuthLayout>

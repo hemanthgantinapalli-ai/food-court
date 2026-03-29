@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import AuthLayout from '../components/AuthLayout';
-import { GoogleLogin } from '@react-oauth/google';
 
 export default function SignIn() {
   const [email, setEmail] = useState('user@foodcourt.com');
@@ -39,7 +38,7 @@ export default function SignIn() {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse) => {
+  const handleCredentialResponse = async (credentialResponse) => {
     try {
         setLoading(true);
         const loggedInUser = await googleAuth(credentialResponse.credential);
@@ -54,6 +53,26 @@ export default function SignIn() {
         setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (window.google && document.getElementById("googleSignInButton")) {
+        window.google.accounts.id.initialize({
+          client_id: "490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com",
+          callback: handleCredentialResponse,
+        });
+
+        window.google.accounts.id.renderButton(
+          document.getElementById("googleSignInButton"),
+          { theme: "outline", size: "large" }
+        );
+
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <AuthLayout
@@ -158,15 +177,7 @@ export default function SignIn() {
       </div>
 
       <div className="flex justify-center mb-8">
-        <GoogleLogin
-          onSuccess={handleGoogleSuccess}
-          onError={() => setError('Google Login Failed')}
-          useOneTap
-          theme="outline"
-          shape="pill"
-          size="large"
-          text="signin_with"
-        />
+        <div id="googleSignInButton"></div>
       </div>
 
       {/* Demo Creds Hint */}
