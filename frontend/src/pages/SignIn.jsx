@@ -62,9 +62,16 @@ export default function SignIn() {
           callback: handleCredentialResponse,
         });
 
+        const options = {
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+          shape: "pill"
+        };
+
         window.google.accounts.id.renderButton(
           document.getElementById("googleSignInButton"),
-          { theme: "outline", size: "large" }
+          options
         );
 
         clearInterval(interval);
