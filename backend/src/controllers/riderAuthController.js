@@ -65,13 +65,16 @@ export const emailLogin = async (req, res) => {
 
         // Find rider user with normalized email
         const user = await User.findOne({ email: email.toLowerCase(), role: 'rider' }).select('+password');
+        
+        // ✅ check user exists FIRST
         if (!user) {
-            return res.status(404).json({ message: 'No rider account found with this email. Please apply.' });
+            return res.status(404).json({ message: 'No rider account found with this email.' });
         }
 
+        // ✅ compare password safely
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials.' });
+            return res.status(401).json({ message: 'Invalid password.' });
         }
 
         // Check Rider profile status
@@ -81,21 +84,23 @@ export const emailLogin = async (req, res) => {
         }
 
         if (rider.status === 'PENDING') {
-            return res.status(403).json({ message: 'Your account is under verification. Please wait for admin approval.' });
+            return res.status(403).json({ message: 'Your account is under verification.' });
         }
         if (rider.status === 'BLOCKED' || rider.status === 'REJECTED') {
-            return res.status(403).json({ message: `Your account has been ${rider.status.toLowerCase()}. Contact support.` });
+            return res.status(403).json({ message: `Your account has been ${rider.status.toLowerCase()}.` });
         }
 
         // All good, APPROVED
         const token = generateToken(user);
         res.status(200).json({
             success: true,
+            message: "Login successful",
             token,
             user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone },
             rider,
         });
     } catch (error) {
+        console.error("RIDER LOGIN ERROR:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -106,27 +111,23 @@ export const emailSignup = async (req, res) => {
         const { email, password, phone, fullName, profilePhoto, vehicleType, vehicleNumber, licenseNumber, aadhaarNumber } = req.body;
 
         if (!email || !password || !phone || !fullName || !vehicleNumber || !licenseNumber || !aadhaarNumber) {
-            return res.status(400).json({ message: 'Please provide all mandatory profile details including email and password.' });
+            return res.status(400).json({ message: 'Please provide all mandatory profile details.' });
         }
 
-        // Check if email or phone already registered (Check all roles because email is unique)
-        let existingUser = await User.findOne({
-            $or: [
-                { email: email.toLowerCase() },
-                { phone }
-            ]
-        });
-
+        // Check if email already registered
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
-            return res.status(400).json({ message: 'Email or phone number already registered. Please sign in.' });
+            return res.status(400).json({ message: 'Email already registered.' });
         }
 
-        // Create user relying on model hook for hashing
+        // ✅ Hash password safely
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         const user = await User.create({
             name: fullName,
             phone,
             email: email.toLowerCase(),
-            password,
+            password: hashedPassword,
             role: 'rider'
         });
 
@@ -148,13 +149,13 @@ export const emailSignup = async (req, res) => {
 
         console.log(`✅ [Rider Auth] New rider signup: ${email} - Status: PENDING`);
 
-        // We don't log them in fully. We just tell them it's pending.
         res.status(201).json({
             success: true,
             message: 'Application Submitted successfully. Your account is under verification.',
             data: rider
         });
     } catch (error) {
+        console.error("RIDER SIGNUP ERROR:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

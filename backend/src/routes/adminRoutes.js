@@ -5,6 +5,7 @@ import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
 import Rider from '../models/Rider.js';
 import Settings from '../models/Settings.js';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 
@@ -70,7 +71,10 @@ router.post('/users/create', authenticateUser, authorizeRole('admin'), async (re
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) return res.status(400).json({ success: false, message: 'User already exists' });
 
-    const user = await User.create({ name, email, password, role });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await User.create({ name, email, password: hashedPassword, role });
 
     // If rider, create profile
     if (role === 'rider') {

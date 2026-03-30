@@ -3,6 +3,7 @@ import Rider from "../models/Rider.js";
 import Restaurant from "../models/Restaurant.js";
 import { generateToken } from "../utils/jwt.js";
 import { OAuth2Client } from "google-auth-library";
+import bcrypt from "bcryptjs";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com');
 
@@ -20,7 +21,17 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const user = await User.create({ name, email, password: password, role: role || 'customer', phone });
+    // ✅ Hash password safely
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      role: role || 'customer',
+      phone
+    });
+
     const token = generateToken(user);
 
     res.status(201).json({
@@ -28,36 +39,53 @@ export const register = async (req, res) => {
       user: { id: user._id, name: user.name, role: user.role, email: user.email, phone: user.phone },
     });
   } catch (error) {
+    console.error("REGISTER ERROR:", error);
     res.status(500).json({ message: "Server error during registration", error: error.message });
   }
 };
 
 // ====== LOGIN USER ======
 export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
+  try {
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
 
+    // ✅ check user exists FIRST
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "User not found" });
     }
 
-    const isMatch = await user.comparePassword(password);
+    // ✅ compare password safely
+    const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid password" });
     }
 
+    // ✅ Generate JWT
     const token = generateToken(user);
+
+    // ✅ success
     res.status(200).json({
+      message: "Login successful",
       token,
-      user: { id: user._id, name: user.name, role: user.role, email: user.email, phone: user.phone, addresses: user.addresses },
+      user: {
+        id: user._id,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        phone: user.phone || "",
+        addresses: user.addresses || []
+      },
     });
+
   } catch (error) {
+    console.error("LOGIN ERROR:", error); // VERY IMPORTANT
     res.status(500).json({ message: "Server error during login", error: error.message });
   }
 };
@@ -286,7 +314,8 @@ export const resetPassword = async (req, res) => {
     }
 
     // Update password (will be hashed in the pre-save hook)
-    user.password = newPassword;
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
     
     // Clear the OTP fields
     user.resetPasswordOtp = undefined;
@@ -319,10 +348,14 @@ export const googleLogin = async (req, res) => {
     if (!user) {
       // First time logging in with Google: create the user
       // Role defaults to 'customer' unless specified during a google-signup flow
+      const randomPassword = Math.random().toString(36).slice(-12) + "Gg1!";
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(randomPassword, salt);
+
       user = await User.create({
         name,
         email: email.toLowerCase(),
-        password: Math.random().toString(36).slice(-12) + "Gg1!", // Random secure password
+        password: hashedPassword,
         role: role || 'customer',
         // Optional: save picture if your schema supports it
       });

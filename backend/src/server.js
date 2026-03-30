@@ -57,32 +57,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 // --- API Endpoints ---
 app.get("/api/health", (req, res) => res.json({ status: "ok", message: "FoodCourt API is online 🚀" }));
 
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    console.log(`📝 [Register Attempt] Email: ${email}`);
-
-    if (!email || !password) {
-      return res.status(400).json({ message: "Missing fields" });
-    }
-
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already exists" });
-    }
-
-    const user = new User({ name, email: email.toLowerCase(), password });
-    await user.save();
-
-    console.log(`✅ [Register Success] User created: ${email}`);
-    res.status(201).json({ message: "User registered successfully" });
-
-  } catch (err) {
-    console.error("🔥 [REGISTER ERROR]:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.use("/api/auth", authRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/cart", cartRoutes);
