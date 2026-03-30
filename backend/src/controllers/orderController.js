@@ -432,7 +432,7 @@ export const updateOrderStatus = async (req, res) => {
 
     console.log(`✅ [Update Order Status API] Order status updated successfully.`);
 
-    // --- Notifications & Sockets ---
+      // --- Notifications & Sockets ---
 
     if (status === 'confirmed') {
       // --- Auto Rider Assignment Logic (Nearest-First) ---
@@ -491,6 +491,24 @@ export const updateOrderStatus = async (req, res) => {
         items: fullOrderForAdmin.items,
       };
 
+      // Notify ALL admins via Database (Persistent)
+      const admins = await User.find({ role: 'admin' }).select('_id');
+      for (const admin of admins) {
+        await Notification.create({
+          userId: admin._id,
+          title: 'Rider Needed! 🛵',
+          message: `Order #${order.orderId || order._id.toString().slice(-6)} needs a delivery partner!`,
+          orderId: order._id,
+          type: 'info'
+        });
+        io.to(admin._id.toString()).emit('new_notification', {
+           title: 'Rider Needed! 🛵',
+           message: `Order #${order.orderId || order._id.toString().slice(-6)} needs a delivery partner!`,
+           orderId: order._id,
+           type: 'info'
+        });
+      }
+
       // Notify admin that restaurant has confirmed and they should assign a rider
       io.to('admins').emit('order_needs_rider', orderPayloadForAdmin);
     }
@@ -501,8 +519,10 @@ export const updateOrderStatus = async (req, res) => {
       confirmed: 'Your order has been confirmed!',
       preparing: 'The restaurant is preparing your food. 🍳',
       ready: 'Food is ready and a rider is being assigned. 🏍️',
+      assigned: 'Rider is on the way to the restaurant! 🛵',
+      arrived_at_restaurant: 'Rider has arrived at the restaurant! 🏪',
       picked_up: 'Rider has picked up your food from the restaurant! 🛵',
-      on_the_way: 'Your order is on the way! 🚗',
+      on_the_way: 'Your order is on the way to you! 🚗',
       delivered: 'Order delivered! Enjoy your meal! 🎉',
       cancelled: 'Your order has been cancelled.',
     };
@@ -518,10 +538,10 @@ export const updateOrderStatus = async (req, res) => {
     if (order.rider && (status === 'picked_up' || status === 'on_the_way')) {
       const Rider = mongoose.model('Rider');
       const riderProfile = await Rider.findOne({ user: order.rider });
-      if (riderProfile && riderProfile.currentLocation) {
+      if (riderProfile && riderProfile.currentLocation && riderProfile.currentLocation.coordinates) {
         statusPayload.riderLocation = {
-          lat: riderProfile.currentLocation.latitude,
-          lng: riderProfile.currentLocation.longitude
+          lat: riderProfile.currentLocation.coordinates[1],
+          lng: riderProfile.currentLocation.coordinates[0]
         };
       }
     }
@@ -596,7 +616,7 @@ export const assignRiderToOrder = async (req, res) => {
 
     const order = await Order.findByIdAndUpdate(
       orderId,
-      { rider: riderId },
+      { rider: riderId, orderStatus: 'assigned' },
       { new: true }
     ).populate('rider');
 
@@ -610,11 +630,11 @@ export const assignRiderToOrder = async (req, res) => {
     const riderProfile = await RiderModel.findOne({ user: riderId });
     
     // ✨ Fix: Persist rider's initial coordinates to the Order document for tracking
-    if (riderProfile && riderProfile.currentLocation) {
+    if (riderProfile && riderProfile.currentLocation && riderProfile.currentLocation.coordinates) {
       await Order.findByIdAndUpdate(orderId, {
         riderLocation: {
-          lat: Number(riderProfile.currentLocation.latitude),
-          lng: Number(riderProfile.currentLocation.longitude),
+          lat: Number(riderProfile.currentLocation.coordinates[1]),
+          lng: Number(riderProfile.currentLocation.coordinates[0]),
           lastUpdated: new Date()
         }
       });
@@ -642,10 +662,10 @@ export const assignRiderToOrder = async (req, res) => {
     };
 
     // Attach current rider location if available
-    if (riderProfile && riderProfile.currentLocation) {
+    if (riderProfile && riderProfile.currentLocation && riderProfile.currentLocation.coordinates) {
         statusPayload.riderLocation = {
-            lat: riderProfile.currentLocation.latitude,
-            lng: riderProfile.currentLocation.longitude
+            lat: riderProfile.currentLocation.coordinates[1],
+            lng: riderProfile.currentLocation.coordinates[0]
         };
     }
 
@@ -670,7 +690,24 @@ export const assignRiderToOrder = async (req, res) => {
     });
     io.to(riderId).emit('order_assigned', fullOrder);
 
-    // Notify admins
+    // Notify admins (Persistent + Socket)
+    const admins = await User.find({ role: 'admin' }).select('_id');
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin._id,
+        title: 'Rider Assigned! ✅',
+        message: `Rider ${fullOrder.rider?.name || 'Partner'} assigned to Order #${fullOrder.orderId || fullOrder._id.toString().slice(-6)}`,
+        orderId: fullOrder._id,
+        type: 'success'
+      });
+      io.to(admin._id.toString()).emit('new_notification', {
+        title: 'Rider Assigned! ✅',
+        message: `Rider ${fullOrder.rider?.name || 'Partner'} assigned to Order #${fullOrder.orderId || fullOrder._id.toString().slice(-6)}`,
+        orderId: fullOrder._id,
+        type: 'success'
+      });
+    }
+
     io.to('admins').emit('order_assigned', {
       orderId: fullOrder._id,
       riderName: fullOrder.rider?.name,
@@ -711,7 +748,7 @@ export const acceptOrder = async (req, res) => {
 
     console.log(`🔄 [Accept Order API] Assigning order to rider...`);
     order.rider = req.userId;
-    order.orderStatus = 'Assigned';
+    order.orderStatus = 'assigned';
 
     order.statusHistory.push({
       status: order.orderStatus,
@@ -724,10 +761,10 @@ export const acceptOrder = async (req, res) => {
     // ✨ Fix: Persist rider's initial coordinates when accepting the order
     const RiderModel = mongoose.model('Rider');
     const riderProfile = await RiderModel.findOne({ user: req.userId });
-    if (riderProfile && riderProfile.currentLocation) {
+    if (riderProfile && riderProfile.currentLocation && riderProfile.currentLocation.coordinates) {
         order.riderLocation = {
-            lat: Number(riderProfile.currentLocation.latitude),
-            lng: Number(riderProfile.currentLocation.longitude),
+            lat: Number(riderProfile.currentLocation.coordinates[1]),
+            lng: Number(riderProfile.currentLocation.coordinates[0]),
             lastUpdated: new Date()
         };
     }

@@ -172,12 +172,12 @@ export default function LeafletTrackingMap({ order }) {
     const cust = order?.deliveryAddress;
 
     const restaurantPos = {
-        lat: Number(order?.restaurantLocation?.lat || rest?.location?.latitude || rest?.latitude || 0) || 16.2435,
-        lng: Number(order?.restaurantLocation?.lng || rest?.location?.longitude || rest?.longitude || 0) || 80.6480,
+        lat: Number(order?.restaurantLocation?.lat || rest?.location?.latitude || rest?.latitude || 0) || 16.2367,
+        lng: Number(order?.restaurantLocation?.lng || rest?.location?.longitude || rest?.longitude || 0) || 80.6475,
     };
     const customerPos = {
-        lat: Number(order?.userLocation?.lat || cust?.latitude || cust?.lat || 0) || 16.2340,
-        lng: Number(order?.userLocation?.lng || cust?.longitude || cust?.lng || 0) || 80.6550,
+        lat: Number(order?.userLocation?.lat || cust?.latitude || cust?.lat || 0) || 16.2360,
+        lng: Number(order?.userLocation?.lng || cust?.longitude || cust?.lng || 0) || 80.6480,
     };
 
     const isPickedUp  = ['picked_up', 'on_the_way', 'delivered'].includes(order?.orderStatus);

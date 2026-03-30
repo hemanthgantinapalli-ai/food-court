@@ -123,7 +123,7 @@ export default function AddressManagerModal({ isOpen, onClose, existingAddress =
         <div className="md:w-1/2 relative bg-slate-100 min-h-[300px] md:min-h-full">
           {isOpen && isGoogleLoaded && (
              <Map 
-              defaultCenter={position || { lat: 16.2387636, lng: 80.6368367 }} // Default Tenali
+              defaultCenter={position || { lat: 16.2367, lng: 80.6475 }} // Default Tenali Police Statue
               defaultZoom={position ? 15 : 11} 
               style={{ height: '100%', width: '100%' }}
               disableDefaultUI={true}

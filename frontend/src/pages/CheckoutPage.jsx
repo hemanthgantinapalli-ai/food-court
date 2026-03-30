@@ -113,8 +113,8 @@ export default function CheckoutPage() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         // MOCKED FOR TENALI CONSISTENCY
-        const latitude = 16.2387636;
-        const longitude = 80.6368367;
+        const latitude = 16.2367;
+        const longitude = 80.6475;
         const coords = { latitude, longitude };
         setGpsCoords(coords);
         

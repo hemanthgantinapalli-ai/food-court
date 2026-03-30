@@ -99,12 +99,12 @@ function SmoothedRider({ rider, isSelected, onClick, activeOrder }) {
 
     // Calculate active routing destination if on a mission
     const currentStatus = (activeOrder?.orderStatus || '').toLowerCase();
-    const isGoingToRest = activeOrder && ['assigned', 'arrived'].includes(currentStatus);
+    const isGoingToRest = activeOrder && ['assigned', 'arrived_at_restaurant'].includes(currentStatus);
     const targetRouteRaw = activeOrder ? (
         isGoingToRest ? 
            [activeOrder.restaurant?.location?.latitude || activeOrder.restaurantLocation?.latitude, activeOrder.restaurant?.location?.longitude || activeOrder.restaurantLocation?.longitude] 
            : 
-        ['picked up', 'picked_up', 'on_the_way', 'ready'].includes(currentStatus) ?
+        ['picked_up', 'on_the_way'].includes(currentStatus) ?
            [activeOrder.deliveryAddress?.latitude, activeOrder.deliveryAddress?.longitude]
            : null
     ) : null;
@@ -216,7 +216,7 @@ function FitBoundsOnRiders({ riders }) {
 }
 
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────
-const DEFAULT_CENTER = [20.5937, 78.9629];
+const DEFAULT_CENTER = [16.2367, 80.6475]; // Tenali Chenchupet, Police Statue
 
 export default function LeafletFleetMap({ riders = [], activeOrders = [] }) {
     const [selectedId, setSelectedId] = useState(null);
@@ -238,7 +238,8 @@ export default function LeafletFleetMap({ riders = [], activeOrders = [] }) {
                 <FitBoundsOnRiders riders={riders} />
 
                 {riders.map((rider) => {
-                    if (!rider.location?.lat) return null;
+                    const hasLocation = rider.location && typeof rider.location.lat === 'number';
+                    if (!hasLocation) return null;
                     const assignedOrder = activeOrders.find(o => {
                         const orderRiderId = (o.rider?._id || o.rider || '').toString();
                         const riderId = (rider.userId || rider._id || '').toString();

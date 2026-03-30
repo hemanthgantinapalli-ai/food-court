@@ -34,32 +34,7 @@ export default function SignUp() {
     }
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (window.google && document.getElementById("googleSignInButton")) {
-        window.google.accounts.id.initialize({
-          client_id: "490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com",
-          callback: handleCredentialResponse,
-        });
-
-        const options = {
-          theme: "outline",
-          size: "large",
-          text: "signup_with",
-          shape: "pill"
-        };
-
-        window.google.accounts.id.renderButton(
-          document.getElementById("googleSignInButton"),
-          options
-        );
-
-        clearInterval(interval);
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Programmatic Google Sign-In initialization removed in favor of HTML-based configuration as per request.
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -188,7 +163,20 @@ export default function SignUp() {
       </div>
 
       <div className="flex justify-center mb-8">
-        <div id="googleSignInButton"></div>
+        <div id="g_id_onload"
+          data-client_id="490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com"
+          data-context="signin"
+          data-ux_mode="popup"
+          data-auto_prompt="false">
+        </div>
+
+        <div className="g_id_signin"
+          data-type="standard"
+          data-shape="pill"
+          data-theme="outline"
+          data-text="signin_with"
+          data-size="large">
+        </div>
       </div>
 
     </AuthLayout>

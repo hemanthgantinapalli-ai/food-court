@@ -96,6 +96,7 @@ const orderSchema = new mongoose.Schema(
         'preparing',
         'ready',
         'assigned',
+        'arrived_at_restaurant',
         'picked_up',
         'on_the_way',
         'delivered',

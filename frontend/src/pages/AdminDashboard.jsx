@@ -37,14 +37,16 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 
 const STATUS_COLORS = {
-  placed: 'bg-yellow-100 text-yellow-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  preparing: 'bg-orange-100 text-orange-700',
-  ready: 'bg-teal-100 text-teal-700',
-  picked_up: 'bg-sky-100 text-sky-700',
-  on_the_way: 'bg-indigo-100 text-indigo-700',
-  delivered: 'bg-emerald-100 text-emerald-700',
-  cancelled: 'bg-red-100 text-red-700',
+  placed: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
+  preparing: 'bg-orange-50 text-orange-700 border-orange-200',
+  ready: 'bg-teal-50 text-teal-700 border-teal-200',
+  assigned: 'bg-violet-50 text-violet-700 border-violet-200',
+  arrived_at_restaurant: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  picked_up: 'bg-sky-50 text-sky-700 border-sky-200',
+  on_the_way: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  cancelled: 'bg-red-50 text-red-700 border-red-200',
 };
 
 export default function AdminDashboard() {
@@ -195,9 +197,16 @@ export default function AdminDashboard() {
 
       // Live rider GPS from socket (admin gets all updates)
       socket.on('rider_position_update', ({ riderId, location, heading, speed }) => {
-        setOnlineRiders(prev => prev.map(r =>
-          r.userId?.toString() === riderId ? { ...r, location, heading, speed } : r
-        ));
+        setOnlineRiders(prev => {
+          const riderExists = prev.some(r => r.userId?.toString() === riderId);
+          if (riderExists) {
+            return prev.map(r => r.userId?.toString() === riderId ? { ...r, location, heading, speed } : r);
+          } else {
+            // If rider not in list, fetch full list to get their profile/name info too
+            fetchOnlineRiders();
+            return prev;
+          }
+        });
       });
 
       socket.on('rider_came_online', ({ riderId, location }) => {
@@ -207,6 +216,12 @@ export default function AdminDashboard() {
 
       socket.on('rider_went_offline', ({ riderId }) => {
         setOnlineRiders(prev => prev.filter(r => r.userId?.toString() !== riderId));
+      });
+      
+      socket.on('new_notification', (data) => {
+        console.log('🔔 New system notification:', data);
+        addToast(data.message || data.title, data.type || 'info');
+        fetchNotifications();
       });
 
       socket.on('order_assigned', (data) => {
@@ -532,6 +547,7 @@ export default function AdminDashboard() {
               { id: 'support', label: 'Support' },
               { id: 'users', label: 'Users' },
               { id: 'restaurants', label: 'Restaurants' },
+              { id: 'notifications', label: 'Notifications' },
               { id: 'settings', label: 'Settings' },
             ].map(tab => (
               <button
@@ -856,7 +872,7 @@ export default function AdminDashboard() {
                             }}
                             className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer"
                           >
-                            {['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].map(s => (
+                            {['placed', 'confirmed', 'preparing', 'ready', 'assigned', 'arrived_at_restaurant', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].map(s => (
                               <option key={s} value={s}>{s.replace('_', ' ')}</option>
                             ))}
                           </select>
@@ -946,7 +962,7 @@ export default function AdminDashboard() {
                             }}
                             className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer ${STATUS_COLORS[o.orderStatus] || 'bg-slate-100 text-slate-600'}`}
                           >
-                            {['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].map(s => (
+                            {['placed', 'confirmed', 'preparing', 'ready', 'assigned', 'arrived_at_restaurant', 'picked_up', 'on_the_way', 'delivered', 'cancelled'].map(s => (
                               <option key={s} value={s}>{s.replace('_', ' ')}</option>
                             ))}
                           </select>
@@ -2073,7 +2089,7 @@ export default function AdminDashboard() {
             {/* Left: Map */}
             <div className="flex-1 relative bg-slate-100">
               <MapContainer
-                center={assignModal.restaurantCoords ? [assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng] : [20.5937, 78.9629]}
+                center={assignModal.restaurantCoords ? [assignModal.restaurantCoords.lat, assignModal.restaurantCoords.lng] : [16.2367, 80.6475]}
                 zoom={14}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
                 zoomControl={false}

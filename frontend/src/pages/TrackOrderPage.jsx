@@ -23,9 +23,9 @@ const STATUS_ORDER = ['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 
 
 // ─── Precision Tenali Coordinates (Reference Points) ────────────────────────
 const LOCATIONS = {
-    RESTAURANT: { latitude: 16.2435, longitude: 80.6480 }, // Ramalingeswara Pet (Center)
-    CUSTOMER:   { latitude: 16.2340, longitude: 80.6550 }, // Chinaravuru (South-East)
-    RIDER:      { latitude: 16.2510, longitude: 80.6390 }  // Sultanabad (North)
+    RESTAURANT: { latitude: 16.2367, longitude: 80.6475 }, // Tenali Police Statue (Core)
+    CUSTOMER:   { latitude: 16.2340, longitude: 80.6480 }, // Nearby Residential
+    RIDER:      { latitude: 16.2380, longitude: 80.6465 }  // Nearby Road
 };
 const TENALI_CENTER = LOCATIONS.RESTAURANT;
 
@@ -310,6 +310,8 @@ export default function TrackOrderPage() {
                                         {order.orderStatus === 'placed' && 'Finding a Rider'}
                                         {['confirmed', 'preparing'].includes(order.orderStatus) && 'Preparing Order'}
                                         {order.orderStatus === 'ready' && 'Chef marked Ready'}
+                                        {order.orderStatus === 'assigned' && 'Rider Assigned'}
+                                        {order.orderStatus === 'arrived_at_restaurant' && 'Rider at Restaurant'}
                                         {order.orderStatus === 'picked_up' && 'Order Picked Up'}
                                         {order.orderStatus === 'on_the_way' && 'Coming to you'}
                                         <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">NOW</span>

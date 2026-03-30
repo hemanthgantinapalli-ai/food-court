@@ -39,9 +39,9 @@ router.get('/online', authenticateUser, authorizeRole('admin'), async (req, res)
           heading: liveData.heading,
           speed: liveData.speed,
           updatedAt: liveData.updatedAt,
-        } : rider.currentLocation ? {
-          lat: rider.currentLocation.latitude,
-          lng: rider.currentLocation.longitude,
+        } : (rider.currentLocation && rider.currentLocation.coordinates) ? {
+          lat: rider.currentLocation.coordinates[1],
+          lng: rider.currentLocation.coordinates[0],
           heading: rider.currentLocation.heading || 0,
           speed: rider.currentLocation.speed || 0,
           updatedAt: rider.updatedAt,
@@ -191,9 +191,9 @@ router.get('/orders/available', authenticateUser, authorizeRole('rider'), async 
       });
     }
 
-    // Only show orders that are DISPATCHED and have no rider assigned
+    // Only show orders that are READY and have no rider assigned
     const orders = await Order.find({
-      orderStatus: 'dispatched',
+      orderStatus: 'ready',
       rider: null,
     })
       .populate('restaurant', 'name image address')
@@ -217,7 +217,7 @@ router.get('/orders/assigned', authenticateUser, authorizeRole('rider'), async (
 
     const orders = await Order.find({
       rider: req.userId,
-      orderStatus: { $in: ['on_the_way'] },
+      orderStatus: { $in: ['assigned', 'arrived_at_restaurant', 'picked_up', 'on_the_way'] },
     })
       .populate('restaurant', 'name image address')
       .populate('customer', 'name phone')
@@ -285,8 +285,8 @@ router.post('/orders/:orderId/claim', authenticateUser, authorizeRole('rider'), 
     }
 
     order.rider = req.userId;
-    order.orderStatus = 'on_the_way';
-    order.statusHistory.push({ status: 'on_the_way', timestamp: new Date(), note: 'Rider claimed the order' });
+    order.orderStatus = 'assigned';
+    order.statusHistory.push({ status: 'assigned', timestamp: new Date(), note: 'Rider claimed the order' });
     await order.save();
 
     // Mark rider as unavailable
@@ -296,14 +296,45 @@ router.post('/orders/:orderId/claim', authenticateUser, authorizeRole('rider'), 
     const io = getIO();
     io.to(order.customer.toString()).emit('order_status_update', {
       orderId: order._id,
-      status: 'on_the_way',
-      message: 'A rider has claimed your order and is on the way!'
+      status: 'assigned',
+      message: 'A rider has been assigned and is heading to the restaurant!'
     });
 
-    console.log(`✅ [Rider Claim] Order ${orderId} claimed successfully.`);
+    console.log(`✅ [Rider Claim] Order ${orderId} assigned successfully.`);
     res.status(200).json({ success: true, message: 'Order claimed successfully', data: order });
   } catch (error) {
     console.error(`🔥 [Rider Claim] Error: ${error.message}`);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── PUT /api/riders/orders/:orderId/arrive ─────────────────────────────────
+// Rider confirms they have arrived at the restaurant
+router.put('/orders/:orderId/arrive', authenticateUser, authorizeRole('rider'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    console.log(`🏁 [Rider Arrive] Rider ${req.userId} arrived at restaurant for order ${orderId}`);
+
+    const order = await Order.findOne({ _id: orderId, rider: req.userId });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found or not assigned to you' });
+    }
+
+    order.orderStatus = 'arrived_at_restaurant';
+    order.statusHistory.push({ status: 'arrived_at_restaurant', timestamp: new Date(), note: 'Rider arrived at restaurant' });
+    await order.save();
+
+    // Notify user
+    const io = getIO();
+    io.to(order.customer.toString()).emit('order_status_update', {
+      orderId: order._id,
+      status: 'arrived_at_restaurant',
+      message: 'Rider has arrived at the restaurant!'
+    });
+
+    res.status(200).json({ success: true, message: 'Arrival confirmed', data: order });
+  } catch (error) {
+    console.error(`🔥 [Rider Arrive] Error: ${error.message}`);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -323,6 +354,14 @@ router.put('/orders/:orderId/pickup', authenticateUser, authorizeRole('rider'), 
     order.orderStatus = 'picked_up';
     order.statusHistory.push({ status: 'picked_up', timestamp: new Date(), note: 'Rider confirmed pickup' });
     await order.save();
+
+    // Notify user
+    const io = getIO();
+    io.to(order.customer.toString()).emit('order_status_update', {
+      orderId: order._id,
+      status: 'picked_up',
+      message: 'Rider has picked up your order and is starting delivery!'
+    });
 
     console.log(`✅ [Rider Pickup] Order ${orderId} marked as picked up.`);
     res.status(200).json({ success: true, message: 'Pickup confirmed', data: order });
@@ -419,16 +458,18 @@ router.post('/update-location', authenticateUser, authorizeRole('rider'), async 
     );
 
     // Notify active customers linked to this rider
+    const activeStates = ['assigned', 'arrived_at_restaurant', 'picked_up', 'on_the_way'];
+    
     const activeOrders = await Order.find({
       rider: req.userId,
-      orderStatus: { $in: ['on_the_way', 'picked_up', 'ready', 'Assigned', 'Arrived', 'Picked Up'] }
+      orderStatus: { $in: activeStates }
     });
 
     // Persistent DB Lock: Update active orders in DB too so customer refresh doesn't jitter
     await Order.updateMany(
       { 
         rider: req.userId, 
-        orderStatus: { $in: ['on_the_way', 'picked_up', 'ready', 'Assigned', 'Arrived', 'Picked Up'] } 
+        orderStatus: { $in: activeStates } 
       },
       { 
         riderLocation: { 

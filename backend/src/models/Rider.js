@@ -44,7 +44,7 @@ const riderSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number],
-        default: [0, 0] // [longitude, latitude]
+        default: [80.6475, 16.2367] // [longitude, latitude] — Tenali Police Statue
       },
       heading: { type: Number, default: 0 },
       speed: { type: Number, default: 0 },
