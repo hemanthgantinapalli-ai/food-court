@@ -5,7 +5,7 @@ import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
 import Rider from '../models/Rider.js';
 import Settings from '../models/Settings.js';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 const router = express.Router();
 

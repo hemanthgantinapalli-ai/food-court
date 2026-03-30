@@ -3,7 +3,7 @@ import Rider from "../models/Rider.js";
 import Restaurant from "../models/Restaurant.js";
 import { generateToken } from "../utils/jwt.js";
 import { OAuth2Client } from "google-auth-library";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com');
 
@@ -55,16 +55,19 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
 
+    // DEBUG: Check user object
+    console.log("DEBUG LOGIN USER:", user);
+
     // ✅ check user exists FIRST
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      return res.status(401).json({ message: "No account found with this email. Please register." });
     }
 
     // ✅ compare password safely
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid password" });
+      return res.status(401).json({ message: "Incorrect password. Please try again." });
     }
 
     // ✅ Generate JWT

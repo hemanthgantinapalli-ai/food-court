@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import Rider from '../models/Rider.js';
 import { generateToken } from '../utils/jwt.js';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 // Mock sending OTP
 export const sendOtp = async (req, res) => {
@@ -66,15 +66,18 @@ export const emailLogin = async (req, res) => {
         // Find rider user with normalized email
         const user = await User.findOne({ email: email.toLowerCase(), role: 'rider' }).select('+password');
         
+        // DEBUG: Check rider user object
+        console.log("DEBUG RIDER LOGIN USER:", user);
+
         // ✅ check user exists FIRST
         if (!user) {
-            return res.status(404).json({ message: 'No rider account found with this email.' });
+            return res.status(404).json({ message: 'No account found with this email. Please check your credentials.' });
         }
 
         // ✅ compare password safely
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid password.' });
+            return res.status(401).json({ message: 'Incorrect password. Please try again.' });
         }
 
         // Check Rider profile status
