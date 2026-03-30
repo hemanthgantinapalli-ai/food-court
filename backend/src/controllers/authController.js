@@ -36,7 +36,7 @@ export const register = async (req, res) => {
 
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, role: user.role, email: user.email, phone: user.phone },
+      user: { _id: user._id, id: user._id, name: user.name, role: user.role, email: user.email, phone: user.phone },
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error);
@@ -78,6 +78,7 @@ export const login = async (req, res) => {
       message: "Login successful",
       token,
       user: {
+        _id: user._id,
         id: user._id,
         name: user.name,
         role: user.role,
@@ -116,6 +117,7 @@ export const getProfile = async (req, res) => {
 
     res.status(200).json({
       user: {
+        _id: user._id,
         id: user._id,
         name: user.name,
         email: user.email,
@@ -168,6 +170,7 @@ export const updateProfile = async (req, res) => {
       success: true,
       message: "Profile updated successfully",
       user: {
+        _id: user._id,
         id: user._id,
         name: user.name,
         email: user.email,
@@ -370,6 +373,7 @@ export const googleLogin = async (req, res) => {
     res.status(200).json({
       token: jwtToken,
       user: { 
+        _id: user._id,
         id: user._id, 
         name: user.name, 
         role: user.role, 

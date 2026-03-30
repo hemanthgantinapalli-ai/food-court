@@ -49,7 +49,7 @@ export const verifyLogin = async (req, res) => {
         res.status(200).json({
             success: true,
             token,
-            user: { id: user._id, name: user.name, role: user.role, phone: user.phone },
+            user: { _id: user._id, id: user._id, name: user.name, role: user.role, phone: user.phone },
             rider,
         });
     } catch (error) {
@@ -99,7 +99,7 @@ export const emailLogin = async (req, res) => {
             success: true,
             message: "Login successful",
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone },
+            user: { _id: user._id, id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone },
             rider,
         });
     } catch (error) {

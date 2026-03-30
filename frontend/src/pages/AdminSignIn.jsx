@@ -5,8 +5,8 @@ import { useAuthStore } from '../context/authStore';
 import AuthLayout from '../components/AuthLayout';
 
 export default function AdminSignIn() {
-    const [email, setEmail] = useState('admin@foodcourt.com');
-    const [password, setPassword] = useState('admin123');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
@@ -132,6 +132,17 @@ export default function AdminSignIn() {
                     )}
                 </button>
             </form>
+
+            {/* Demo Creds Hint */}
+            <div className="mt-8 p-4 rounded-3xl border border-dashed flex items-center gap-4 border-purple-200 bg-purple-50/50">
+                <div className="p-2 rounded-xl bg-purple-100 text-purple-600">
+                    <ShieldCheck size={20} />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Suggested Demo Credentials</p>
+                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">admin@foodcourt.com / admin123</p>
+                </div>
+            </div>
         </AuthLayout>
     );
 }

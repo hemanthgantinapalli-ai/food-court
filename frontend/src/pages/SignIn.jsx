@@ -5,8 +5,8 @@ import { useAuthStore } from '../context/authStore';
 import AuthLayout from '../components/AuthLayout';
 
 export default function SignIn() {
-  const [email, setEmail] = useState('user@foodcourt.com');
-  const [password, setPassword] = useState('user123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -181,8 +181,8 @@ export default function SignIn() {
           <Mail size={20} />
         </div>
         <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pre-filled Demo Credentials</p>
-          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">{email} / {password}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Suggested Demo Credentials</p>
+          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest line-clamp-1">user@foodcourt.com / user123</p>
         </div>
       </div>
     </AuthLayout>

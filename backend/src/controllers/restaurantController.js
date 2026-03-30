@@ -85,7 +85,7 @@ export const getRestaurants = async (req, res) => {
 
         restaurants = restaurants.map(r => ({
             ...r,
-            menuKeywords: Array.from(menuMap[r._id.toString()] || [])
+            menuKeywords: Array.from(menuMap[r._id?.toString() || ''] || [])
         }));
 
         console.log(`✅ [Get Restaurants] Returning ${restaurants.length} restaurants for city: ${city || 'Global'}`);

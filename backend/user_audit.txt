@@ -1,0 +1,8 @@
+Total users: 7
+admin@foodcourt.com [admin] hashed=true testPass=MATCH
+rider@foodcourt.com [rider] hashed=true testPass=MATCH
+partner@foodcourt.com [restaurant] hashed=true testPass=MATCH
+user@foodcourt.com [customer] hashed=true testPass=MATCH
+hemanthgantinapalli@gmail.com [rider] hashed=true testPass=NO_MATCH
+praneethgantinapalli5@gmail.com [restaurant] hashed=true testPass=NO_MATCH
+bobby@gmail.com [restaurant] hashed=true testPass=NO_MATCH
