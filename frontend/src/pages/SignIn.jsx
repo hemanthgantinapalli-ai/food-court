@@ -73,12 +73,14 @@ export default function SignIn() {
 
         {/* Email Field */}
         <div className="space-y-2">
-          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+          <label htmlFor="email" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
             Username or email
           </label>
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
             <input
+              id="email"
+              name="email"
               type="email"
               autoComplete="username"
               className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
@@ -92,12 +94,14 @@ export default function SignIn() {
 
         {/* Password Field */}
         <div className="space-y-2">
-          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+          <label htmlFor="password" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
             Password
           </label>
           <div className="relative group">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
             <input
+              id="password"
+              name="password"
               type={showPass ? 'text' : 'password'}
               autoComplete="current-password"
               className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"

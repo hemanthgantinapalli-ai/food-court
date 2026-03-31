@@ -57,12 +57,14 @@ export default function AdminSignIn() {
 
                 {/* Email Field */}
                 <div className="space-y-2">
-                    <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                    <label htmlFor="admin-email" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                         Username or email
                     </label>
                     <div className="relative group">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-purple-500 transition-colors" size={20} />
                         <input
+                            id="admin-email"
+                            name="email"
                             type="email"
                             autoComplete="username"
                             className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-purple-500 focus:ring-4 focus:ring-purple-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
@@ -76,12 +78,14 @@ export default function AdminSignIn() {
 
                 {/* Password Field */}
                 <div className="space-y-2">
-                    <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                    <label htmlFor="admin-password" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                         Password
                     </label>
                     <div className="relative group">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-purple-500 transition-colors" size={20} />
                         <input
+                            id="admin-password"
+                            name="password"
                             type={showPass ? 'text' : 'password'}
                             autoComplete="current-password"
                             className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-purple-500 focus:ring-4 focus:ring-purple-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"

@@ -106,7 +106,7 @@ export default function RestaurantDetail() {
     <div className="bg-white min-h-screen pb-20">
 
       {/* Hero Image */}
-      <div className="relative h-[55vh] w-full overflow-hidden">
+      <div className="relative h-[40vh] md:h-[55vh] w-full overflow-hidden">
         <img
           src={restaurant.image || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1200&q=80'}
           alt={restaurant.name}
@@ -135,7 +135,7 @@ export default function RestaurantDetail() {
         </button>
 
         {/* Restaurant Info Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 px-8 pb-10 max-w-7xl mx-auto">
+        <div className="absolute bottom-0 left-0 right-0 px-4 md:px-8 pb-10 max-w-7xl mx-auto">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="bg-orange-500 text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2">
               <Star size={13} className="fill-white" /> {restaurant.rating}
@@ -146,7 +146,7 @@ export default function RestaurantDetail() {
               </span>
             ))}
           </div>
-          <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-none mb-2">
+          <h1 className="text-3xl md:text-7xl font-black text-white tracking-tighter leading-tight mb-2">
             {restaurant.name}
           </h1>
           {restaurant.description && (
@@ -156,32 +156,32 @@ export default function RestaurantDetail() {
       </div>
 
       {/* Info Strip */}
-      <div className="bg-slate-950 py-4 px-6">
-        <div className="max-w-7xl mx-auto flex flex-wrap gap-6 items-center justify-between">
-          <div className="flex gap-6">
-            <span className="flex items-center gap-2 text-white/70 text-sm font-bold">
+      <div className="bg-slate-950 py-4 px-4 md:px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-4 md:gap-6 items-center justify-between">
+          <div className="flex flex-wrap gap-4 md:gap-6 justify-center md:justify-start">
+            <span className="flex items-center gap-2 text-white/70 text-[10px] md:text-sm font-bold uppercase md:normal-case tracking-widest md:tracking-normal">
               <Clock size={16} className="text-orange-400" />
-              {restaurant.deliveryTime || 30} min delivery
+              {restaurant.deliveryTime || 30} min
             </span>
-            <span className="flex items-center gap-2 text-white/70 text-sm font-bold">
+            <span className="flex items-center gap-2 text-white/70 text-[10px] md:text-sm font-bold uppercase md:normal-case tracking-widest md:tracking-normal">
               <Bike size={16} className="text-green-400" />
-              {restaurant.deliveryFee > 0 ? `₹${restaurant.deliveryFee} delivery fee` : 'Free delivery'}
+              {restaurant.deliveryFee > 0 ? `₹${restaurant.deliveryFee}` : 'Free'}
             </span>
             {restaurant.location && (
-              <span className="flex items-center gap-2 text-white/70 text-sm font-bold">
+              <span className="flex items-center gap-2 text-white/70 text-[10px] md:text-sm font-bold uppercase md:normal-case tracking-widest md:tracking-normal">
                 <MapPin size={16} className="text-blue-400" />
-                {restaurant.location.address}, {restaurant.location.city}
+                {restaurant.location.city}
               </span>
             )}
           </div>
-          <button className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-orange-600 transition-colors">
+          <button className="w-full md:w-auto flex items-center justify-center gap-2 bg-orange-500 text-white px-6 py-3 md:px-4 md:py-2 rounded-xl font-bold text-sm hover:bg-orange-600 transition-colors">
             <Phone size={14} /> Call Restaurant
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 mt-12">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 mt-12">
 
         {/* Category & Filter Row */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
@@ -228,12 +228,12 @@ export default function RestaurantDetail() {
           {/* Menu Items */}
           <div className="lg:col-span-8">
             <div className="flex items-center gap-4 mb-8">
-              <h2 className="text-3xl font-black tracking-tight text-slate-900">
+              <h2 className="text-xl md:text-3xl font-black tracking-tight text-slate-900 uppercase">
                 {activeCategory === 'All' ? "Today's" : activeCategory}{' '}
                 <span className="text-orange-500">{activeCategory === 'All' ? 'Menu' : 'Items'}</span>
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
-              <span className="text-slate-400 font-bold text-sm">{filteredMenu.length} items</span>
+              <div className="h-px flex-1 bg-slate-100 hidden md:block" />
+              <span className="text-slate-400 font-bold text-[10px] md:text-sm uppercase tracking-widest">{filteredMenu.length} items</span>
             </div>
 
             <div className="space-y-5">

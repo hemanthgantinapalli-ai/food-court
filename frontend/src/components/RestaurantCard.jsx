@@ -32,7 +32,7 @@ export default function RestaurantCard({ restaurant, index = 0 }) {
         )}
 
         {/* Image Section */}
-        <div className="relative h-60 w-full overflow-hidden">
+        <div className="relative h-48 md:h-60 w-full overflow-hidden">
           <img
             src={imageSrc}
             alt={restaurant.name}
@@ -68,13 +68,13 @@ export default function RestaurantCard({ restaurant, index = 0 }) {
         </div>
 
         {/* Content Section */}
-        <div className="p-8 flex flex-col flex-1">
+        <div className="p-5 md:p-8 flex flex-col flex-1">
           <div className="flex-1 mb-6">
             <div className="flex items-center gap-2 mb-2">
                {parseFloat(rating) >= 4.7 && (
                  <span className="flex h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
                )}
-               <h3 className="text-2xl font-black text-slate-950 group-hover:text-orange-600 transition-colors tracking-tighter leading-tight">
+               <h3 className="text-xl md:text-2xl font-black text-slate-950 group-hover:text-orange-600 transition-colors tracking-tighter leading-tight">
                 {restaurant.name}
               </h3>
             </div>
@@ -96,21 +96,21 @@ export default function RestaurantCard({ restaurant, index = 0 }) {
           <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-auto">
             <div className="flex items-center gap-6">
                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5 text-slate-950">
-                    <Clock size={14} className="text-orange-500" />
-                    <span className="text-xs font-black tracking-tight">{deliveryTime} MIN</span>
+                  <div className="flex items-center gap-1 md:gap-1.5 text-slate-950">
+                    <Clock size={12} className="text-orange-500" />
+                    <span className="text-[10px] md:text-xs font-black tracking-tight">{deliveryTime} MIN</span>
                   </div>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Delivery</span>
+                  <span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Delivery</span>
                </div>
 
                <div className="w-px h-6 bg-slate-100" />
 
                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5 text-slate-950">
-                    <Bike size={14} className="text-emerald-500" />
-                    <span className="text-xs font-black tracking-tight">{isFreeDelivery ? 'FREE' : `₹${deliveryFee}`}</span>
+                  <div className="flex items-center gap-1 md:gap-1.5 text-slate-950">
+                    <Bike size={12} className="text-emerald-500" />
+                    <span className="text-[10px] md:text-xs font-black tracking-tight">{isFreeDelivery ? 'FREE' : `₹${deliveryFee}`}</span>
                   </div>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Fees</span>
+                  <span className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Fees</span>
                </div>
             </div>
 

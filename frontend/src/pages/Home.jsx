@@ -181,8 +181,8 @@ const Home = () => {
 
       <div className="bg-slate-900 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-full bg-orange-500/10 skew-x-12 blur-3xl" />
-        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 w-full sm:w-auto">
             {[
               { icon: '🚴', text: 'Free delivery', sub: 'on orders ₹299+' },
               { icon: '⚡', text: 'Fast delivery', sub: 'in 30 mins' },
@@ -191,8 +191,8 @@ const Home = () => {
               <div key={text} className="flex items-center gap-3">
                 <span className="text-2xl">{icon}</span>
                 <div className="flex flex-col">
-                  <span className="text-white font-black text-xs uppercase tracking-widest">{text}</span>
-                  <span className="text-slate-500 text-[10px] font-bold">{sub}</span>
+                  <span className="text-white font-black text-xs uppercase tracking-widest whitespace-nowrap">{text}</span>
+                  <span className="text-slate-500 text-[10px] font-bold whitespace-nowrap">{sub}</span>
                 </div>
               </div>
             ))}
@@ -209,7 +209,7 @@ const Home = () => {
 
       {/* ── Sticky Filter & Category Bar ─────────────────────────────── */}
       <div className="sticky top-16 z-40 w-full bg-white/90 backdrop-blur-2xl border-b border-slate-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 pt-5 pb-4 flex flex-col gap-5">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pt-5 pb-4 flex flex-col gap-5">
           {/* Title + Sort Controls */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div id="restaurant-section">
@@ -283,7 +283,7 @@ const Home = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
 
 
 

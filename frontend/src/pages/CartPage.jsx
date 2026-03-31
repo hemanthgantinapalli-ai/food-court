@@ -28,7 +28,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] py-12 px-6">
+    <div className="min-h-screen bg-[#F8F9FB] py-8 md:py-12 px-4 md:px-6">
       <div className="max-w-6xl mx-auto">
 
         {/* Header */}
@@ -39,7 +39,7 @@ export default function CartPage() {
           <ArrowLeft size={16} /> Back to Restaurants
         </Link>
 
-        <h1 className="text-5xl font-black text-slate-900 tracking-tighter mb-10">
+        <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter mb-10">
           Your <span className="text-orange-500">Basket.</span>
         </h1>
 
@@ -54,7 +54,7 @@ export default function CartPage() {
                   className="bg-white rounded-2xl p-5 flex gap-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
                 >
                   {/* Image */}
-                  <div className="w-24 h-24 bg-slate-100 rounded-xl overflow-hidden shrink-0">
+                  <div className="w-20 h-20 md:w-24 md:h-24 bg-slate-100 rounded-xl overflow-hidden shrink-0">
                     <img
                       src={item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80'}
                       alt={item.name}

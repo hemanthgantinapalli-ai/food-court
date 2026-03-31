@@ -3,6 +3,9 @@ export const errorHandler = (err, req, res, next) => {
   const message = err.message || 'Internal Server Error';
 
   console.error(`[Error] ${status}: ${message}`);
+  if (err.stack) {
+    console.error(err.stack); // Added to log the full stack trace for 500 errors
+  }
 
   res.status(status).json({
     success: false,

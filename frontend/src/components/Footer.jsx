@@ -4,7 +4,7 @@ import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, ArrowRight, CheckC
 
 function NewsletterToast({ onClose }) {
   return (
-    <div className="fixed bottom-6 right-6 z-[200] flex items-start gap-3 bg-green-500 text-white px-5 py-4 rounded-2xl shadow-2xl animate-fade-up max-w-xs">
+    <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[200] flex items-start gap-3 bg-green-500 text-white px-5 py-4 rounded-2xl shadow-2xl animate-fade-up md:max-w-xs">
       <CheckCircle size={20} className="shrink-0 mt-0.5" />
       <div className="flex-1">
         <p className="font-black text-sm">You're subscribed! 🎉</p>
@@ -36,7 +36,7 @@ export default function Footer() {
     <>
       {showToast && <NewsletterToast onClose={() => setShowToast(false)} />}
 
-      <footer className="bg-slate-950 text-slate-300 pt-20 pb-8 px-6 border-t border-slate-900">
+      <footer className="bg-slate-950 text-slate-300 pt-16 md:pt-20 pb-8 px-4 md:px-6 border-t border-slate-900 overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
 
           {/* Top Section */}
@@ -170,12 +170,12 @@ export default function Footer() {
               <p className="text-white font-black text-lg">Experience more on mobile</p>
               <p className="text-slate-500 font-bold text-sm">Download the FoodCourt app for exclusive rewards</p>
             </div>
-            <div className="flex gap-4">
-              <button className="flex items-center gap-3 bg-white text-slate-950 px-6 py-3 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all shadow-xl">
+            <div className="flex flex-wrap md:flex-nowrap gap-4 w-full md:w-auto">
+              <button className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-white text-slate-950 px-6 py-3 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all shadow-xl">
                 <div className="w-5 h-5 bg-black rounded-full flex items-center justify-center"><span className="text-white text-[10px]">🍎</span></div>
                 App Store
               </button>
-              <button className="flex items-center gap-3 bg-slate-800 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-slate-700 transition-all border border-slate-700 shadow-xl">
+              <button className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-slate-800 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-slate-700 transition-all border border-slate-700 shadow-xl">
                 <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><span className="text-white text-[10px]">🤖</span></div>
                 Play Store
               </button>

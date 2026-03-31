@@ -33,10 +33,10 @@ export default function MenuItemCard({ item }) {
   const foodImg = item.image || FOOD_FALLBACKS[Math.abs(item._id?.charCodeAt(0) || 0) % FOOD_FALLBACKS.length];
 
   return (
-    <div className="group bg-white p-5 rounded-2xl border border-slate-100 flex items-center gap-5 hover:shadow-xl hover:shadow-orange-50 hover:border-orange-100 transition-all duration-400">
+    <div className="group bg-white p-4 md:p-5 rounded-2xl border border-slate-100 flex items-start md:items-center gap-3 md:gap-5 hover:shadow-xl hover:shadow-orange-50 hover:border-orange-100 transition-all duration-400">
 
       {/* Image */}
-      <div className="relative w-36 h-36 rounded-2xl overflow-hidden shrink-0 shadow-md">
+      <div className="relative w-28 h-28 md:w-36 md:h-36 rounded-2xl overflow-hidden shrink-0 shadow-md">
         <img
           src={foodImg}
           alt={item.name}
@@ -59,7 +59,7 @@ export default function MenuItemCard({ item }) {
 
         <div className="flex justify-between items-start mb-1">
           <h4 className="font-black text-slate-900 text-lg tracking-tight leading-tight">{item.name}</h4>
-          <span className="text-orange-600 font-black text-xl shrink-0 ml-3">
+          <span className="text-orange-600 font-black text-lg md:text-xl shrink-0 ml-2 md:ml-3">
             ₹{item.price}
           </span>
         </div>

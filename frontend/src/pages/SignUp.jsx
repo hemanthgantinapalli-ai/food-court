@@ -86,10 +86,11 @@ export default function SignUp() {
 
         {/* Name */}
         <div className="space-y-2">
-          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Full Name</label>
+          <label htmlFor="name" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Full Name</label>
           <div className="relative group">
             <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
             <input
+              id="name"
               name="name"
               type="text"
               className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
@@ -102,10 +103,11 @@ export default function SignUp() {
 
         {/* Email */}
         <div className="space-y-2">
-          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Email Address</label>
+          <label htmlFor="email" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Email Address</label>
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
             <input
+              id="email"
               name="email"
               type="email"
               className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
@@ -118,10 +120,11 @@ export default function SignUp() {
 
         {/* Password */}
         <div className="space-y-2">
-          <label className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Create Password</label>
+          <label htmlFor="password" className="block text-xs font-black uppercase tracking-[0.2em] text-slate-400">Create Password</label>
           <div className="relative group">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" size={20} />
             <input
+              id="password"
               name="password"
               type={showPass ? 'text' : 'password'}
               className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"

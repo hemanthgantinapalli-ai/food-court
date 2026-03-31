@@ -4,6 +4,12 @@
 @tailwind components;
 @tailwind utilities;
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   --brand-orange: #f97316;
   --brand-red: #ef4444;
@@ -12,11 +18,12 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
-  @apply bg-[#F8F9FB] text-slate-900 antialiased;
+  @apply bg-[#F8F9FB] text-slate-900 antialiased overflow-x-hidden w-full;
   font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
 }

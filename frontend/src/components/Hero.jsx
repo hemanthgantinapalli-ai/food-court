@@ -99,7 +99,7 @@ const Hero = ({ onFilterChange }) => {
             <span className="text-white/80 text-[10px] font-black uppercase tracking-[0.3em]">The Premium Dining Network</span>
           </div>
 
-          <h1 className="text-6xl md:text-8xl font-black text-white leading-[0.9] tracking-tighter mb-8">
+          <h1 className="text-4xl md:text-8xl font-black text-white leading-[1.1] md:leading-[0.9] tracking-tighter mb-8">
             Elevate Your<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-500 to-red-600">Palate</span><br />
             Every Day.
@@ -114,9 +114,6 @@ const Hero = ({ onFilterChange }) => {
           <div className="relative mb-8 group">
             <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-red-600 rounded-[2.2rem] blur opacity-25 group-focus-within:opacity-50 transition duration-1000 group-hover:duration-200"></div>
             <div className="relative">
-              <div className="absolute inset-y-0 left-6 flex items-center">
-                <Search className="text-orange-500 group-focus-within:scale-110 transition-transform" size={22} />
-              </div>
               <input
                 type="text"
                 placeholder="Craving something specific?"
@@ -124,12 +121,12 @@ const Hero = ({ onFilterChange }) => {
                 onChange={handleInputChange}
                 onFocus={() => setShowResults(true)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-16 pr-48 py-6 rounded-[2rem] bg-slate-900/80 backdrop-blur-xl border border-white/10 text-white placeholder:text-slate-500 font-bold outline-none focus:border-orange-500/50 transition-all text-lg shadow-2xl"
+                className="w-full pl-12 md:pl-16 pr-4 md:pr-48 py-5 md:py-6 rounded-2xl md:rounded-[2rem] bg-slate-900/80 backdrop-blur-xl border border-white/10 text-white placeholder:text-slate-500 font-bold outline-none focus:border-orange-500/50 transition-all text-base md:text-lg shadow-2xl"
               />
 
               {/* Live Search Results Overlay (Next Level) */}
               {showResults && (searchVal.trim() !== '') && (
-                <div className="absolute top-full left-0 right-0 mt-6 bg-white/95 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] border border-white p-10 z-[100] animate-fade-up max-h-[70vh] overflow-y-auto scrollbar-none">
+                <div className="absolute top-full left-0 right-0 mt-6 bg-white/95 backdrop-blur-2xl rounded-3xl md:rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] border border-white p-6 md:p-10 z-[100] animate-fade-up max-h-[70vh] overflow-y-auto scrollbar-none">
                   <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
                     <div>
                       <h4 className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-400 mb-1">Results for</h4>
@@ -212,7 +209,7 @@ const Hero = ({ onFilterChange }) => {
               
               <button
                 onClick={handleSearch}
-                className="absolute right-3 top-3 bottom-3 px-10 rounded-[1.4rem] bg-gradient-to-r from-orange-500 to-red-600 text-white font-black text-xs uppercase tracking-[0.2em] hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.5)] transition-all active:scale-[0.97] group"
+                className="mt-4 md:mt-0 md:absolute md:right-3 md:top-3 md:bottom-3 w-full md:w-auto px-10 py-4 md:py-0 rounded-xl md:rounded-[1.4rem] bg-gradient-to-r from-orange-500 to-red-600 text-white font-black text-xs uppercase tracking-[0.2em] hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.5)] transition-all active:scale-[0.97] group"
               >
                 Find Food <ChevronDown size={14} className="inline ml-1 group-hover:translate-y-1 transition-transform" />
               </button>
