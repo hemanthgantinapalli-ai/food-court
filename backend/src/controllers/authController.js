@@ -139,18 +139,27 @@ export const getProfile = async (req, res) => {
 // ====== UPDATE USER PROFILE ======
 export const updateProfile = async (req, res) => {
   try {
-    const { name, phone, street, area, city, pincode } = req.body;
-    const user = await User.findById(req.userId);
+    const { name, phone, addresses, street, area, city, pincode, userId } = req.body;
+    
+    // Admins can update any user; others can only update themselves
+    const targetUserId = (req.userRole === 'admin' && userId) ? userId : req.userId;
+    
+    const user = await User.findById(targetUserId);
 
     if (!user) {
-      return res.status(401).json({ success: false, message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     if (name) user.name = name;
     if (phone) user.phone = phone;
     
-    // Handle primary address update
-    if (street || city || pincode) {
+    // If the frontend sends the whole addresses array, use it
+    if (addresses && Array.isArray(addresses)) {
+        user.addresses = addresses;
+        user.markModified('addresses');
+    } 
+    // Fallback for single address field updates (legacy/simple forms)
+    else if (street || city || pincode) {
         if (!user.addresses) user.addresses = [];
         const mainAddr = user.addresses[0] || {};
         user.addresses[0] = {
@@ -159,7 +168,7 @@ export const updateProfile = async (req, res) => {
             area: area || mainAddr.area,
             city: city || mainAddr.city,
             zipCode: pincode || mainAddr.zipCode,
-            label: 'Home'
+            label: mainAddr.label || 'Home'
         };
         user.markModified('addresses');
     }
@@ -180,6 +189,7 @@ export const updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("UPDATE PROFILE ERROR:", error);
     res.status(500).json({ success: false, message: "Error updating profile", error: error.message });
   }
 };
@@ -387,4 +397,3 @@ export const googleLogin = async (req, res) => {
     res.status(401).json({ success: false, message: "Invalid Google Token" });
   }
 };
-

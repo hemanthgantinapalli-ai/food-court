@@ -115,13 +115,16 @@ router.get('/users', authenticateUser, authorizeRole('admin'), async (req, res) 
   }
 });
 
-// Update user (status/role)
+// Update user (full profile)
 router.put('/users/:userId', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const { isActive, role } = req.body;
+    const { isActive, role, name, phone, addresses } = req.body;
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
     if (role) updateData.role = role;
+    if (name) updateData.name = name;
+    if (phone) updateData.phone = phone;
+    if (addresses) updateData.addresses = addresses;
 
     const user = await User.findByIdAndUpdate(req.params.userId, updateData, { new: true }).select('-password');
 

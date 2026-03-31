@@ -86,11 +86,16 @@ export default function AdminDashboard() {
   const [platformSettings, setPlatformSettings] = useState({
     baseDeliveryFee: 30,
     perKmCharge: 10,
-    platformCommission: 20,
+    commissionPercentage: 20,
     minOrderForFreeDelivery: 500,
-    isMaintenanceMode: false
+    isMaintenanceMode: false,
+    deliveryFee: 30,
+    taxPercentage: 5
   });
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
   const [allTransactions, setAllTransactions] = useState([]);
   const [roleFilter, setRoleFilter] = useState('all');
 
@@ -1244,6 +1249,16 @@ export default function AdminDashboard() {
                               >
                                 <DollarSign size={16} />
                               </button>
+                              <button
+                                onClick={() => {
+                                  setEditingUser({ ...u });
+                                  setShowEditUserModal(true);
+                                }}
+                                className="p-2 text-indigo-400 hover:text-indigo-600 transition-colors ml-2"
+                                title="Edit User Profile"
+                              >
+                                <Edit3 size={16} />
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -1696,14 +1711,14 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Platform Commission</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 block">Commission Percentage</label>
                       <div className="relative">
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">%</span>
                         <input 
                           type="number" 
                           className="w-full pl-6 pr-10 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" 
-                          value={platformSettings.platformCommission}
-                          onChange={e => setPlatformSettings({...platformSettings, platformCommission: Number(e.target.value)})}
+                          value={platformSettings.commissionPercentage}
+                          onChange={e => setPlatformSettings({...platformSettings, commissionPercentage: Number(e.target.value)})}
                         />
                       </div>
                       <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The percentage shared with the platform from restaurant sales.</p>
@@ -1716,8 +1731,8 @@ export default function AdminDashboard() {
                         <input 
                           type="number" 
                           className="w-full pl-6 pr-10 py-4 bg-white border border-slate-100 rounded-2xl font-black text-xl text-slate-900 focus:border-orange-500 outline-none transition-all" 
-                          value={platformSettings.taxRate || 5}
-                          onChange={e => setPlatformSettings({...platformSettings, taxRate: Number(e.target.value)})}
+                          value={platformSettings.taxPercentage || 5}
+                          onChange={e => setPlatformSettings({...platformSettings, taxPercentage: Number(e.target.value)})}
                         />
                       </div>
                       <p className="text-[9px] text-slate-500 font-bold mt-4 italic">The global tax percentage applied to each order subtotal.</p>
@@ -2211,6 +2226,81 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ─── USER EDIT MODAL ─── */}
+      {showEditUserModal && editingUser && (
+        <div className="fixed inset-0 z-[2001] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowEditUserModal(false)} />
+          <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-10 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-2xl font-black text-slate-900">Edit User Profile</h3>
+              <button onClick={() => setShowEditUserModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setIsUpdatingUser(true);
+              try {
+                const res = await API.put(`/admin/users/${editingUser._id}`, {
+                  name: editingUser.name,
+                  phone: editingUser.phone,
+                  role: editingUser.role
+                });
+                setUsersList(prev => prev.map(u => u._id === editingUser._id ? res.data.data : u));
+                addToast('✅ User profile updated successfully!', 'success');
+                setShowEditUserModal(false);
+              } catch (err) {
+                addToast(err.response?.data?.message || 'Update failed', 'error');
+              } finally {
+                setIsUpdatingUser(false);
+              }
+            }} className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Display Name</label>
+                <input
+                  required
+                  className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                  value={editingUser.name || ''}
+                  onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Phone Number</label>
+                <input
+                  className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                  value={editingUser.phone || ''}
+                  placeholder="e.g. +91 98765 43210"
+                  onChange={e => setEditingUser({ ...editingUser, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Platform Role</label>
+                <select
+                  className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all cursor-pointer"
+                  value={editingUser.role}
+                  onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
+                >
+                  <option value="customer">Customer</option>
+                  <option value="rider">Rider</option>
+                  <option value="restaurant">Partner</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={isUpdatingUser}
+                  className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 disabled:opacity-50 transition-all"
+                >
+                  {isUpdatingUser ? 'Saving Changes...' : 'Update & Save Profile'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
