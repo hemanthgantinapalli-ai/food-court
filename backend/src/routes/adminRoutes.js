@@ -101,7 +101,7 @@ router.post('/users/create', authenticateUser, authorizeRole('admin'), async (re
 // Manage users
 router.get('/users', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
       data: users,
@@ -115,18 +115,63 @@ router.get('/users', authenticateUser, authorizeRole('admin'), async (req, res) 
   }
 });
 
+// Get user profile details (full data)
+router.get('/users/:userId', authenticateUser, authorizeRole('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select('-password').lean();
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    let riderData = null;
+    let restaurantData = null;
+
+    if (user.role === 'rider') {
+      riderData = await Rider.findOne({ user: user._id });
+    } else if (user.role === 'restaurant') {
+      restaurantData = await Restaurant.findOne({ owner: user._id });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { ...user, riderData, restaurantData }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Update user (full profile)
 router.put('/users/:userId', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const { isActive, role, name, phone, addresses } = req.body;
+    const { isActive, role, name, phone, email, addresses, walletBalance, riderData, restaurantData } = req.body;
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
     if (role) updateData.role = role;
     if (name) updateData.name = name;
     if (phone) updateData.phone = phone;
+    if (email) updateData.email = email.toLowerCase();
     if (addresses) updateData.addresses = addresses;
+    if (walletBalance !== undefined) updateData['wallet.balance'] = walletBalance;
 
     const user = await User.findByIdAndUpdate(req.params.userId, updateData, { new: true }).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // Handle role-specific data
+    if (user.role === 'rider' && riderData) {
+      await Rider.findOneAndUpdate(
+        { user: user._id },
+        { ...riderData, fullName: user.name },
+        { upsert: true, new: true }
+      );
+    }
+
+    if (user.role === 'restaurant' && restaurantData) {
+      // Find or create restaurant
+      await Restaurant.findOneAndUpdate(
+        { owner: user._id },
+        { ...restaurantData, name: restaurantData.name || user.name },
+        { upsert: true, new: true }
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -134,6 +179,7 @@ router.put('/users/:userId', authenticateUser, authorizeRole('admin'), async (re
       data: user,
     });
   } catch (error) {
+    console.error('🔥 Update failed:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update user',

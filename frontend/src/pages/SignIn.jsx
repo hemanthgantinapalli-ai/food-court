@@ -15,7 +15,6 @@ export default function SignIn() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Where to go after login (e.g. /checkout when coming from cart)
   const from = location.state?.from?.pathname || null;
 
   const handleSubmit = async (e) => {
@@ -24,15 +23,17 @@ export default function SignIn() {
     setLoading(true);
     try {
       const loggedInUser = await signIn({ email, password });
-      console.log(`🔐 [SignIn] Auth Success. Role: ${loggedInUser.role}`);
-
-      if (loggedInUser.role === 'admin') navigate('/admin');
-      else if (loggedInUser.role === 'rider') navigate('/rider');
-      else if (loggedInUser.role === 'restaurant') navigate('/partner');
-      else if (from) navigate(from, { replace: true });
-      else navigate('/');
+      
+      // Specifically allow ONLY customers here. Others should use their own portals.
+      if (loggedInUser.role === 'customer') {
+          if (from) navigate(from, { replace: true });
+          else navigate('/');
+      } else {
+          // If a rider/admin/partner tries to login here, redirect them or show error
+          setError(`This portal is for customers. Please use the ${loggedInUser.role} portal.`);
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid credentials. Check the demo credentials below!');
+      setError(err.response?.data?.message || 'Invalid credentials.');
     } finally {
       setLoading(false);
     }
@@ -42,11 +43,12 @@ export default function SignIn() {
     try {
         setLoading(true);
         const loggedInUser = await googleAuth(credentialResponse.credential);
-        if (loggedInUser.role === 'admin') navigate('/admin');
-        else if (loggedInUser.role === 'rider') navigate('/rider');
-        else if (loggedInUser.role === 'restaurant') navigate('/partner');
-        else if (from) navigate(from, { replace: true });
-        else navigate('/');
+        if (loggedInUser.role === 'customer') {
+            if (from) navigate(from, { replace: true });
+            else navigate('/');
+        } else {
+            setError(`Google account is associated with a ${loggedInUser.role} profile.`);
+        }
     } catch (err) {
         setError(err.message || 'Google Login failed');
     } finally {
@@ -54,10 +56,9 @@ export default function SignIn() {
     }
   };
 
-  // Programmatic Google Sign-In initialization removed in favor of HTML-based configuration as per request.
-
   return (
     <AuthLayout
+      theme="orange"
       title="Welcome Back"
       subtitle="Hey, welcome back up to your special place"
       footerText="Don't have an account?"
@@ -134,7 +135,7 @@ export default function SignIn() {
             </div>
             <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900">Remember me</span>
           </label>
-          <Link to="/forgot-password" title="Forgot Password Page" className="text-sm font-bold text-orange-500 hover:text-orange-600 transition-colors underline decoration-dotted underline-offset-4">
+          <Link to="/forgot-password" core="true" className="text-sm font-bold text-orange-500 hover:text-orange-600 transition-colors underline decoration-dotted underline-offset-4">
             Forgot Password?
           </Link>
         </div>

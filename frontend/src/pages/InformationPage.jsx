@@ -74,12 +74,13 @@ const INFO_CONTENT = {
     icon: HelpCircle,
     content: `
       Find answers to your most frequent questions about orders, payments, and account security. 
-      Our support team is available 24/7.
+      Our support team is available 24/7 to ensure your FoodCourt experience is seamless.
     `,
     faqs: [
-      { q: 'How do I track my order?', a: 'Go to the track order page or your order history to see real-time updates.' },
-      { q: 'What payment methods do you accept?', a: 'We accept all major credit cards, UPI, and digital wallets.' },
-      { q: 'Can I cancel my order?', a: 'Orders can be cancelled within 2 minutes of placement before the restaurant starts preparing.' }
+      { q: 'How do I track my order?', a: 'Go to the track order page or your order history to see real-time updates and live rider location.' },
+      { q: 'What payment methods do you accept?', a: 'We accept all major credit/debit cards, UPI (Google Pay, PhonePe), and popular digital wallets.' },
+      { q: 'Can I cancel my order?', a: 'Orders can be cancelled within 60 seconds of placement. After that, the restaurant begins preparation.' },
+      { q: 'How do I apply a coupon?', a: 'Enter your code in the "Apply Coupon" section on the checkout page before payment.' }
     ]
   },
   'refunds': {
@@ -88,10 +89,15 @@ const INFO_CONTENT = {
     icon: RotateCcw,
     content: `
       We strive for perfection, but if something goes wrong, we've got your back.
-      If your order is incorrect, damaged, or significantly delayed, you are eligible for a full or partial refund.
+      If your order is incorrect, damaged, or significantly delayed due to issues on our end, you are eligible for a refund.
       
-      Refunds are processed within 24 hours and typically reflect in your original payment method within 3-5 business days.
-    `
+      Refunds are processed to your FoodCourt Wallet instantly or to your original payment method within 3-5 business days.
+    `,
+    faqs: [
+      { q: 'When will I get my refund?', a: 'Instant refunds go to your wallet. Bank transfers take 3-5 business days depending on your bank.' },
+      { q: 'My order was cold. Can I get a refund?', a: 'Please report this via the "Report Issue" section with a photo of the food. We will investigate and compensate accordingly.' },
+      { q: 'I cancelled my order. Where is my money?', a: 'If cancelled within the allowed window, the refund is initiated immediately.' }
+    ]
   },
   'report-issue': {
     title: 'Report an Issue',
@@ -100,6 +106,8 @@ const INFO_CONTENT = {
     content: `
       Your feedback helps us improve. If you encountered a problem with the app, a restaurant, or a rider, 
       please provide details below. Our team will investigate and get back to you within 2 hours.
+      
+      We take every report seriously, especially those related to food quality, hygiene, or rider safety.
     `,
     contactInfo: 'support@foodcourt.in | 1-800-FOOD-COURT'
   },
@@ -111,7 +119,8 @@ const INFO_CONTENT = {
       We are committed to ensuring our platform is accessible to all users, including those with disabilities. 
       We continuously work to improve the accessibility of our website and mobile app based on WCAG 2.1 standards.
       
-      If you have suggestions on how we can improve, please reach out to our accessibility team.
+      Features include screen reader optimization, high-contrast modes, and keyboard-only navigation support.
+      If you have suggestions on how we can improve, please reach out to our accessibility team at access@foodcourt.in.
     `
   },
   'privacy': {
@@ -121,6 +130,9 @@ const INFO_CONTENT = {
     content: `
       We respect your privacy. This policy outlines how we collect, use, and protect your personal information. 
       We never sell your data to third parties. We use industry-standard encryption to keep your details safe.
+      
+      We collect data such as your location, order history, and preferences to provide a personalized experience 
+      and improve our delivery precision. You have full control over your data in the 'Settings' section.
     `
   },
   'terms': {
@@ -130,6 +142,9 @@ const INFO_CONTENT = {
     content: `
       By using FoodCourt, you agree to our terms and conditions. These terms govern your use of our services, 
       including ordering, payments, and interactions with our partners.
+      
+      Users must be at least 18 years old to place orders involving age-restricted items. All delivery times 
+      are estimates and may vary based on weather, traffic, and restaurant preparation time.
     `
   },
   'cookies': {
@@ -138,7 +153,10 @@ const INFO_CONTENT = {
     icon: Cookie,
     content: `
       We use cookies to personalize your experience, remember your preferences, and analyze our traffic. 
-      You can manage your cookie settings at any time through your browser.
+      This allows us to suggest your favorite restaurants first and keep you logged in across sessions.
+      
+      You can manage your cookie settings at any time through your browser, but some features of the 
+      service may not function correctly without them.
     `
   }
 };

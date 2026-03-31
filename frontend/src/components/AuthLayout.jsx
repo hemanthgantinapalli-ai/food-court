@@ -1,33 +1,74 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Lock, User, Github, Chrome } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
-const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerAction, role, onFooterClick }) => {
+const THEMES = {
+    orange: {
+        primary: 'bg-orange-500',
+        hover: 'hover:bg-orange-600',
+        shadow: 'shadow-orange-500/20',
+        text: 'text-orange-500',
+        border: 'border-orange-500',
+        accent: 'from-orange-500 to-orange-400',
+        bgAccent: 'bg-orange-600/20'
+    },
+    purple: {
+        primary: 'bg-purple-600',
+        hover: 'hover:bg-purple-700',
+        shadow: 'shadow-purple-600/20',
+        text: 'text-purple-600',
+        border: 'border-purple-600',
+        accent: 'from-purple-600 to-indigo-600',
+        bgAccent: 'bg-purple-600/20'
+    },
+    emerald: {
+        primary: 'bg-emerald-600',
+        hover: 'hover:bg-emerald-700',
+        shadow: 'shadow-emerald-600/20',
+        text: 'text-emerald-600',
+        border: 'border-emerald-600',
+        accent: 'from-emerald-600 to-teal-500',
+        bgAccent: 'bg-emerald-600/20'
+    },
+    sky: {
+        primary: 'bg-sky-600',
+        hover: 'hover:bg-sky-700',
+        shadow: 'shadow-sky-600/20',
+        text: 'text-sky-600',
+        border: 'border-sky-600',
+        accent: 'from-sky-600 to-blue-500',
+        bgAccent: 'bg-sky-600/20'
+    }
+};
+
+const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerAction, theme = 'orange', onFooterClick }) => {
+    const activeTheme = THEMES[theme] || THEMES.orange;
+
     return (
         <div className="min-h-screen w-full flex bg-[#F8FAFC] font-sans">
             {/* Left: Branding & Decoration */}
             <div className="hidden lg:flex w-1/2 bg-slate-900 relative overflow-hidden items-center justify-center p-12">
                 {/* Abstract Background Shapes */}
-                <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/20 blur-[120px]" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-orange-600/20 blur-[100px]" />
+                <div className={`absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] ${activeTheme.bgAccent}`} />
+                <div className={`absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full blur-[100px] ${activeTheme.bgAccent}`} />
 
                 <div className="relative z-10 max-w-md text-center">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-tr from-orange-500 to-orange-400 shadow-2xl shadow-orange-500/20 mb-10 animate-float">
-                        <span className="text-white text-3xl font-black italic tracking-tighter leading-none">A</span>
+                    <div className={`inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-tr shadow-2xl mb-10 animate-float ${activeTheme.accent} ${activeTheme.shadow}`}>
+                        <span className="text-white text-3xl font-black italic tracking-tighter leading-none">FC</span>
                     </div>
 
                     <h2 className="text-white text-5xl font-black tracking-tight mb-6 leading-[1.1]">
-                        Experience the <span className="text-orange-500 italic">Future</span> of Dining.
+                        Experience the <span className={`${activeTheme.text} italic`}>Future</span> of Dining.
                     </h2>
                     <p className="text-slate-400 text-lg font-medium leading-relaxed">
-                        Join Academy today and discover a world of culinary delights tailored just for you.
+                        Join FoodCourt today and discover a world of culinary delights tailored just for you.
                     </p>
 
                     <div className="mt-12 flex items-center justify-center gap-6">
                         <div className="flex -space-x-3">
                             {[1, 2, 3, 4].map((i) => (
                                 <div key={i} className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center overflow-hidden">
-                                    <img src={`https://i.pravatar.cc/100?img=${i + 10}`} alt="user" />
+                                    <img src={`https://i.pravatar.cc/100?img=${i + 15}`} alt="user" />
                                 </div>
                             ))}
                         </div>
@@ -39,8 +80,8 @@ const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerA
 
                 {/* Branding badge */}
                 <div className="absolute bottom-10 left-10 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">Academy Platform v1.0</span>
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${activeTheme.primary}`} />
+                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">FoodCourt Platform v1.2</span>
                 </div>
             </div>
 
@@ -49,14 +90,17 @@ const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerA
                 <div className="w-full max-w-[440px] animate-fade-up">
                     {/* Mobile Logo */}
                     <div className="lg:hidden flex justify-center mb-8">
-                        <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-200">
-                            <span className="text-white font-black italic text-xl">A</span>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${activeTheme.primary} ${activeTheme.shadow}`}>
+                            <span className="text-white font-black italic text-xl">FC</span>
                         </div>
                     </div>
 
-                    {/* Logo Title (Requested: Academy) */}
+                    {/* Logo Title */}
                     <div className="mb-10 text-center lg:text-left">
-                        <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-8">Academy</h3>
+                        <div className="flex items-center gap-2 justify-center lg:justify-start mb-8">
+                            <Globe size={18} className={activeTheme.text} />
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">FoodCourt</h3>
+                        </div>
                         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight mb-3">
                             {title || 'Welcome Back'}
                         </h1>
@@ -75,11 +119,11 @@ const AuthLayout = ({ children, title, subtitle, footerLink, footerText, footerA
                         <p className="text-slate-500 font-bold text-sm">
                             {footerText || "Don't have an account?"}{' '}
                             {onFooterClick ? (
-                                <button type="button" onClick={onFooterClick} className="text-orange-500 hover:text-orange-600 transition-colors ml-1 underline decoration-2 underline-offset-4">
+                                <button type="button" onClick={onFooterClick} className={`${activeTheme.text} ${activeTheme.hover} transition-all ml-1 font-black uppercase text-[10px] tracking-widest underline decoration-2 underline-offset-4`}>
                                     {footerAction || 'Sign Up'}
                                 </button>
                             ) : (
-                                <Link to={footerLink || '/signup'} className="text-orange-500 hover:text-orange-600 transition-colors ml-1 underline decoration-2 underline-offset-4">
+                                <Link to={footerLink || '/signup'} className={`${activeTheme.text} ${activeTheme.hover} transition-all ml-1 font-black uppercase text-[10px] tracking-widest underline decoration-2 underline-offset-4`}>
                                     {footerAction || 'Sign Up'}
                                 </Link>
                             )}

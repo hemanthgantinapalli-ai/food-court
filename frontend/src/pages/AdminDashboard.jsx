@@ -1249,13 +1249,18 @@ export default function AdminDashboard() {
                               >
                                 <DollarSign size={16} />
                               </button>
-                              <button
-                                onClick={() => {
-                                  setEditingUser({ ...u });
-                                  setShowEditUserModal(true);
+                               <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await API.get(`/admin/users/${u._id}`);
+                                    setEditingUser(res.data.data);
+                                    setShowEditUserModal(true);
+                                  } catch (err) {
+                                    addToast('Failed to fetch user details', 'error');
+                                  }
                                 }}
-                                className="p-2 text-indigo-400 hover:text-indigo-600 transition-colors ml-2"
-                                title="Edit User Profile"
+                                className="p-2 text-indigo-400 hover:text-indigo-600 transition-all ml-2 bg-indigo-50/50 rounded-lg hover:bg-indigo-100"
+                                title="Edit User Master Profile"
                               >
                                 <Edit3 size={16} />
                               </button>
@@ -2233,74 +2238,246 @@ export default function AdminDashboard() {
       {showEditUserModal && editingUser && (
         <div className="fixed inset-0 z-[2001] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowEditUserModal(false)} />
-          <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-10 animate-in fade-in zoom-in duration-300">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-2xl font-black text-slate-900">Edit User Profile</h3>
-              <button onClick={() => setShowEditUserModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors">
+          <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+            <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900">Advanced Profile Manager</h3>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Editing UID: {editingUser._id}</p>
+              </div>
+              <button onClick={() => setShowEditUserModal(false)} className="w-12 h-12 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-rose-500 rounded-2xl transition-all">
                 <X size={24} />
               </button>
             </div>
             
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setIsUpdatingUser(true);
-              try {
-                const res = await API.put(`/admin/users/${editingUser._id}`, {
-                  name: editingUser.name,
-                  phone: editingUser.phone,
-                  role: editingUser.role
-                });
-                setUsersList(prev => prev.map(u => u._id === editingUser._id ? res.data.data : u));
-                addToast('✅ User profile updated successfully!', 'success');
-                setShowEditUserModal(false);
-              } catch (err) {
-                addToast(err.response?.data?.message || 'Update failed', 'error');
-              } finally {
-                setIsUpdatingUser(false);
-              }
-            }} className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Display Name</label>
-                <input
-                  required
-                  className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
-                  value={editingUser.name || ''}
-                  onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Phone Number</label>
-                <input
-                  className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
-                  value={editingUser.phone || ''}
-                  placeholder="e.g. +91 98765 43210"
-                  onChange={e => setEditingUser({ ...editingUser, phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Platform Role</label>
-                <select
-                  className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all cursor-pointer"
-                  value={editingUser.role}
-                  onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
-                >
-                  <option value="customer">Customer</option>
-                  <option value="rider">Rider</option>
-                  <option value="restaurant">Partner</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  disabled={isUpdatingUser}
-                  className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 disabled:opacity-50 transition-all"
-                >
-                  {isUpdatingUser ? 'Saving Changes...' : 'Update & Save Profile'}
-                </button>
-              </div>
-            </form>
+            <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setIsUpdatingUser(true);
+                try {
+                  const res = await API.put(`/admin/users/${editingUser._id}`, {
+                    name: editingUser.name,
+                    email: editingUser.email,
+                    phone: editingUser.phone,
+                    role: editingUser.role,
+                    walletBalance: editingUser.wallet?.balance,
+                    addresses: editingUser.addresses,
+                    riderData: editingUser.role === 'rider' ? editingUser.riderData : undefined,
+                    restaurantData: editingUser.role === 'restaurant' ? editingUser.restaurantData : undefined
+                  });
+                  setUsersList(prev => prev.map(u => u._id === editingUser._id ? res.data.data : u));
+                  addToast('✨ Master profile updated!', 'success');
+                  setShowEditUserModal(false);
+                } catch (err) {
+                  addToast(err.response?.data?.message || 'Update failed', 'error');
+                } finally {
+                  setIsUpdatingUser(false);
+                }
+              }} className="space-y-8">
+                {/* Core Identity */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
+                    <input
+                      required
+                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                      value={editingUser.name || ''}
+                      onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
+                    <input
+                      required
+                      type="email"
+                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                      value={editingUser.email || ''}
+                      onChange={e => setEditingUser({ ...editingUser, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Phone Number</label>
+                    <input
+                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all"
+                      value={editingUser.phone || ''}
+                      placeholder="+91 98765 43210"
+                      onChange={e => setEditingUser({ ...editingUser, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Platform Role</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-100 transition-all cursor-pointer"
+                      value={editingUser.role}
+                      onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
+                    >
+                      <option value="customer">Customer</option>
+                      <option value="rider">Rider</option>
+                      <option value="restaurant">Partner</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Economic Data */}
+                <div className="p-8 bg-emerald-50/50 rounded-3xl border border-emerald-100">
+                  <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <DollarSign size={16} /> Wallet Management
+                  </h4>
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex-1">
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600 font-black">₹</span>
+                      <input
+                        type="number"
+                        className="w-full bg-white border border-emerald-200 pl-10 pr-6 py-4 rounded-2xl font-black text-xl text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-200"
+                        value={editingUser.wallet?.balance || 0}
+                        onChange={e => setEditingUser({ ...editingUser, wallet: { ...editingUser.wallet, balance: Number(e.target.value) } })}
+                      />
+                    </div>
+                    <p className="text-[10px] text-emerald-600 font-bold uppercase max-w-[150px]">Manual balance override for corrections</p>
+                  </div>
+                </div>
+
+                {/* Role Specific Data (Rider) */}
+                {editingUser.role === 'rider' && (
+                  <div className="p-8 bg-indigo-50/50 rounded-3xl border border-indigo-100 space-y-6">
+                    <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                      <Truck size={16} /> Logistics Data
+                    </h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase text-indigo-400">Vehicle Type</label>
+                        <select 
+                          className="w-full bg-white border border-indigo-200 px-4 py-3 rounded-xl font-bold"
+                          value={editingUser.riderData?.vehicleType || 'bike'}
+                          onChange={e => setEditingUser({ ...editingUser, riderData: { ...editingUser.riderData, vehicleType: e.target.value } })}
+                        >
+                          <option value="bike">Bike</option>
+                          <option value="scooter">Scooter</option>
+                          <option value="bicycle">Bicycle</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase text-indigo-400">Vehicle Number</label>
+                        <input 
+                          className="w-full bg-white border border-indigo-200 px-4 py-3 rounded-xl font-bold"
+                          value={editingUser.riderData?.vehicleNumber || ''}
+                          onChange={e => setEditingUser({ ...editingUser, riderData: { ...editingUser.riderData, vehicleNumber: e.target.value } })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase text-indigo-400">License Number</label>
+                        <input 
+                          className="w-full bg-white border border-indigo-200 px-4 py-3 rounded-xl font-bold"
+                          value={editingUser.riderData?.licenseNumber || ''}
+                          onChange={e => setEditingUser({ ...editingUser, riderData: { ...editingUser.riderData, licenseNumber: e.target.value } })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Address Management */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center px-1">
+                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                      <MapPin size={16} className="text-orange-500" /> Linked Addresses
+                    </h4>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const newAddrs = [...(editingUser.addresses || []), { label: 'New Address', street: '', city: '' }];
+                        setEditingUser({ ...editingUser, addresses: newAddrs });
+                      }}
+                      className="text-[10px] font-black text-orange-600 uppercase tracking-widest bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-all"
+                    >
+                      + Add Location
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {(editingUser.addresses || []).length === 0 ? (
+                      <p className="text-[10px] text-slate-400 font-bold uppercase text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 italic">No saved addresses</p>
+                    ) : (
+                      editingUser.addresses.map((addr, idx) => (
+                        <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-4 items-start group">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input 
+                              placeholder="Label (e.g. Home)"
+                              className="bg-white border-none rounded-xl px-4 py-2 text-xs font-bold"
+                              value={addr.label}
+                              onChange={e => {
+                                const updated = [...editingUser.addresses];
+                                updated[idx].label = e.target.value;
+                                setEditingUser({ ...editingUser, addresses: updated });
+                              }}
+                            />
+                            <input 
+                              placeholder="Street Address"
+                              className="bg-white border-none rounded-xl px-4 py-2 text-xs font-bold md:col-span-2"
+                              value={addr.street}
+                              onChange={e => {
+                                const updated = [...editingUser.addresses];
+                                updated[idx].street = e.target.value;
+                                setEditingUser({ ...editingUser, addresses: updated });
+                              }}
+                            />
+                            <input 
+                              placeholder="City"
+                              className="bg-white border-none rounded-xl px-4 py-2 text-xs font-bold"
+                              value={addr.city || ''}
+                              onChange={e => {
+                                const updated = [...editingUser.addresses];
+                                updated[idx].city = e.target.value;
+                                setEditingUser({ ...editingUser, addresses: updated });
+                              }}
+                            />
+                            <input 
+                              placeholder="Zip Code"
+                              className="bg-white border-none rounded-xl px-4 py-2 text-xs font-bold"
+                              value={addr.zipCode || ''}
+                              onChange={e => {
+                                const updated = [...editingUser.addresses];
+                                updated[idx].zipCode = e.target.value;
+                                setEditingUser({ ...editingUser, addresses: updated });
+                              }}
+                            />
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const updated = editingUser.addresses.filter((_, i) => i !== idx);
+                              setEditingUser({ ...editingUser, addresses: updated });
+                            }}
+                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-6 sticky bottom-0 bg-white pb-4">
+                  <button
+                    type="submit"
+                    disabled={isUpdatingUser}
+                    className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-orange-600 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-3"
+                  >
+                    {isUpdatingUser ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        Committing Changes...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck size={18} /> Sync & Save Master Profile
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

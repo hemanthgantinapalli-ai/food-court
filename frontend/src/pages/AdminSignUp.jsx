@@ -65,6 +65,7 @@ export default function AdminSignUp() {
 
     return (
         <AuthLayout
+            theme="purple"
             title={step === 1 ? 'Admin Verification' : 'Create Admin Account'}
             subtitle={step === 1 ? 'Enter your admin secret key to continue' : 'Set up your administrator credentials'}
             footerText="Already have an account?"

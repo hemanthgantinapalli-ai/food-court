@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../context/authStore.js';
@@ -17,15 +17,12 @@ export default function SignUp() {
   const handleCredentialResponse = async (credentialResponse) => {
     try {
         setLoading(true);
-        // By default role can be 'customer', handles googleAuth creation/login
-        const loggedInUser = await googleAuth(credentialResponse.credential, formData.role);
+        // Specifically force 'customer' role for Google Sign Up here
+        const loggedInUser = await googleAuth(credentialResponse.credential, 'customer');
         setShowSuccess(true);
         setTimeout(() => {
             setShowSuccess(false);
-            if (loggedInUser.role === 'admin') navigate('/admin');
-            else if (loggedInUser.role === 'rider') navigate('/rider');
-            else if (loggedInUser.role === 'restaurant') navigate('/partner');
-            else navigate('/');
+            navigate('/');
         }, 1500);
     } catch (err) {
         setError(err.message || 'Google Sign Up failed');
@@ -34,7 +31,6 @@ export default function SignUp() {
     }
   };
 
-  // Programmatic Google Sign-In initialization removed in favor of HTML-based configuration as per request.
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -44,7 +40,8 @@ export default function SignUp() {
     setError('');
     setLoading(true);
     try {
-      await signUp(formData);
+      // Force role to customer for this portal
+      await signUp({ ...formData, role: 'customer' });
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -60,6 +57,7 @@ export default function SignUp() {
 
   return (
     <AuthLayout
+      theme="orange"
       title="Create Account"
       subtitle="Sign up and start ordering your favourite food"
       footerText="Already have an account?"
