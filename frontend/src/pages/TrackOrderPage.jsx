@@ -125,7 +125,6 @@ export default function TrackOrderPage() {
                 if (history && history.length > 0) {
                     const latest = history[0];
                     setOrder(latest);
-                    setOrderIdSearch(latest.orderId || latest._id);
                 }
             } catch (err) {
                 console.error('Error fetching latest order:', err);
@@ -135,6 +134,58 @@ export default function TrackOrderPage() {
         };
         fetchLatestOrder();
     }, [user, searchParams]);
+
+    // ── Forward Geocoding Fallback (Consuming Address String) ──
+    useEffect(() => {
+        if (!order || order.orderStatus === 'delivered') return;
+        
+        const geocodeMissingCoords = async () => {
+            let updated = false;
+            const newOrder = { ...order };
+
+            // 1. Check Customer Address Coords
+            if ((!order.deliveryAddress?.latitude || order.deliveryAddress?.latitude === 16.234) && order.deliveryAddress?.street) {
+                try {
+                    const query = `${order.deliveryAddress.street}, ${order.deliveryAddress.city}, India`;
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                    const data = await res.json();
+                    if (data && data[0]) {
+                        newOrder.deliveryAddress = {
+                            ...newOrder.deliveryAddress,
+                            latitude: parseFloat(data[0].lat),
+                            longitude: parseFloat(data[0].lon)
+                        };
+                        updated = true;
+                    }
+                } catch (e) { console.error("Customer geocoding failed", e); }
+            }
+
+            // 2. Check Restaurant Coords
+            if ((!order.restaurant?.location?.latitude || order.restaurant?.location?.latitude === 16.2367) && order.restaurant?.name) {
+                try {
+                    const query = `${order.restaurant.name}, ${order.restaurant.location?.city || 'Tenali'}, India`;
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                    const data = await res.json();
+                    if (data && data[0]) {
+                        newOrder.restaurant = {
+                            ...newOrder.restaurant,
+                            location: {
+                                ...newOrder.restaurant.location,
+                                latitude: parseFloat(data[0].lat),
+                                longitude: parseFloat(data[0].lon)
+                            }
+                        };
+                        updated = true;
+                    }
+                } catch (e) { console.error("Restaurant geocoding failed", e); }
+            }
+
+            if (updated) setOrder(newOrder);
+        };
+
+        const timer = setTimeout(geocodeMissingCoords, 1000);
+        return () => clearTimeout(timer);
+    }, [order?.orderStatus, order?.deliveryAddress?.street, order?.restaurant?.name]);
 
     useEffect(() => {
         if (user && order?._id) {

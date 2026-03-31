@@ -70,7 +70,7 @@ router.get('/stats', authenticateUser, authorizeRole('rider'), async (req, res) 
       Order.countDocuments({ rider: userId, orderStatus: 'delivered', createdAt: { $gte: startOfToday } }),
       Order.countDocuments({ rider: userId, orderStatus: { $in: ['confirmed', 'preparing', 'ready', 'on_the_way'] } }),
       Order.aggregate([
-        { $match: { rider: new mongoose.Types.ObjectId(userId), orderStatus: 'delivered' } },
+        { $match: { rider: mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId, orderStatus: 'delivered' } },
         { $group: { _id: null, total: { $sum: '$deliveryFee' } } }
       ])
     ]);
@@ -445,16 +445,21 @@ router.post('/update-location', authenticateUser, authorizeRole('rider'), async 
 
     console.log(`📍 [Rider Location] Updating location for rider: ${req.userId} → ${latitude}, ${longitude} (Heading: ${heading}, Speed: ${speed})`);
 
+    // Ensure we use GeoJSON format [longitude, latitude] for the 2dsphere index
+    const lng = Number(longitude);
+    const lat = Number(latitude);
+
     await Rider.findOneAndUpdate(
       { user: req.userId },
       { 
         currentLocation: { 
-          latitude, 
-          longitude,
+          type: 'Point',
+          coordinates: [lng, lat],
           heading: Number(heading) || 0,
           speed: Number(speed) || 0
         } 
-      }
+      },
+      { upsert: true }
     );
 
     // Notify active customers linked to this rider

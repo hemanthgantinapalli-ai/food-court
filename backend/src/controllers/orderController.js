@@ -136,9 +136,12 @@ export const getOrderHistory = async (req, res) => {
   try {
     const { type } = req.query;
     console.log(`📋 [Get Order History API] Request from user: ${req.userId}, Role: ${req.userRole}, Type: ${type || 'all'}`);
-    let query = { customer: req.userId };
+    let query = {};
 
-    // If type=delivery and user is rider, show orders assigned to them
+    // Customer: show their own orders
+    if (req.userRole === 'customer') {
+      query = { customer: req.userId };
+    }
     if (type === 'delivery' && req.userRole === 'rider') {
       console.log(`🛵 [Get Order History API] Fetching assigned deliveries for rider.`);
       query = { rider: req.userId };
@@ -219,9 +222,9 @@ export const getOrderById = async (req, res) => {
     }
 
     // Check authorization
-    const isCustomer = order.customer?._id.toString() === req.userId;
+    const isCustomer = order.customer?._id?.toString() === req.userId || order.customer?.toString() === req.userId;
     const isAdmin = req.userRole === 'admin';
-    const isRider = order.rider?._id.toString() === req.userId;
+    const isRider = order.rider?._id?.toString() === req.userId || order.rider?.toString() === req.userId;
     const isRestaurantOwner = order.restaurant?.owner?.toString() === req.userId;
 
     if (!isCustomer && !isAdmin && !isRider && !isRestaurantOwner) {

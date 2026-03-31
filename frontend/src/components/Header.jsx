@@ -53,7 +53,7 @@ export default function Header() {
       const fetchCount = async () => {
         try {
           const res = await API.get('/notifications');
-          const unread = res.data?.data?.filter(n => !n.read).length || 0;
+          const unread = res.data?.data?.filter(n => !n.isRead).length || 0;
           setUnreadCount(unread);
         } catch (err) {
           console.error('Failed to fetch notifications count');

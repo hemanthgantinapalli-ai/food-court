@@ -517,20 +517,20 @@ export default function AdminDashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statCards.map((stat, i) => (
-            <div key={i} id={stat.id} className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden">
-              <div className={`absolute top-0 right-0 w-24 h-24 ${stat.bg} opacity-0 group-hover:opacity-10 rounded-bl-[4rem] transition-opacity duration-500`} />
+            <div key={i} id={stat.id} className="bg-white rounded-[2.5rem] p-8 border border-white shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-200 group relative overflow-hidden">
+              <div className={`absolute top-0 right-0 w-24 h-24 ${stat.bg} opacity-0 group-hover:opacity-10 rounded-bl-[4rem] transition-opacity duration-200`} />
               <div className="flex justify-between items-start relative z-10">
                 <div>
                   <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-3 group-hover:text-slate-500 transition-colors">{stat.label}</p>
-                  <p className="text-4xl font-black text-slate-900 tracking-tighter group-hover:scale-105 origin-left transition-transform duration-500" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  <p className="text-4xl font-black text-slate-900 tracking-tighter group-hover:scale-105 origin-left transition-transform duration-200" style={{ fontFamily: 'Outfit, sans-serif' }}>
                     {stat.value}
                   </p>
-                  <div className="mt-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
+                  <div className="mt-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-2 group-hover:translate-y-0">
                     <span className="w-1 h-1 rounded-full bg-emerald-500" />
                     <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Real-time Verified</span>
                   </div>
                 </div>
-                <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-[1.5rem] shadow-xl flex items-center justify-center transition-all duration-700 group-hover:rotate-[15deg] group-hover:scale-110`}>
+                <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-[1.5rem] shadow-xl flex items-center justify-center transition-all duration-300 group-hover:rotate-[15deg] group-hover:scale-110`}>
                   <stat.icon size={32} />
                 </div>
               </div>
@@ -558,7 +558,7 @@ export default function AdminDashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 min-w-[120px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all duration-500 relative group/tab ${activeTab === tab.id
+                className={`flex-1 min-w-[120px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all duration-200 relative group/tab ${activeTab === tab.id
                   ? 'bg-white text-orange-600 shadow-xl shadow-slate-200/50 scale-105'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/70'}`}
               >
@@ -1458,7 +1458,7 @@ export default function AdminDashboard() {
                                 commissionPercentage: r.commissionPercentage || 10
                               });
                               setShowAddRestaurant(true);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              window.scrollTo({ top: 0, behavior: 'auto' });
                             }}
                             className="w-14 h-14 flex items-center justify-center bg-white border border-slate-100 text-slate-600 rounded-2xl hover:bg-blue-50 hover:border-blue-100 transition-all shadow-sm active:scale-95"
                             title="Edit Restaurant"
@@ -1478,12 +1478,15 @@ export default function AdminDashboard() {
                           <button
                             onClick={async () => {
                               try {
-                                await API.put(`/admin/restaurants/${r._id}/approve`, {});
+                                // Optimistic local update
                                 setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: true } : rest));
+                                await API.put(`/admin/restaurants/${r._id}/approve`, {});
                                 addToast(`✅ ${r.name} approved!`, 'info');
-                                fetchNotifications(); // Sync stats & badge counts
+                                fetchNotifications();
                               } catch (err) {
                                 console.error('Approval failed:', err);
+                                // Rollback on error
+                                setRestaurantsList(prev => prev.map(rest => rest._id === r._id ? { ...rest, isApproved: false } : rest));
                               }
                             }}
                             className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg active:scale-95"

@@ -176,7 +176,7 @@ export default function LeafletTrackingMap({ order }) {
         lng: Number(order?.restaurantLocation?.lng || rest?.location?.longitude || rest?.longitude || 0) || 80.6475,
     };
     const customerPos = {
-        lat: Number(order?.userLocation?.lat || cust?.latitude || cust?.lat || 0) || 16.2360,
+        lat: Number(order?.userLocation?.lat || cust?.latitude || cust?.lat || 0) || 16.2340,
         lng: Number(order?.userLocation?.lng || cust?.longitude || cust?.lng || 0) || 80.6480,
     };
 
@@ -275,10 +275,13 @@ export default function LeafletTrackingMap({ order }) {
     useEffect(() => {
         if (!mapReady || order?.orderStatus === 'delivered') return;
         const currentPos = displayRef.current || restaurantPos;
+        
+        // Ensure we always have a route even if we're just "Finding a Rider" 
+        // to show the restaurant -> user connection as requested.
         if (isPickedUp) fetchRoute(currentPos, customerPos, 'delivery');
         else if (hasRiderAssigned && displayPos) fetchRoute(currentPos, restaurantPos, 'pickup');
         else fetchRoute(restaurantPos, customerPos, 'cooking');
-    }, [order?.orderStatus, mapReady, hasRiderAssigned]);
+    }, [order?.orderStatus, mapReady, hasRiderAssigned, restaurantPos.lat, customerPos.lat]);
 
     if (!mapReady) return null;
 

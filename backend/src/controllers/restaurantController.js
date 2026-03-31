@@ -68,9 +68,10 @@ export const getRestaurants = async (req, res) => {
                 .lean();
         }
 
-        // Attach menu item keywords to each restaurant for powerful client-side filtering
+        // Attach menu item keywords to each restaurant (Optimized: limit results)
         const menuItems = await MenuItem.find({ restaurant: { $in: restaurants.map(r => r._id) } })
             .select('restaurant name category')
+            .limit(150) // Don't fetch thousands of items just for keywords
             .lean();
 
         const menuMap = {};
@@ -193,7 +194,7 @@ export const getRecommendedRestaurants = async (req, res) => {
                 .limit(4)
                 .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
                 .lean();
-            return res.json({ success: true, data: topRated, isGuest: true });
+            return res.json({ success: true, data: topRated || [], isGuest: true });
         }
 
         // Find user's last 10 orders to detect cuisine preference
@@ -205,11 +206,11 @@ export const getRecommendedRestaurants = async (req, res) => {
 
         if (!lastOrders || lastOrders.length === 0) {
             // New user with no orders? Return high rated or trending
-            const trending = await Restaurant.find({ isApproved: true, rating: { $gte: 4.5 } })
+            const trending = await Restaurant.find({ isApproved: true, rating: { $gte: 4.0 } })
                 .limit(4)
                 .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
                 .lean();
-            return res.json({ success: true, data: trending, message: 'Trending near you' });
+            return res.json({ success: true, data: trending || [], message: 'Trending near you' });
         }
 
         // Analyze cuisines
@@ -244,11 +245,11 @@ export const getRecommendedRestaurants = async (req, res) => {
             .select('name image cuisines rating location deliveryTime deliveryFee isOpen')
             .lean();
 
-        // Fallback if no fresh recommendations found in those cuisines
+        // Fallback if no fresh recommendations found
         if (!recommendations || recommendations.length < 2) {
             recommendations = await Restaurant.find({ 
                 isApproved: true, 
-                rating: { $gte: 4.2 },
+                rating: { $gte: 4.0 },
                 _id: { $nin: previousRestaurantIds }
             })
                 .limit(4)
@@ -256,9 +257,9 @@ export const getRecommendedRestaurants = async (req, res) => {
                 .lean();
         }
 
-        res.json({ success: true, data: recommendations });
+        res.json({ success: true, data: recommendations || [] });
     } catch (error) {
         console.error("🔥 [AI Recommendations API] Error:", error);
-        res.status(500).json({ success: false, message: 'Recommendation engine temporary offline' });
+        res.status(500).json({ success: false, message: 'Recommendation engine temporary offline', data: [] });
     }
 };

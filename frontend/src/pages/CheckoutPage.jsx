@@ -112,9 +112,7 @@ export default function CheckoutPage() {
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        // MOCKED FOR TENALI CONSISTENCY
-        const latitude = 16.2367;
-        const longitude = 80.6475;
+        const { latitude, longitude } = pos.coords;
         const coords = { latitude, longitude };
         setGpsCoords(coords);
         
@@ -157,10 +155,35 @@ export default function CheckoutPage() {
         
         setGpsLoading(false);
       },
-      () => setGpsLoading(false),
+      (err) => {
+        console.warn("Geolocation blocked or failed", err);
+        setGpsLoading(false);
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // ── Forward Geocoding (Address -> Coords) ──
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (address.street && address.city && !gpsCoords) {
+        try {
+          const query = `${address.street}, ${address.area || ''}, ${address.city}, India`;
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+          const data = await res.json();
+          if (data && data[0]) {
+            const { lat, lon } = data[0];
+            const coords = { latitude: parseFloat(lat), longitude: parseFloat(lon) };
+            setGpsCoords(coords);
+            setAddress(prev => ({ ...prev, lat: coords.latitude, lng: coords.longitude }));
+          }
+        } catch (err) {
+          console.error("Forward geocoding failed", err);
+        }
+      }
+    }, 1500); // Debounce
+    return () => clearTimeout(timer);
+  }, [address.street, address.city]);
 
   // Distance calculation helper (Haversine Formula)
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -296,8 +319,8 @@ export default function CheckoutPage() {
         zipCode: address.pincode,
         label: address.landmark || 'Home',
         // GPS coordinates for live map tracking
-        latitude: gpsCoords?.latitude || null,
-        longitude: gpsCoords?.longitude || null,
+        latitude: gpsCoords?.latitude || address.lat || null,
+        longitude: gpsCoords?.longitude || address.lng || null,
       },
       userLocation: {
         lat: gpsCoords?.latitude || address.lat,

@@ -8,8 +8,10 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { createServer } from 'http';
 
+dotenv.config();
+
 import { initSocket } from './utils/socket.js';
-import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { errorHandler, notFoundHandler, requireDB } from './middleware/errorHandler.js';
 
 // --- Routes ---
 import authRoutes from "./routes/authRoutes.js";
@@ -28,23 +30,51 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
-import User from "./models/User.js";
 
-dotenv.config();
+// ─── Global crash shields ─────────────────────────────────────────────────────
+// Prevent the server from dying on unhandled errors - critical for deployment
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception (server kept alive):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection (server kept alive):', reason?.message || reason);
+});
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB Connected: cluster0.cki06oc.mongodb.net'))
-  .catch((err) => console.error('🔥 Error connecting to MongoDB:', err.message));
+// ─── MongoDB Connection ───────────────────────────────────────────────────────
+// bufferCommands: false → fail immediately when disconnected, no infinite hangs
+mongoose.set('bufferCommands', false);
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 10,
+    });
+    console.log('✅ MongoDB Connected: cluster0.cki06oc.mongodb.net');
+  } catch (err) {
+    console.error('🔥 MongoDB connection failed:', err.message);
+    console.log('🔄 Retrying MongoDB connection in 5s...');
+    setTimeout(connectDB, 5000);
+  }
+};
+
+// Auto-reconnect on disconnect
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️  MongoDB disconnected. Reconnecting...');
+  setTimeout(connectDB, 3000);
+});
+
+connectDB();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// --- Middleware ---
-app.use(helmet({
-  contentSecurityPolicy: false,
-}));
+// ─── Middleware ───────────────────────────────────────────────────────────────
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(cors());
 
@@ -54,46 +84,51 @@ app.use('/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
-// --- API Endpoints ---
-app.get("/api/health", (req, res) => res.json({ status: "ok", message: "FoodCourt API is online 🚀" }));
+// ─── Health Check ─────────────────────────────────────────────────────────────
+app.get("/api/health", (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  res.json({
+    status: dbStatus === 1 ? "ok" : "degraded",
+    db: dbStatus === 1 ? "connected" : "disconnected",
+    message: "FoodCourt API 🚀"
+  });
+});
 
-app.use("/api/auth", authRoutes);
-app.use("/api/restaurants", restaurantRoutes);
-app.use("/api/cart", cartRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use('/api/riders', riderRoutes);
-app.use('/api/menu', menuRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/support', supportRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/partner', partnerRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/upload', uploadRoutes);
+// DB guard — apply to all routes that query the database
+app.use('/api/auth', requireDB, authRoutes);
+app.use('/api/restaurants', requireDB, restaurantRoutes);
+app.use('/api/cart', requireDB, cartRoutes);
+app.use('/api/orders', requireDB, orderRoutes);
+app.use('/api/payments', requireDB, paymentRoutes);
+app.use('/api/riders', requireDB, riderRoutes);
+app.use('/api/menu', requireDB, menuRoutes);
+app.use('/api/admin', requireDB, adminRoutes);
+app.use('/api/support', requireDB, supportRoutes);
+app.use('/api/bookings', requireDB, bookingRoutes);
+app.use('/api/partner', requireDB, partnerRoutes);
+app.use('/api/notifications', requireDB, notificationRoutes);
+app.use('/api/wallet', requireDB, walletRoutes);
+app.use('/api/analytics', requireDB, analyticsRoutes);
+app.use('/api/upload', uploadRoutes); // upload is file-based, no DB needed
 
-// --- Production Frontend Serving ---
+// ─── Production Frontend Serving ──────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../../frontend/dist');
   app.use(express.static(distPath));
-
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(distPath, 'index.html'));
     }
   });
 } else {
-  app.get("/", (req, res) => {
-    res.send("FoodCourt API running 🚀 (Dev Mode)");
-  });
+  app.get("/", (req, res) => res.send("FoodCourt API running 🚀 (Dev Mode)"));
 }
 
-// --- Errors ---
+// ─── Error Handlers ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// --- Initialization ---
+// ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 initSocket(httpServer);
@@ -101,4 +136,3 @@ initSocket(httpServer);
 httpServer.listen(PORT, '0.0.0.0', () =>
   console.log(`🚀 Server running on http://localhost:${PORT}`)
 );
-

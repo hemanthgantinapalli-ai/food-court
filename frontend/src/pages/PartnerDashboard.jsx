@@ -179,6 +179,18 @@ export default function PartnerDashboard() {
         }
     };
 
+    const handleDeleteMenuItem = async (id) => {
+        if (!window.confirm('🗑️ Delete this dish forever?')) return;
+        try {
+            await API.delete(`/menu/${id}`);
+            setMenuItems(menuItems.filter(item => item._id !== id));
+            addToast('🔥 Item deleted successfully', 'info');
+        } catch (err) {
+            console.error('Delete failed:', err);
+            addToast('❌ Delete failed. Please try again.', 'error');
+        }
+    };
+
     const toggleMenuItemStatus = async (item) => {
         try {
             const response = await API.put(`/menu/${item._id}`, { isAvailable: !item.isAvailable });
@@ -277,7 +289,7 @@ export default function PartnerDashboard() {
             {/* 🔥 Persistent New Order Alert Overlay */}
             {incomingOrderAlert && (
                 <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl border-4 border-orange-500 animate-in zoom-in-95 fade-in duration-300 relative overflow-hidden">
+                    <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl border-4 border-orange-500 animate-in zoom-in-95 fade-in duration-200 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-2 bg-orange-500 animate-pulse" />
                         <div className="text-center">
                             <div className="w-24 h-24 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner animate-bounce">
@@ -385,8 +397,8 @@ export default function PartnerDashboard() {
                                     }
                                     setActiveTab(tab.id);
                                 }}
-                                className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                                    ? 'bg-white text-emerald-600 shadow-sm'
+                                className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 whitespace-nowrap ${activeTab === tab.id
+                                    ? 'bg-white text-emerald-600 shadow-sm scale-105'
                                     : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
                             >
                                 {(tab.id === 'orders' && activeOrders.length > 0) || (tab.id === 'notifications' && persistentNotifications.filter(n => !n.read).length > 0) ? (
@@ -902,6 +914,12 @@ export default function PartnerDashboard() {
                                                         setShowMenuForm(true);
                                                     }} className="w-8 h-8 bg-white/90 backdrop-blur rounded-xl text-blue-600 flex items-center justify-center shadow-lg hover:bg-blue-600 hover:text-white transition-all">
                                                         <Edit3 size={14} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteMenuItem(item._id)}
+                                                        className="w-8 h-8 bg-white/90 backdrop-blur rounded-xl text-rose-600 flex items-center justify-center shadow-lg hover:bg-rose-600 hover:text-white transition-all"
+                                                    >
+                                                        <Trash2 size={14} />
                                                     </button>
                                                 </div>
                                                 {item.image ? (

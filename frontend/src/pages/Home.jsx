@@ -74,39 +74,46 @@ const Home = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchRestaurants = async () => {
+      if (!isMounted) return;
       try {
         let city = localStorage.getItem('userLocation');
-        if (city && city === 'Select Location') city = undefined;
+        if (city && (city === 'Select Location' || city === 'All Cities')) city = undefined;
 
         const [resResponse, recResponse] = await Promise.all([
           API.get(`/restaurants`, { params: { city: city ? city.trim() : undefined } }),
           API.get('/restaurants/recommendations').catch(e => ({ data: { data: [] } }))
         ]);
 
-            const list = Array.isArray(resResponse.data) ? resResponse.data : (resResponse.data?.data || []);
-            setRestaurants(list);
-            setRecommendations(recResponse.data?.data || []);
-          } catch (error) {
-            console.error('[Home] API Error:', error);
-            setRestaurants([]);
-          } finally {
-            setLoading(false);
-          }
+        if (isMounted) {
+          const list = Array.isArray(resResponse.data) ? resResponse.data : (resResponse.data?.data || []);
+          setRestaurants(list);
+          setRecommendations(recResponse.data?.data || []);
+        }
+      } catch (error) {
+        console.error('[Home] API Error:', error);
+        if (isMounted) setRestaurants([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     };
 
     fetchRestaurants();
 
     const handleLocChange = () => {
-      const newCity = localStorage.getItem('userLocation');
-      setSelectedCity((newCity && newCity !== 'Select Location') ? newCity : null);
+      setSelectedCity(localStorage.getItem('userLocation'));
       setActiveFilter('All');
       setSearchQuery('');
       fetchRestaurants();
     };
 
     window.addEventListener('locationChanged', handleLocChange);
-    return () => window.removeEventListener('locationChanged', handleLocChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('locationChanged', handleLocChange);
+    };
   }, []);
 
   useEffect(() => {

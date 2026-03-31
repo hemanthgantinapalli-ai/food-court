@@ -157,23 +157,15 @@ export default function RiderDashboard() {
             heading: heading || 0,
             speed: 35 // Simulated speed
           }).catch(() => {});
-        } else if (!isSimulating && 'geolocation' in navigator) {
-          navigator.geolocation.getCurrentPosition(async (position) => {
-            // MOCKED FOR TENALI CONSISTENCY (Chenchupet, Police Statue)
-            const latitude  = 16.2367;
-            const longitude = 80.6475;
-            const heading = 0;
-            const speed = 0;
-            
-            try {
-              await API.post('/riders/update-location', { 
-                latitude, 
-                longitude,
-                heading: heading || 0,
-                speed: speed || 0
-              });
-            } catch (err) { console.error('DB Location Sync Fail:', err); }
-          }, () => {}, { enableHighAccuracy: false });
+        } else if (!isSimulating && isOnline && riderPosRef.current) {
+          // If we have a position recorded from the user gesture toggle, use it
+          const { lat, lng, heading } = riderPosRef.current;
+          API.post('/riders/update-location', { 
+            latitude: lat, 
+            longitude: lng,
+            heading: heading || 0,
+            speed: 0
+          }).catch(() => {});
         }
       }, syncInterval);
 
@@ -536,7 +528,7 @@ export default function RiderDashboard() {
             <button
               id="rider-online-toggle"
               onClick={handleToggleOnline}
-              className={`group relative overflow-hidden px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-500 shadow-xl active:scale-95 ${isOnline
+              className={`group relative overflow-hidden px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl active:scale-95 ${isOnline
                 ? 'bg-emerald-500 text-white shadow-emerald-200 hover:bg-emerald-600'
                 : 'bg-slate-900 text-white shadow-slate-200 hover:bg-orange-600 ring-4 ring-orange-500/20'
                 }`}
@@ -663,7 +655,7 @@ export default function RiderDashboard() {
 
               {/* ────── OVERVIEW ────── */}
               {activeTab === 'overview' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-8 animate-in fade-in duration-200">
                   <div className="grid lg:grid-cols-3 gap-8">
                     {/* Visual Earnings Chart */}
                     <div className="lg:col-span-2 p-10 bg-slate-900 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">

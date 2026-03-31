@@ -115,7 +115,7 @@ export default function AdminBI() {
                         </div>
                     </div>
                     <div className="h-72 w-full relative z-10 min-h-[300px]">
-                        <ResponsiveContainer width="99%" height="100%">
+                        <ResponsiveContainer width="99%" height="100%" aspect={2}>
                             <BarChart data={peakHourData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
                                 <XAxis
@@ -218,7 +218,7 @@ export default function AdminBI() {
                         </div>
                     </div>
                     <div className="md:w-2/3 h-64 w-full min-h-[250px]">
-                        <ResponsiveContainer width="99%" height="100%">
+                        <ResponsiveContainer width="99%" height="100%" aspect={2}>
                             <BarChart data={paymentData} layout="vertical">
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontWeight: 900, fontSize: 10 }} />
