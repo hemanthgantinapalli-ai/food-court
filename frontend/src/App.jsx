@@ -167,7 +167,7 @@ function AppInner() {
               <Route
                 path="/order/:orderId"
                 element={
-                  <ProtectedRoute allowedRoles={["customer", "admin"]}>
+                  <ProtectedRoute allowedRoles={["customer", "admin", "rider", "restaurant"]}>
                     <OrderDetailPage />
                   </ProtectedRoute>
                 }

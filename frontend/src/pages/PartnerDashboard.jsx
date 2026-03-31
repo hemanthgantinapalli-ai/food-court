@@ -82,27 +82,42 @@ export default function PartnerDashboard() {
         }
     }, [user]);
 
+    const [isError, setIsError] = useState(false);
+
     const fetchData = async () => {
         const isInitialLoad = !stats;
         if (isInitialLoad) setLoading(true);
+        setIsError(false);
         fetchNotifications();
         try {
-            const [statsRes, ordersRes, menuRes, restRes, supportRes] = await Promise.all([
+            const responses = await Promise.allSettled([
                 API.get('/partner/stats'),
                 API.get('/partner/orders'),
                 API.get('/partner/menu'),
                 API.get('/partner/my-restaurants'),
                 API.get('/support/my-requests'),
             ]);
-            setStats(statsRes.data.data);
-            setOrdersList(ordersRes.data.data);
-            setMenuItems(menuRes.data.data);
-            setRestaurants(restRes.data.data);
-            setSupportRequests(supportRes.data.data || []);
+
+            if (responses[0].status === 'fulfilled') setStats(responses[0].value.data?.data);
+            else setIsError(true);
+
+            if (responses[1].status === 'fulfilled') setOrdersList(responses[1].value.data?.data || []);
+            else setIsError(true);
+
+            if (responses[2].status === 'fulfilled') setMenuItems(responses[2].value.data?.data || []);
+            else setIsError(true);
+
+            if (responses[3].status === 'fulfilled') setRestaurants(responses[3].value.data?.data || []);
+            else setIsError(true);
+
+            if (responses[4].status === 'fulfilled') setSupportRequests(responses[4].value.data?.data || []);
+            else setIsError(true);
+
             fetchTransactions();
 
         } catch (error) {
-            console.error('Error fetching partner data:', error);
+            console.error('Critical error fetching partner data:', error);
+            setIsError(true);
         } finally {
             if (isInitialLoad) setLoading(false);
         }
@@ -355,6 +370,20 @@ export default function PartnerDashboard() {
                         </button>
                     </div>
                 </div>
+                {isError && (
+                    <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-2xl flex items-center justify-between shadow-sm animate-in slide-in-from-top-4">
+                        <div className="flex items-center gap-3">
+                            <Store className="text-red-500" size={24} />
+                            <div>
+                                <p className="font-black text-sm uppercase tracking-widest">Connection Issue</p>
+                                <p className="text-xs font-bold opacity-80 mt-0.5">Having trouble reaching the database. Retrying...</p>
+                            </div>
+                        </div>
+                        <button onClick={fetchData} className="px-4 py-2 bg-white text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 hover:bg-red-600 hover:text-white transition-all shadow-sm">
+                            Retry
+                        </button>
+                    </div>
+                )}
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -275,15 +275,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const [isError, setIsError] = useState(false);
+
   const fetchData = async () => {
     const isInitialLoad = !stats || usersList.length === 0;
     if (isInitialLoad) setLoading(true);
+    setIsError(false);
 
     fetchNotifications();
     fetchOnlineRiders();
 
     try {
-      const [statsRes, usersRes, restRes, ordersRes, supportRes, ridersRes, financeRes, settingsRes] = await Promise.all([
+      const responses = await Promise.allSettled([
         API.get('/admin/stats'),
         API.get('/admin/users'),
         API.get('/admin/restaurants'),
@@ -293,19 +296,38 @@ export default function AdminDashboard() {
         API.get('/admin/finance'),
         API.get('/admin/settings'),
       ]);
-      setStats(statsRes.data.data);
-      setUsersList(usersRes.data.data);
-      setRestaurantsList(restRes.data.data);
-      setOrdersList(ordersRes.data.data);
-      setSupportTickets(supportRes.data.data);
-      setRidersList(usersRes.data.data.filter(u => u.role === 'rider'));
-      setRiderProfilesList(ridersRes.data.data);
-      setFinanceData(financeRes.data.data);
-      setPlatformSettings(settingsRes.data.data);
+
+      if (responses[0].status === 'fulfilled') setStats(responses[0].value.data?.data);
+      else setIsError(true);
+
+      if (responses[1].status === 'fulfilled') {
+        const users = responses[1].value.data?.data || [];
+        setUsersList(users);
+        setRidersList(users.filter(u => u.role === 'rider'));
+      } else setIsError(true);
+
+      if (responses[2].status === 'fulfilled') setRestaurantsList(responses[2].value.data?.data || []);
+      else setIsError(true);
+
+      if (responses[3].status === 'fulfilled') setOrdersList(responses[3].value.data?.data || []);
+      else setIsError(true);
+
+      if (responses[4].status === 'fulfilled') setSupportTickets(responses[4].value.data?.data || []);
+      else setIsError(true);
+
+      if (responses[5].status === 'fulfilled') setRiderProfilesList(responses[5].value.data?.data || []);
+      else setIsError(true);
+
+      if (responses[6].status === 'fulfilled') setFinanceData(responses[6].value.data?.data);
+      else setIsError(true);
+
+      if (responses[7].status === 'fulfilled') setPlatformSettings(responses[7].value.data?.data);
+      else setIsError(true);
       
       fetchAllTransactions();
     } catch (error) {
-      console.error('Error fetching admin data:', error);
+      console.error('Critical error fetching admin data:', error);
+      setIsError(true);
     } finally {
       if (isInitialLoad) setLoading(false);
     }
@@ -479,6 +501,21 @@ export default function AdminDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {isError && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-2xl flex items-center justify-between shadow-sm animate-in slide-in-from-top-4">
+            <div className="flex items-center gap-3">
+              <Shield className="text-red-500" size={24} />
+              <div>
+                <p className="font-black text-sm uppercase tracking-widest">Connection Issue</p>
+                <p className="text-xs font-bold opacity-80 mt-0.5">Having trouble reaching the database. Retrying connection...</p>
+              </div>
+            </div>
+            <button onClick={fetchData} className="px-4 py-2 bg-white text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 hover:bg-red-600 hover:text-white transition-all shadow-sm">
+              Retry Connection
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-xl shadow-slate-200/40 flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden group">

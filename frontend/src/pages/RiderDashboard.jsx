@@ -54,10 +54,12 @@ export default function RiderDashboard() {
     }
   }, [user]);
 
+  const [isError, setIsError] = React.useState(false);
+
   const fetchSupportTickets = async () => {
     try {
       const res = await API.get('/support/my-requests');
-      setSupportTickets(res.data.data);
+      setSupportTickets(res.data?.data || []);
     } catch (error) {
       console.error('Error fetching support tickets:', error);
     }
@@ -84,13 +86,9 @@ export default function RiderDashboard() {
 
     if (isOnline && user?._id) {
       connectSocket(user._id);
-
-      // Join the riders room to receive broadcasts
       joinRoleRoom('riders');
 
-      // New order placed by a customer — add to marketplace
       socket.on('new_order_available', (data) => {
-        console.log('📬 New order available:', data);
         setAvailableOrders(prev => {
           if (prev.find(o => o._id === data._id)) return prev;
           return [data, ...prev];
@@ -99,14 +97,11 @@ export default function RiderDashboard() {
         fetchNotifications();
       });
 
-      // Another rider claimed this order — remove from our list
       socket.on('order_taken', ({ orderId }) => {
-        console.log('🚫 Order taken by another rider:', orderId);
         setAvailableOrders(prev => prev.filter(o => o._id !== orderId));
       });
 
       socket.on('order_assigned', (data) => {
-        console.log('🛵 Order strictly assigned to you:', data);
         setAssignedOrders((prev) => [data, ...prev]);
         showToast('🛵 New Order Assigned by Admin!');
         fetchNotifications();
@@ -115,7 +110,6 @@ export default function RiderDashboard() {
         }
       });
 
-      // Order status updated by admin/restaurant
       socket.on('order_status_update', (data) => {
         setAssignedOrders(prev =>
           prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.status } : o)
@@ -136,7 +130,6 @@ export default function RiderDashboard() {
     };
   }, [isOnline, user]);
 
-  // Live location tracking (Dual-layer: DB Sync + Real-time Socket)
   React.useEffect(() => {
     let dbInterval;
     let socketInterval;
@@ -144,38 +137,26 @@ export default function RiderDashboard() {
     const activeTrackingOrder = assignedOrders.find(o => ['assigned', 'arrived_at_restaurant', 'picked_up', 'on_the_way', 'ready', 'confirmed', 'preparing'].includes(o.orderStatus));
 
     if (isOnline && user?.role === 'rider') {
-      // 1. Database Sync (Persistent location update)
-      // Faster sync during active simulation/journey (2-3s) vs idle (8-10s)
       const syncInterval = isSimulating ? 3000 : 10000;
       dbInterval = setInterval(() => {
         if (isSimulating && riderPosRef.current) {
-          // Sync simulated position to DB so user refresh doesn't jump rider back
           const { lat, lng, heading } = riderPosRef.current;
           API.post('/riders/update-location', { 
-            latitude: lat, 
-            longitude: lng,
-            heading: heading || 0,
-            speed: 35 // Simulated speed
+            latitude: lat, longitude: lng, heading: heading || 0, speed: 35 
           }).catch(() => {});
         } else if (!isSimulating && isOnline && riderPosRef.current) {
-          // If we have a position recorded from the user gesture toggle, use it
           const { lat, lng, heading } = riderPosRef.current;
           API.post('/riders/update-location', { 
-            latitude: lat, 
-            longitude: lng,
-            heading: heading || 0,
-            speed: 0
+            latitude: lat, longitude: lng, heading: heading || 0, speed: 0
           }).catch(() => {});
         }
       }, syncInterval);
 
-      // 2. Real-time Socket Broadcast (Ultra-high frequency for smooth map movement)
       if (activeTrackingOrder) {
         socket.emit('joinOrder', activeTrackingOrder._id);
 
         socketInterval = setInterval(() => {
           if (isSimulating && activeTrackingOrder) {
-            // ----- GPS SIMULATION MODE (Only if active order exists) -----
             const restLoc = activeTrackingOrder.restaurant?.location || activeTrackingOrder.restaurantAddress || {};
             const custLoc = activeTrackingOrder.deliveryAddress || {};
 
@@ -184,9 +165,8 @@ export default function RiderDashboard() {
             let custLat = Number(activeTrackingOrder.userLocation?.lat || custLoc.latitude || custLoc.lat || 16.2340);
             let custLng = Number(activeTrackingOrder.userLocation?.lng || custLoc.longitude || custLoc.lng || 80.6550);
             
-            // 🛡️ DYNAMIC COORD SNAPPING (Hyper-Realistic Demo Logic)
-            const isTooClose = Math.abs(restLat - custLat) < 0.005; // ~500m
-            const DEMO_START_SPOT = { lat: 16.2367, lng: 80.6475 }; // Police Statue, Chenchupet
+            const isTooClose = Math.abs(restLat - custLat) < 0.005;
+            const DEMO_START_SPOT = { lat: 16.2367, lng: 80.6475 };
             
             const HUB_RIDER = (isSimulating && isTooClose && !riderPosRef.current?.lat) 
                 ? DEMO_START_SPOT 
@@ -278,26 +258,20 @@ export default function RiderDashboard() {
                 setRoadRoutePoints([]);
             }
           } else if (!isSimulating) {
-            // ----- IDLE BROADCAST (Whenever Online) -----
-            // Broadcast current position even if no active order, so admin can see fleet
             const lat = riderPosRef.current?.lat || 16.2387636;
             const lng = riderPosRef.current?.lng || 80.6368367;
             broadcastRiderLocation(null, user._id, { lat, lng }, 0, 0);
           }
-        }, 300); // 300ms is enough for idle heartbeat
+        }, 300);
 
         if (!isSimulating && 'geolocation' in navigator) {
-          // ----- REAL GPS MODE: Use watchPosition for continuous tracking -----
           const watchId = navigator.geolocation.watchPosition((position) => {
             if (!activeTrackingOrder) return;
-            // MOCKED FOR TENALI CONSISTENCY
             const latitude = 16.2387636;
             const longitude = 80.6368367;
             const heading = 0;
             const speed = 0;
             
-            // 📍 ENHANCED SNAPPING: If rider has picked up the order but not started journey, 
-            // keep them pinned to restaurant on the map (Matched to User Panel high-fidelity behavior)
             if (activeTrackingOrder.orderStatus === 'picked_up') {
                 const restLoc = activeTrackingOrder.restaurant?.location || activeTrackingOrder.restaurantAddress || {};
                 const rLat = Number(restLoc.latitude || restLoc.lat || 16.2435);
@@ -312,9 +286,7 @@ export default function RiderDashboard() {
                 setRiderSelfLocation({ lat: latitude, lng: longitude });
             }
           }, (err) => console.error('GPS Error:', err.message), { 
-            enableHighAccuracy: true, 
-            timeout: 5000, 
-            maximumAge: 0 
+            enableHighAccuracy: true, timeout: 5000, maximumAge: 0 
           });
           
           return () => navigator.geolocation.clearWatch(watchId);
@@ -335,18 +307,13 @@ export default function RiderDashboard() {
       setIsOnline(newStatus);
 
       if (newStatus) {
-        // Going online — announce position to admin map immediately
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition((pos) => {
-            // MOCKED FOR TENALI CONSISTENCY
             const location = { lat: 16.2367, lng: 80.6475 };
-            const heading = 0;
-            const speed = 0;
             setRiderSelfLocation(location);
             riderPosRef.current = location;
-            notifyRiderOnline(user._id, location, heading, speed);
+            notifyRiderOnline(user._id, location, 0, 0);
           }, () => {
-            // Fallback for demo: Tenali Center
             const fallbackHub = { lat: 16.2367, lng: 80.6475 };
             setRiderSelfLocation(fallbackHub);
             riderPosRef.current = fallbackHub;
@@ -354,7 +321,6 @@ export default function RiderDashboard() {
           });
         }
       } else {
-        // Going offline
         notifyRiderOffline(user._id);
         setRiderSelfLocation(null);
       }
@@ -364,25 +330,48 @@ export default function RiderDashboard() {
   };
 
   const fetchData = async () => {
-    // Only show loader if we don't have assigned orders yet to prevent flickering on updates
     const isInitialLoad = assignedOrders.length === 0 && !stats;
     if (isInitialLoad) setLoading(true);
+    setIsError(false);
+
     try {
-      const [assignedRes, statsRes] = await Promise.all([
+      const responses = await Promise.allSettled([
         API.get('/orders/history?type=delivery'),
         API.get('/riders/stats')
       ]);
 
-      setAssignedOrders(assignedRes.data.data || []);
-      setStats(statsRes.data.data);
-      setIsOnline(statsRes.data.data.isOnline);
+      const assignedRes = responses[0];
+      const statsRes = responses[1];
 
-      if (isOnline || statsRes.data.data.isOnline) {
-        const availableRes = await API.get('/orders/history?type=available');
-        setAvailableOrders(availableRes.data.data || []);
+      if (assignedRes.status === 'fulfilled') {
+        setAssignedOrders(assignedRes.value.data?.data || []);
+      } else {
+        console.error('Failed to fetch assigned orders', assignedRes.reason);
+        setIsError(true);
+      }
+
+      let currentOnlineStatus = isOnline;
+      if (statsRes.status === 'fulfilled') {
+        const statsData = statsRes.value.data?.data;
+        setStats(statsData);
+        setIsOnline(statsData?.isOnline || false);
+        currentOnlineStatus = statsData?.isOnline || false;
+      } else {
+        console.error('Failed to fetch stats', statsRes.reason);
+        setIsError(true);
+      }
+
+      if (currentOnlineStatus) {
+        try {
+          const availableRes = await API.get('/orders/history?type=available');
+          setAvailableOrders(availableRes.data?.data || []);
+        } catch (err) {
+          console.error('Failed to fetch available orders', err);
+        }
       }
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('Critical error fetching dashboard data:', error);
+      setIsError(true);
     } finally {
       if (isInitialLoad) setLoading(false);
     }
@@ -391,7 +380,7 @@ export default function RiderDashboard() {
   const fetchNotifications = async () => {
     try {
       const res = await API.get('/notifications');
-      setPersistentNotifications(res.data.data);
+      setPersistentNotifications(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }
@@ -400,11 +389,12 @@ export default function RiderDashboard() {
   const fetchTransactions = async () => {
     try {
       const res = await API.get('/wallet/transactions');
-      setTransactions(res.data.data);
+      setTransactions(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching transactions:', err);
     }
   };
+
 
   const handleClearNotifications = async () => {
     try {
@@ -511,6 +501,21 @@ export default function RiderDashboard() {
 
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {isError && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-2xl flex items-center justify-between shadow-sm animate-in slide-in-from-top-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle size={24} />
+              <div>
+                <p className="font-black text-sm uppercase tracking-widest">Connection Issue</p>
+                <p className="text-xs font-bold opacity-80 mt-0.5">Having trouble reaching the database. Trying to reconnect...</p>
+              </div>
+            </div>
+            <button onClick={fetchData} className="px-4 py-2 bg-white text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 hover:bg-red-600 hover:text-white transition-all shadow-sm">
+              Retry Connection
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-8">
@@ -979,18 +984,18 @@ export default function RiderDashboard() {
                               </div>
 
                               <div className="flex gap-3 flex-wrap justify-end">
-                                {(order.orderStatus === 'confirmed' || order.orderStatus === 'preparing' || order.orderStatus === 'ready') && (
+                                {(['confirmed', 'preparing', 'assigned', 'arrived_at_restaurant'].includes(order.orderStatus)) && (
                                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 flex items-center gap-2">
                                     <Clock size={12} className="animate-spin" style={{ animationDuration: '3s' }} />
-                                    Waiting for Kitchen
+                                    {order.orderStatus === 'arrived_at_restaurant' ? 'Waiting at Restaurant' : 'Waiting for Kitchen'}
                                   </div>
                                 )}
-                                {(order.orderStatus === 'assigned') && (
+                                {(['assigned', 'confirmed', 'preparing'].includes(order.orderStatus)) && (
                                   <button onClick={() => handleStatusUpdate(order._id, 'arrived_at_restaurant')} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg flex items-center gap-2">
-                                    <Navigation size={14} /> Navigate to Restaurant
+                                    <Navigation size={14} /> Arrived at Restaurant
                                   </button>
                                 )}
-                                {(order.orderStatus === 'arrived_at_restaurant' || order.orderStatus === 'ready') && (
+                                {(['arrived_at_restaurant', 'ready'].includes(order.orderStatus)) && (
                                   <button onClick={() => handleStatusUpdate(order._id, 'picked_up')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2">
                                     <Package size={14} /> Picked Up
                                   </button>
@@ -1000,7 +1005,7 @@ export default function RiderDashboard() {
                                     <Navigation size={14} /> Navigate to Customer
                                   </button>
                                 )}
-                                {((order.orderStatus === 'on_the_way')) && (
+                                {(order.orderStatus === 'on_the_way') && (
                                   <button onClick={async (e) => {
                                       e.stopPropagation();
                                       await handleStatusUpdate(order._id, 'delivered');
