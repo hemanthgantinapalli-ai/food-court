@@ -110,7 +110,12 @@ export default function Footer() {
                 {['About Us', 'Careers', 'Blog', 'Join as Rider', 'Partner Portal', 'Admin Portal'].map((link, idx) => (
                   <li key={idx}>
                     <Link
-                      to={link === 'Join as Rider' ? '/rider/login' : link === 'Admin Portal' ? '/admin/login' : link === 'Partner Portal' ? '/restaurant/login' : '#'}
+                      to={
+                        link === 'Join as Rider' ? '/rider/login' : 
+                        link === 'Admin Portal' ? '/admin/login' : 
+                        link === 'Partner Portal' ? '/restaurant/login' : 
+                        `/info/${link.toLowerCase().replace(/ /g, '-')}`
+                      }
                       className="text-slate-400 hover:text-orange-400 transition-colors font-medium text-sm"
                     >
                       {link}
@@ -127,7 +132,10 @@ export default function Footer() {
                 {['Help Center', 'Track Order', 'Refunds', 'Report Issue', 'Accessibility'].map((link, idx) => (
                   <li key={idx}>
                     <Link
-                      to={link === 'Track Order' ? '/track-order' : '#'}
+                      to={
+                        link === 'Track Order' ? '/track-order' : 
+                        `/info/${link.toLowerCase().replace(/ /g, '-')}`
+                      }
                       className="text-slate-400 hover:text-orange-400 transition-colors font-medium text-sm"
                     >
                       {link}
@@ -187,7 +195,7 @@ export default function Footer() {
             <p>© 2026 FOODCOURT LIFESTYLE PVT LTD.</p>
             <div className="flex gap-8">
               {['Privacy', 'Terms', 'Cookies'].map((text, idx) => (
-                <Link key={idx} to="#" className="hover:text-orange-500 transition-colors">{text}</Link>
+                <Link key={idx} to={`/info/${text.toLowerCase()}`} className="hover:text-orange-500 transition-colors">{text}</Link>
               ))}
             </div>
           </div>

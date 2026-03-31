@@ -39,6 +39,7 @@ const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
 const CustomerDashboard = lazy(() => import("./pages/CustomerDashboard"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const InformationPage = lazy(() => import("./pages/InformationPage"));
 
 // ---------- Role Dashboards (Lazy Loaded) ----------
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
@@ -112,6 +113,7 @@ function AppInner() {
               <Route path="/cart" element={<CartPage />} />
               {/* Track order is public — shareable links work without login */}
               <Route path="/track-order" element={<TrackOrderPage />} />
+              <Route path="/info/:slug" element={<InformationPage />} />
 
               {/* ── Customer-Only Routes ──────────────────────── */}
               <Route
