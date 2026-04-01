@@ -102,7 +102,7 @@ function FitBoundsToMarkers({ points }) {
     return null;
 }
 
-const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
+const OSRM_BASE = (import.meta.env.VITE_OSRM_URL || 'https://router.project-osrm.org/route/v1') + '/driving';
 
 export default function LeafletRiderMap({ 
     riderPos, 

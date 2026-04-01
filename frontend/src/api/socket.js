@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = '/'; // Uses Vite proxy in dev; same origin in production
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '/'; // Uses Vite proxy in dev; same origin in production
 
 // Helper: read the JWT stored by authStore on login/signup
 const getStoredToken = () => localStorage.getItem('token') ?? null;

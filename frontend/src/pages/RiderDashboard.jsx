@@ -8,6 +8,7 @@ import API from '../api/axios';
 import { socket, connectSocket, disconnectSocket, joinRoleRoom, broadcastRiderLocation, notifyRiderOnline, notifyRiderOffline } from '../api/socket.js';
 import LeafletRiderMap from '../components/LeafletRiderMap';
 
+const OSRM_BASE = (import.meta.env.VITE_OSRM_URL || 'https://router.project-osrm.org/route/v1') + '/driving';
 
 export default function RiderDashboard() {
   const navigate = useNavigate();
@@ -209,7 +210,7 @@ export default function RiderDashboard() {
             if (routeFetchRef.current !== `${currentTarget}-${end.lat}-${end.lng}`) {
                 const fetchSimRoute = async () => {
                    try {
-                       const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+                       const url = `${OSRM_BASE}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
                        const res = await fetch(url);
                        const data = await res.json();
                        if (data.routes?.[0]?.geometry?.coordinates) {
