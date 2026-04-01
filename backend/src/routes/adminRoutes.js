@@ -473,19 +473,21 @@ router.get('/settings', authenticateUser, authorizeRole('admin'), async (req, re
 
 router.put('/settings', authenticateUser, authorizeRole('admin'), async (req, res) => {
   try {
-    const { 
-      commissionPercentage, deliveryFee, taxPercentage,
-      baseDeliveryFee, perKmCharge, isMaintenanceMode,
-      maxDeliveryDistance, autoRiderAssign, liveTrackingToggle
-    } = req.body;
-
-    const settings = await Settings.findOneAndUpdate(
-      { key: 'global_config' },
-      { 
+      const { 
         commissionPercentage, deliveryFee, taxPercentage,
         baseDeliveryFee, perKmCharge, isMaintenanceMode,
-        maxDeliveryDistance, autoRiderAssign, liveTrackingToggle
-      },
+        maxDeliveryDistance, autoRiderAssign, liveTrackingToggle,
+        acceptingNewRestaurants
+      } = req.body;
+  
+      const settings = await Settings.findOneAndUpdate(
+        { key: 'global_config' },
+        { 
+          commissionPercentage, deliveryFee, taxPercentage,
+          baseDeliveryFee, perKmCharge, isMaintenanceMode,
+          maxDeliveryDistance, autoRiderAssign, liveTrackingToggle,
+          acceptingNewRestaurants
+        },
       { new: true, upsert: true }
     );
 

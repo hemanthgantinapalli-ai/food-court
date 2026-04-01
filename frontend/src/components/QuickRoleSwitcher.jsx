@@ -22,12 +22,11 @@ export default function QuickRoleSwitcher() {
     const otherRoles = roles.filter(r => r.id !== currentRole);
 
     const handleSwitch = (role) => {
-        // Navigate FIRST — if we logout() first, the ProtectedRoute on
-        // the current page re-renders instantly and redirects us to
-        // /admin/login before navigate() can fire.
-        navigate(role.login, { replace: true });
-        // Clear auth state after navigation is queued
-        setTimeout(() => logout(), 100);
+        // Clear everything first
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        // Force full page jump to the new role's login portal
+        window.location.href = role.login;
     };
 
     return (

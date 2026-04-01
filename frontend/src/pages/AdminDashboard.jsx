@@ -90,7 +90,11 @@ export default function AdminDashboard() {
     minOrderForFreeDelivery: 500,
     isMaintenanceMode: false,
     deliveryFee: 30,
-    taxPercentage: 5
+    taxPercentage: 5,
+    autoRiderAssign: true,
+    liveTrackingToggle: true,
+    acceptingNewRestaurants: true,
+    riderAppEnabled: true
   });
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -1792,6 +1796,110 @@ export default function AdminDashboard() {
                     >
                       <ShieldCheck size={18} /> {isUpdatingSettings ? 'Saving...' : 'Update Configuration'}
                     </button>
+                  </div>
+               </div>
+
+                {/* Platform Status Switches (The "Switch Buttons" User Mentioned) */}
+                <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm mt-8 relative overflow-hidden group">
+                  <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-50 rounded-full blur-[80px] opacity-0 group-hover:opacity-100 transition-all duration-1000" />
+                  
+                  <div className="flex items-center gap-6 mb-12">
+                     <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-slate-100">
+                        <Signal size={32} />
+                     </div>
+                     <div>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Platform Operations</h3>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Control global availability and operational states</p>
+                     </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Maintenance Mode */}
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col justify-between group/sw hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all cursor-pointer relative overflow-hidden"
+                         onClick={() => setPlatformSettings({...platformSettings, isMaintenanceMode: !platformSettings.isMaintenanceMode})}>
+                      <div className="mb-8">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${platformSettings.isMaintenanceMode ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                           <AlertCircle size={20} />
+                        </div>
+                        <h5 className="font-black text-slate-900 text-sm">Maintenance Mode</h5>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Freeze all transactions</p>
+                      </div>
+                      <div className={`w-full h-10 rounded-2xl relative transition-all flex items-center px-2 ${platformSettings.isMaintenanceMode ? 'bg-rose-500' : 'bg-slate-200'}`}>
+                        <div className={`w-6 h-6 rounded-lg bg-white transition-all shadow-lg ${platformSettings.isMaintenanceMode ? 'translate-x-[calc(100%*4.5)]' : 'translate-x-0'}`} />
+                        <span className={`absolute right-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.isMaintenanceMode ? 'opacity-0' : 'opacity-40 text-slate-500'}`}>OFF</span>
+                        <span className={`absolute left-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.isMaintenanceMode ? 'opacity-100 text-white font-black' : 'opacity-0'}`}>ACTIVE</span>
+                      </div>
+                    </div>
+
+                    {/* Auto Rider Assign */}
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col justify-between group/sw hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all cursor-pointer relative overflow-hidden"
+                         onClick={() => setPlatformSettings({...platformSettings, autoRiderAssign: !platformSettings.autoRiderAssign})}>
+                      <div className="mb-8">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${platformSettings.autoRiderAssign ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                           <Truck size={20} />
+                        </div>
+                        <h5 className="font-black text-slate-900 text-sm">Smart Dispatch</h5>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Auto-assign riders to orders</p>
+                      </div>
+                      <div className={`w-full h-10 rounded-2xl relative transition-all flex items-center px-2 ${platformSettings.autoRiderAssign ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                        <div className={`w-6 h-6 rounded-lg bg-white transition-all shadow-lg ${platformSettings.autoRiderAssign ? 'translate-x-[calc(100%*4.5)]' : 'translate-x-0'}`} />
+                        <span className={`absolute right-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.autoRiderAssign ? 'opacity-0' : 'opacity-40 text-slate-500'}`}>OFF</span>
+                        <span className={`absolute left-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.autoRiderAssign ? 'opacity-100 text-white font-black' : 'opacity-0'}`}>AUTO</span>
+                      </div>
+                    </div>
+
+                    {/* Live Tracking */}
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col justify-between group/sw hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all cursor-pointer relative overflow-hidden"
+                         onClick={() => setPlatformSettings({...platformSettings, liveTrackingToggle: !platformSettings.liveTrackingToggle})}>
+                      <div className="mb-8">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${platformSettings.liveTrackingToggle ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-400'}`}>
+                           <MapPin size={20} />
+                        </div>
+                        <h5 className="font-black text-slate-900 text-sm">Real-time Visibility</h5>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Show rider GPS to customers</p>
+                      </div>
+                      <div className={`w-full h-10 rounded-2xl relative transition-all flex items-center px-2 ${platformSettings.liveTrackingToggle ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                        <div className={`w-6 h-6 rounded-lg bg-white transition-all shadow-lg ${platformSettings.liveTrackingToggle ? 'translate-x-[calc(100%*4.5)]' : 'translate-x-0'}`} />
+                        <span className={`absolute right-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.liveTrackingToggle ? 'opacity-0' : 'opacity-40 text-slate-500'}`}>OFF</span>
+                        <span className={`absolute left-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.liveTrackingToggle ? 'opacity-100 text-white font-black' : 'opacity-0'}`}>LIVE</span>
+                      </div>
+                    </div>
+
+                    {/* Onboarding */}
+                    <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col justify-between group/sw hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all cursor-pointer relative overflow-hidden"
+                         onClick={() => setPlatformSettings({...platformSettings, acceptingNewRestaurants: !platformSettings.acceptingNewRestaurants})}>
+                      <div className="mb-8">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${platformSettings.acceptingNewRestaurants ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}>
+                           <Store size={20} />
+                        </div>
+                        <h5 className="font-black text-slate-900 text-sm">Public Onboarding</h5>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Accept new partner signups</p>
+                      </div>
+                      <div className={`w-full h-10 rounded-2xl relative transition-all flex items-center px-2 ${platformSettings.acceptingNewRestaurants ? 'bg-orange-500' : 'bg-slate-200'}`}>
+                        <div className={`w-6 h-6 rounded-lg bg-white transition-all shadow-lg ${platformSettings.acceptingNewRestaurants ? 'translate-x-[calc(100%*4.5)]' : 'translate-x-0'}`} />
+                        <span className={`absolute right-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.acceptingNewRestaurants ? 'opacity-0' : 'opacity-40 text-slate-500'}`}>OFF</span>
+                        <span className={`absolute left-4 text-[9px] font-black uppercase tracking-widest transition-opacity ${platformSettings.acceptingNewRestaurants ? 'opacity-100 text-white font-black' : 'opacity-0'}`}>OPEN</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-12 flex items-center justify-between p-6 bg-slate-900 rounded-[2rem] text-white">
+                     <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
+                           <Shield size={24} className="text-orange-400" />
+                        </div>
+                        <div>
+                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Security Requirement</p>
+                           <p className="text-xs font-bold">Configuration changes are audited and applied instantly to all client nodes.</p>
+                        </div>
+                     </div>
+                     <button 
+                        onClick={handleUpdateSettings}
+                        disabled={isUpdatingSettings}
+                        className="px-8 py-4 bg-orange-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-500 transition-all flex items-center gap-2"
+                     >
+                       <ShieldCheck size={14} /> {isUpdatingSettings ? 'DEPLOYING...' : 'DEPLOY STATUS UPDATES'}
+                     </button>
                   </div>
                </div>
 

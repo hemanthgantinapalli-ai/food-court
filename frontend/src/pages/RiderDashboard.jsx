@@ -23,6 +23,7 @@ export default function RiderDashboard() {
   const [toastMsg, setToastMsg] = React.useState('');
   const [transactions, setTransactions] = React.useState([]);
   const [riderSelfLocation, setRiderSelfLocation] = React.useState(null);
+  const [toggleLoading, setToggleLoading] = React.useState(false);
   const riderPosRef = React.useRef(null);
   
   // GPS Simulation Demo State
@@ -300,6 +301,8 @@ export default function RiderDashboard() {
   }, [isOnline, user, assignedOrders, isSimulating]);
 
   const handleToggleOnline = async () => {
+    if (toggleLoading) return;
+    setToggleLoading(true);
     try {
       const newStatus = !isOnline;
       await API.put('/riders/toggle-online', { isOnline: newStatus });
@@ -325,6 +328,9 @@ export default function RiderDashboard() {
       }
     } catch (err) {
       console.error('Failed to toggle status:', err);
+      showToast('⚠️ Error updating status. Please try again.');
+    } finally {
+      setToggleLoading(false);
     }
   };
 
@@ -532,13 +538,18 @@ export default function RiderDashboard() {
             <button
               id="rider-online-toggle"
               onClick={handleToggleOnline}
-              className={`group relative overflow-hidden px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl active:scale-95 ${isOnline
+              disabled={toggleLoading}
+              className={`group relative overflow-hidden px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl active:scale-95 disabled:opacity-70 ${isOnline
                 ? 'bg-emerald-500 text-white shadow-emerald-200 hover:bg-emerald-600'
                 : 'bg-slate-900 text-white shadow-slate-200 hover:bg-orange-600 ring-4 ring-orange-500/20'
                 }`}
             >
               <div className="relative z-10 flex items-center gap-3">
-                <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-white animate-pulse' : 'bg-rose-500'}`} />
+                {toggleLoading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-white animate-pulse' : 'bg-rose-500'}`} />
+                )}
                 {isOnline ? 'Go Offline' : 'Go Online & Accept Orders'}
               </div>
             </button>
@@ -573,7 +584,7 @@ export default function RiderDashboard() {
 
         {/* Tab Panel */}
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50">
+          <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50 overflow-x-auto no-scrollbar scroll-smooth">
             {[
               { id: 'overview', label: 'Overview', count: 0 },
               { id: 'available', label: 'New Orders', count: availableOrders.length },
@@ -593,7 +604,7 @@ export default function RiderDashboard() {
                   }
                   setActiveTab(tab.id);
                 }}
-                className={`flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === tab.id
+                className={`flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
                   ? 'bg-white text-orange-600 shadow-sm'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                   }`}

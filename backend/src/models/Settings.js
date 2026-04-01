@@ -47,6 +47,10 @@ const settingsSchema = new mongoose.Schema({
   liveTrackingToggle: {
     type: Boolean,
     default: true
+  },
+  acceptingNewRestaurants: {
+    type: Boolean,
+    default: true
   }
 }, { timestamps: true });
 

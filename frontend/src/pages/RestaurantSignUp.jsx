@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 import ImageUploadField from '../components/ImageUploadField';
+import { GoogleLogin } from '@react-oauth/google';
 
 // Removed UrlInputField in favor of shared ImageUploadField component from ../components/ImageUploadField
 
@@ -279,9 +280,10 @@ export default function RestaurantSignUp() {
 
                         {/* ═══════════ STEP 1: Account ═══════════ */}
                         {step === 1 && (
-                            <div className="space-y-5">
-                                {/* Owner Name */}
-                                <div>
+                            <div className="animate-fade-up">
+                                <div className="space-y-5">
+                                    {/* Owner Name */}
+                                    <div>
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Owner Full Name</label>
                                     <div className="relative group">
                                         <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={18} />
@@ -348,7 +350,31 @@ export default function RestaurantSignUp() {
                                     </div>
                                 </div>
                             </div>
-                        )}
+
+                            <div className="relative py-6">
+                                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
+                                <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-white px-4 text-slate-400 font-bold tracking-widest">Or continue with</span></div>
+                            </div>
+
+                            <div className="flex justify-center">
+                                <GoogleLogin
+                                    onSuccess={(response) => {
+                                        useAuthStore.getState().googleAuth(response.credential, 'restaurant')
+                                            .then((user) => {
+                                                setForm(prev => ({ ...prev, ownerName: user.name || '', email: user.email || '' }));
+                                                setStep(2);
+                                            })
+                                            .catch((err) => setError(err.message));
+                                    }}
+                                    onError={() => setError('Google Authentication Failed')}
+                                    shape="pill"
+                                    theme="outline"
+                                    text="signup_with"
+                                    width="400"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                         {/* ═══════════ STEP 2: Restaurant ═══════════ */}
                         {step === 2 && (

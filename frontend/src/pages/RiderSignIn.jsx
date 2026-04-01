@@ -179,7 +179,26 @@ export default function RiderSignIn() {
                     </div>
                 </form>
             ) : (
-                <form onSubmit={handleSignup} className="space-y-5">
+                <form onSubmit={handleSignup} className="space-y-4">
+                    <div className="flex justify-center mb-2">
+                        <GoogleLogin
+                            onSuccess={(response) => {
+                                try {
+                                    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+                                    setEmail(payload.email || '');
+                                    setFormData(prev => ({ ...prev, fullName: payload.name || '' }));
+                                } catch (e) {
+                                    setError('Could not read Google Profile');
+                                }
+                            }}
+                            onError={() => setError('Google Authentication Failed')}
+                            shape="pill"
+                            theme="outline"
+                            text="signup_with"
+                            width="400"
+                        />
+                    </div>
+                    
                     {/* Compact Signup Form */}
                     <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                          {error && <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-2 rounded-xl text-[10px] font-bold uppercase">{error}</div>}
