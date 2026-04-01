@@ -584,7 +584,7 @@ export default function RiderDashboard() {
 
         {/* Tab Panel */}
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex border-b border-slate-50 p-2 gap-2 bg-slate-50/50 overflow-x-auto no-scrollbar scroll-smooth">
+          <div className="flex border-b border-slate-50 p-3 gap-3 bg-slate-50/50 overflow-x-auto no-scrollbar scroll-smooth">
             {[
               { id: 'overview', label: 'Overview', count: 0 },
               { id: 'available', label: 'New Orders', count: availableOrders.length },
@@ -604,8 +604,8 @@ export default function RiderDashboard() {
                   }
                   setActiveTab(tab.id);
                 }}
-                className={`flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                  ? 'bg-white text-orange-600 shadow-sm'
+                className={`flex-shrink-0 flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                  ? 'bg-white text-orange-600 shadow-sm ring-1 ring-slate-100'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                   }`}
               >
