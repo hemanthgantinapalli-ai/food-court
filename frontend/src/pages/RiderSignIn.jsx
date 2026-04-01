@@ -5,6 +5,7 @@ import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 import ImageUploadField from '../components/ImageUploadField';
 import AuthLayout from '../components/AuthLayout';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function RiderSignIn() {
     const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'pending'
@@ -30,7 +31,7 @@ export default function RiderSignIn() {
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
-    const { signIn } = useAuthStore();
+    const { signIn, googleAuth } = useAuthStore();
     const from = location.state?.from?.pathname || '/rider';
 
     const handleLogin = async (e) => {
@@ -150,6 +151,32 @@ export default function RiderSignIn() {
                     <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-3 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] text-white transition-all shadow-xl shadow-sky-600/20 active:scale-[0.98] bg-sky-600 hover:bg-sky-700">
                         {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Log into Shift'}
                     </button>
+
+                    <div className="relative py-4">
+                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
+                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-4 text-slate-400 font-bold tracking-widest">Or continue with</span></div>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <GoogleLogin
+                            onSuccess={(response) => {
+                                googleAuth(response.credential, 'rider')
+                                    .then((user) => {
+                                        if (user.role === 'rider') {
+                                            navigate(from, { replace: true });
+                                        } else {
+                                            setError('This Google account is not registered as a delivery rider.');
+                                        }
+                                    })
+                                    .catch((err) => setError(err.message));
+                            }}
+                            onError={() => setError('Google Authentication Failed')}
+                            shape="pill"
+                            theme="outline"
+                            text="signin_with"
+                            width="400"
+                        />
+                    </div>
                 </form>
             ) : (
                 <form onSubmit={handleSignup} className="space-y-5">

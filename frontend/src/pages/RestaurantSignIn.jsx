@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, CheckCircle2, Store } from 'lucide-react';
 import { useAuthStore } from '../context/authStore';
 import AuthLayout from '../components/AuthLayout';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function RestaurantSignIn() {
     const [email, setEmail] = useState('');
@@ -11,7 +12,7 @@ export default function RestaurantSignIn() {
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
-    const { signIn } = useAuthStore();
+    const { signIn, googleAuth } = useAuthStore();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -127,6 +128,32 @@ export default function RestaurantSignIn() {
                         'Log into Kitchen'
                     )}
                 </button>
+
+                <div className="relative py-4">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-4 text-slate-400 font-bold tracking-widest">Or continue with</span></div>
+                </div>
+
+                <div className="flex justify-center">
+                    <GoogleLogin
+                        onSuccess={(response) => {
+                            googleAuth(response.credential, 'restaurant')
+                                .then((user) => {
+                                    if (user.role === 'restaurant') {
+                                        navigate(from, { replace: true });
+                                    } else {
+                                        setError('This Google account is not registered as a restaurant partner.');
+                                    }
+                                })
+                                .catch((err) => setError(err.message));
+                        }}
+                        onError={() => setError('Google Authentication Failed')}
+                        shape="pill"
+                        theme="outline"
+                        text="signin_with"
+                        width="400"
+                    />
+                </div>
             </form>
 
             <div className="mt-8 p-4 rounded-3xl border border-dashed flex items-center gap-4 border-emerald-200 bg-emerald-50/50">
