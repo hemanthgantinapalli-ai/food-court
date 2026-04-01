@@ -14,6 +14,7 @@ import { useOrderStore } from '../store/orderStore';
 import { useCartStore } from '../store/cartStore';
 import API from '../api/axios';
 import Loader from '../components/Loader';
+import { getAssetURL } from '../utils/imageHandler';
 
 const TABS = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
@@ -575,7 +576,7 @@ export default function CustomerDashboard() {
                                                 return (
                                                     <div key={food._id} className="bg-white rounded-[3rem] p-6 border border-slate-100 shadow-sm hover:shadow-xl transition-all group flex flex-col items-center text-center">
                                                         <div className="w-full aspect-square rounded-[2rem] overflow-hidden mb-6">
-                                                            <img src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
+                                                            <img src={getAssetURL(food.image) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
                                                         </div>
                                                         <h4 className="font-black text-slate-900 mb-1">{food.name}</h4>
                                                         <p className="text-orange-600 font-black text-xl mb-6">₹{food.price}</p>
@@ -739,7 +740,7 @@ export default function CustomerDashboard() {
                                                     {favorites.map(rest => (
                                                         <Link key={rest._id} to={`/restaurant/${rest._id}`} className="bg-white rounded-[2.5rem] p-6 border border-white shadow-sm hover:shadow-xl transition-all group">
                                                             <div className="relative rounded-[1.8rem] overflow-hidden aspect-[4/3] mb-6">
-                                                                <img src={rest.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                                                                <img src={getAssetURL(rest.image) || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=400&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
                                                                 <div className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center"><Heart size={18} className="text-white fill-white" /></div>
                                                             </div>
                                                             <h4 className="text-xl font-black text-slate-900 text-center mb-1">{rest.name}</h4>
@@ -762,7 +763,7 @@ export default function CustomerDashboard() {
                                                     {favoriteFoods.map(food => (
                                                         <div key={food._id} className="bg-white rounded-[2rem] p-5 border border-white shadow-sm hover:shadow-xl transition-all flex items-center gap-5">
                                                             <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-sm shrink-0">
-                                                                <img src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover" alt="" />
+                                                                <img src={getAssetURL(food.image) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80'} className="w-full h-full object-cover" alt="" />
                                                             </div>
                                                             <div className="flex-1">
                                                                 <h4 className="font-black text-slate-900 text-base">{food.name}</h4>

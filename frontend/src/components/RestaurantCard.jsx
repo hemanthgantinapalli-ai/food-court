@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Clock, Bike, ChevronRight, MapPin, Flame } from 'lucide-react';
+import { getAssetURL } from '../utils/imageHandler';
 
 const IMAGE_FALLBACKS = [
   'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80',
@@ -12,7 +13,7 @@ const IMAGE_FALLBACKS = [
 ];
 
 export default function RestaurantCard({ restaurant, index = 0 }) {
-  const imageSrc = restaurant.image || IMAGE_FALLBACKS[index % IMAGE_FALLBACKS.length];
+  const imageSrc = getAssetURL(restaurant.image) || IMAGE_FALLBACKS[index % IMAGE_FALLBACKS.length];
   const rating = restaurant.rating || '4.5';
   const cuisines = restaurant.cuisines?.slice(0, 3) || ['Gourmet', 'Continental'];
   const deliveryTime = restaurant.deliveryTime || 30;

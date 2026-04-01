@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import API from '../api/axios';
+import { getAssetURL } from '../utils/imageHandler';
 
 /**
  * ImageUploadField - A reusable and premium image upload component
@@ -76,10 +77,7 @@ export default function ImageUploadField({
 
     // Helper to get full URL
     const getFullImageUrl = (url) => {
-        if (!url) return '';
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
-        // Backend runs on port 5000 in dev
-        return `${API.defaults.baseURL.replace('/api', '')}${url}`;
+        return getAssetURL(url);
     };
 
     const displayUrl = getFullImageUrl(value);

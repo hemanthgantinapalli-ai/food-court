@@ -4,6 +4,7 @@ import { Package, Clock, CheckCircle, MapPin, Receipt, ArrowRight, ChevronRight,
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
 import { useCartStore } from '../store/cartStore';
+import { getAssetURL } from '../utils/imageHandler';
 
 export default function OrderHistoryPage() {
   const navigate = useNavigate();
@@ -181,7 +182,7 @@ export default function OrderHistoryPage() {
                   {order.items.map((item, idx) => (
                     <div key={idx} className="flex gap-4 items-center">
                       <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden shrink-0">
-                        <img src={item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&q=60'} alt={item.name} className="w-full h-full object-cover" />
+                        <img src={getAssetURL(item.image) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&q=60'} alt={item.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-slate-900 text-sm">{item.name}</p>

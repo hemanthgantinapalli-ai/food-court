@@ -4,6 +4,7 @@ import { Mail, Phone, MapPin, Edit2, LogOut, Package, CreditCard, Save, X, Layou
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 import AddressManagerModal from '../components/AddressManagerModal';
+import { getAssetURL } from '../utils/imageHandler';
 
 export default function ProfilePage() {
   const { user, logout, updateProfile } = useAuthStore();
@@ -103,7 +104,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-8">
             <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-red-600 rounded-[2rem] overflow-hidden flex items-center justify-center shadow-xl border-4 border-white">
               {user?.role === 'rider' && user?.riderData?.profilePhoto ? (
-                <img src={user.riderData.profilePhoto} alt="" className="w-full h-full object-cover" />
+                <img src={getAssetURL(user.riderData.profilePhoto)} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-white text-4xl font-black uppercase">{initial}</span>
               )}
@@ -338,7 +339,7 @@ export default function ProfilePage() {
                     <div key={i} className="flex justify-between items-center p-4 border border-slate-100 rounded-2xl hover:border-emerald-200 hover:bg-emerald-50 transition-all group">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white rounded-xl overflow-hidden shadow-sm border border-slate-50 flex items-center justify-center">
-                          {rest.image ? <img src={rest.image} alt="" className="w-full h-full object-cover" /> : <Store className="text-slate-200" size={18} />}
+                          {rest.image ? <img src={getAssetURL(rest.image)} alt="" className="w-full h-full object-cover" /> : <Store className="text-slate-200" size={18} />}
                         </div>
                         <div>
                           <p className="font-black text-slate-800 text-xs">{rest.name}</p>

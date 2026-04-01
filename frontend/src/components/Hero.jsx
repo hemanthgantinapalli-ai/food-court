@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Search, MapPin, Star, Clock, Truck, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getAssetURL } from '../utils/imageHandler';
 
 const CUISINE_TAGS = [
   { label: '🍕 Pizza', filter: 'Pizza' },
@@ -153,7 +154,7 @@ const Hero = ({ onFilterChange }) => {
                               className="group flex items-center gap-5 p-4 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
                             >
                               <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg shrink-0">
-                                <img src={r.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                                <img src={getAssetURL(r.image)} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
                               </div>
                               <div>
                                 <p className="font-black text-slate-900 text-base leading-tight group-hover:text-orange-600 transition-colors">{r.name}</p>
@@ -188,7 +189,7 @@ const Hero = ({ onFilterChange }) => {
                               className="group flex items-center gap-5 p-4 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
                             >
                               <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg shrink-0">
-                                <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                                <img src={getAssetURL(item.image)} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
                               </div>
                               <div>
                                 <p className="font-black text-slate-900 text-base leading-tight group-hover:text-red-600 transition-colors uppercase tracking-tight">{item.name}</p>

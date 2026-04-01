@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Tag, LogIn } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
+import { getAssetURL } from '../utils/imageHandler';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -56,7 +57,7 @@ export default function CartPage() {
                   {/* Image */}
                   <div className="w-20 h-20 md:w-24 md:h-24 bg-slate-100 rounded-xl overflow-hidden shrink-0">
                     <img
-                      src={item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80'}
+                      src={getAssetURL(item.image) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80'}
                       alt={item.name}
                       className="w-full h-full object-cover"
                       onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80'; }}

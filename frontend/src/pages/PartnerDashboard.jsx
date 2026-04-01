@@ -7,6 +7,7 @@ import API from '../api/axios';
 import ImageUploadField from '../components/ImageUploadField';
 import { socket, connectSocket } from '../api/socket';
 import PartnerBI from '../components/PartnerBI';
+import { getAssetURL } from '../utils/imageHandler';
 
 const STATUS_COLORS = {
     placed: 'bg-yellow-100 text-yellow-700',
@@ -341,7 +342,7 @@ export default function PartnerDashboard() {
                 <div className="bg-white rounded-[2.5rem] p-8 md:p-12 mb-8 border border-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-8 bg-gradient-to-br from-white to-slate-50/50">
                     <div className="flex items-center gap-6">
                         <div className="w-20 h-20 bg-slate-100 rounded-3xl overflow-hidden border-2 border-white shadow-xl flex items-center justify-center font-black text-2xl text-slate-800 group hover:scale-105 transition-all">
-                            {restaurants[0]?.image ? <img src={restaurants[0].image} className="w-full h-full object-cover" /> : <Store size={36} className="text-slate-300" />}
+                            {restaurants[0]?.image ? <img src={getAssetURL(restaurants[0].image)} className="w-full h-full object-cover" /> : <Store size={36} className="text-slate-300" />}
                         </div>
                         <div>
                             <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">{restaurants[0]?.name || 'Partner Dashboard'}</h1>
@@ -573,7 +574,7 @@ export default function PartnerDashboard() {
                                                         <div key={item._id} className="flex justify-between items-center group/item">
                                                             <div className="flex items-center gap-4">
                                                                 <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm">
-                                                                    <img src={item.image || `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80`} className="w-full h-full object-cover group-hover/item:scale-110 transition-transform" alt="" />
+                                                                    <img src={getAssetURL(item.image) || `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80`} className="w-full h-full object-cover group-hover/item:scale-110 transition-transform" alt="" />
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-black text-slate-900 text-sm">{item.name}</p>
@@ -631,7 +632,7 @@ export default function PartnerDashboard() {
                                             restaurants.map(r => (
                                                 <div key={r._id} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
                                                     <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 shrink-0">
-                                                        {r.image ? <img src={r.image} alt={r.name} className="w-full h-full object-cover" /> : <Store className="w-full h-full p-3 text-slate-300" />}
+                                                        {r.image ? <img src={getAssetURL(r.image)} alt={r.name} className="w-full h-full object-cover" /> : <Store className="w-full h-full p-3 text-slate-300" />}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="font-black text-slate-900 text-sm truncate">{r.name}</p>
@@ -953,7 +954,7 @@ export default function PartnerDashboard() {
                                                 </div>
                                                 {item.image ? (
                                                     <div className="h-36 overflow-hidden bg-slate-100">
-                                                        <img src={item.image} alt={item.name} className={`w-full h-full object-cover transition-transform duration-500 ${!item.isAvailable && 'grayscale'}`} />
+                                                        <img src={getAssetURL(item.image)} alt={item.name} className={`w-full h-full object-cover transition-transform duration-500 ${!item.isAvailable && 'grayscale'}`} />
                                                     </div>
                                                 ) : <div className="h-36 bg-slate-100 flex items-center justify-center"><UtensilsCrossed className="text-slate-300" /></div>}
                                                 <div className="p-5">
@@ -1228,7 +1229,7 @@ export default function PartnerDashboard() {
                                             </button>
                                             <div className="flex flex-col md:flex-row">
                                                 <div className="md:w-64 h-48 md:h-auto bg-slate-100 overflow-hidden shrink-0">
-                                                    {r.image ? <img src={r.image} alt={r.name} className={`w-full h-full object-cover ${!r.isOpen && 'grayscale opacity-70'}`} /> : <div className="w-full h-full flex items-center justify-center"><Store size={40} className="text-slate-300" /></div>}
+                                                    {r.image ? <img src={getAssetURL(r.image)} alt={r.name} className={`w-full h-full object-cover ${!r.isOpen && 'grayscale opacity-70'}`} /> : <div className="w-full h-full flex items-center justify-center"><Store size={40} className="text-slate-300" /></div>}
                                                 </div>
                                                 <div className="p-8 flex-1">
                                                     <div className="flex justify-between items-start pr-12">

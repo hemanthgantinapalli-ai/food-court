@@ -8,6 +8,7 @@ import { useGoogleMaps } from '../hooks/useGoogleMaps';
 import { Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
 import API from '../api/axios';
 import AddressManagerModal from '../components/AddressManagerModal';
+import { getAssetURL } from '../utils/imageHandler';
 
 const PAYMENT_METHODS = [
   { id: 'upi', label: 'UPI / QR Code', icon: Smartphone, desc: 'Google Pay, PhonePe, Paytm' },
@@ -844,7 +845,7 @@ export default function CheckoutPage() {
                   <div key={item._id} className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-slate-800">
-                        <img src={item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&q=60'}
+                        <img src={getAssetURL(item.image) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&q=60'}
                           alt={item.name} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&q=60'; }} />
                       </div>
                       <span className="text-slate-300 font-medium">{item.name} × {item.quantity}</span>

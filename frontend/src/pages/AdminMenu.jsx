@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../context/authStore';
 import API from '../api/axios';
 import ImageUploadField from '../components/ImageUploadField';
+import { getAssetURL } from '../utils/imageHandler';
 
 export default function AdminMenu() {
   const { user } = useAuthStore();
@@ -319,7 +320,7 @@ export default function AdminMenu() {
                       <div className="flex gap-6 items-start">
                         <div className="w-24 h-24 bg-slate-100 rounded-3xl overflow-hidden border border-slate-100 shadow-inner shrink-0 flex items-center justify-center text-slate-300">
                           {item.image ? (
-                            <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                            <img src={getAssetURL(item.image)} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                           ) : (
                             <ImageIcon size={32} />
                           )}

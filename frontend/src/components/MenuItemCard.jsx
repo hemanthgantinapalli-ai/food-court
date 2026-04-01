@@ -3,6 +3,8 @@ import { Plus, Minus, Heart } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../context/authStore';
 
+import { getAssetURL } from '../utils/imageHandler';
+
 const FOOD_FALLBACKS = [
   'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80',
   'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80',
@@ -30,7 +32,7 @@ export default function MenuItemCard({ item }) {
     }
   };
 
-  const foodImg = item.image || FOOD_FALLBACKS[Math.abs(item._id?.charCodeAt(0) || 0) % FOOD_FALLBACKS.length];
+  const foodImg = getAssetURL(item.image) || FOOD_FALLBACKS[Math.abs(item._id?.charCodeAt(0) || 0) % FOOD_FALLBACKS.length];
 
   return (
     <div className="group bg-white p-4 md:p-5 rounded-2xl border border-slate-100 flex items-start md:items-center gap-3 md:gap-5 hover:shadow-xl hover:shadow-orange-50 hover:border-orange-100 transition-all duration-400">

@@ -12,6 +12,7 @@ import LeafletFleetMap from '../components/LeafletFleetMap';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getAssetURL } from '../utils/imageHandler';
 
 // Fix Leaflet default icon paths
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -1456,7 +1457,7 @@ export default function AdminDashboard() {
                     <div key={r._id} className="bg-white rounded-[2.5rem] border border-slate-100 flex flex-col group hover:shadow-2xl hover:shadow-slate-200/50 transition-all overflow-hidden relative">
                       {/* Banner at top */}
                       <div className="h-40 overflow-hidden relative group">
-                        <img src={r.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt="" />
+                        <img src={getAssetURL(r.image) || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&q=80'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt="" />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent flex items-end p-6">
                           <div>
                             <h4 className="font-black text-white text-xl leading-tight">{r.name}</h4>
@@ -1563,7 +1564,7 @@ export default function AdminDashboard() {
                     {restaurantsList.filter(r => !r.isApproved).map((r) => (
                       <div key={r._id} className="bg-white rounded-[2.5rem] border-2 border-amber-100 flex flex-col group hover:shadow-2xl hover:shadow-amber-100/50 transition-all overflow-hidden relative animate-fade-up">
                         <div className="h-40 overflow-hidden relative">
-                          <img src={r.image || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&q=80'} className="w-full h-full object-cover" alt="" />
+                          <img src={getAssetURL(r.image) || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&q=80'} className="w-full h-full object-cover" alt="" />
                           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent flex items-end p-6">
                             <div>
                               <h4 className="font-black text-white text-xl leading-tight">{r.name}</h4>

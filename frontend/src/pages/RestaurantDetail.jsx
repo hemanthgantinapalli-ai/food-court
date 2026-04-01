@@ -7,6 +7,7 @@ import { useGoogleMaps } from '../hooks/useGoogleMaps';
 import { Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 
 import { useAuthStore } from '../context/authStore';
+import { getAssetURL } from '../utils/imageHandler';
 
 // Fallback menu items for demo
 const DEMO_MENU = [
@@ -108,7 +109,7 @@ export default function RestaurantDetail() {
       {/* Hero Image */}
       <div className="relative h-[40vh] md:h-[55vh] w-full overflow-hidden">
         <img
-          src={restaurant.image || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1200&q=80'}
+          src={getAssetURL(restaurant.image) || 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1200&q=80'}
           alt={restaurant.name}
           className="w-full h-full object-cover"
           onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80'; }}
