@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon, CheckCircle, Truck, ArrowUpRight, Bell, ArrowRight, Navigation, Wifi, WifiOff, X } from 'lucide-react';
+import { ShoppingCart, MapPin, TrendingUp, AlertCircle, Clock, Package, User as UserIcon, CheckCircle, Truck, ArrowUpRight, Bell, ArrowRight, Navigation, X } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';
@@ -8,8 +8,6 @@ import API from '../api/axios';
 import { socket, connectSocket, disconnectSocket, joinRoleRoom, broadcastRiderLocation, notifyRiderOnline, notifyRiderOffline } from '../api/socket.js';
 import LeafletRiderMap from '../components/LeafletRiderMap';
 
-
-const PAN_PLACEHOLDER = null; // Replaced by LeafletRiderMap internal logic
 
 export default function RiderDashboard() {
   const navigate = useNavigate();
@@ -1141,6 +1139,68 @@ export default function RiderDashboard() {
                   )}
                 </div>
               )}
+
+              {/* ─── NOTIFICATIONS ─── */}
+              {activeTab === 'notifications' && (
+                <div className="space-y-8 animate-fade-in">
+                  <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                    <div>
+                      <h3 className="font-black text-xl text-slate-900">Notifications</h3>
+                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Order alerts and system updates</p>
+                    </div>
+                    {persistentNotifications.length > 0 && (
+                      <button
+                        onClick={handleClearNotifications}
+                        className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all border border-slate-200"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  {persistentNotifications.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
+                      <Bell className="text-slate-300 mx-auto mb-4" size={40} />
+                      <p className="font-black text-slate-900 text-xl mb-2">You're all caught up!</p>
+                      <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">New assignments and updates will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {persistentNotifications.map(notif => (
+                        <div key={notif._id} className={`p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex items-start gap-6 relative overflow-hidden group ${!notif.read ? 'border-l-4 border-l-orange-500' : ''}`}>
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                            notif.type === 'error' ? 'bg-rose-50 text-rose-600' :
+                              'bg-blue-50 text-blue-600'
+                            }`}>
+                            <Bell size={20} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <h4 className="font-black text-slate-900 text-lg leading-tight">{notif.title}</h4>
+                              <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">{new Date(notif.createdAt).toLocaleString()}</p>
+                            </div>
+                            <p className="text-slate-500 text-sm font-medium mt-1 leading-relaxed">{notif.message}</p>
+                            {notif.orderId && (
+                              <button
+                                onClick={() => {
+                                  setActiveTab('active');
+                                  window.scrollTo({ top: 300, behavior: 'smooth' });
+                                }}
+                                className="inline-flex items-center gap-2 mt-4 text-[10px] font-black text-orange-600 uppercase tracking-widest hover:gap-3 transition-all"
+                              >
+                                View Delivery Info <ArrowRight size={12} className="ml-1" />
+                              </button>
+                            )}
+                          </div>
+                          {!notif.read && (
+                            <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1169,68 +1229,6 @@ export default function RiderDashboard() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* ─── NOTIFICATIONS ─── */}
-        {activeTab === 'notifications' && (
-          <div className="p-8 md:p-12 space-y-8 animate-fade-in">
-            <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <div>
-                <h3 className="font-black text-xl text-slate-900">Notifications</h3>
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Order alerts and system updates</p>
-              </div>
-              {persistentNotifications.length > 0 && (
-                <button
-                  onClick={handleClearNotifications}
-                  className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all border border-slate-200"
-                >
-                  Clear All
-                </button>
-              )}
-            </div>
-
-            {persistentNotifications.length === 0 ? (
-              <div className="text-center py-20 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
-                <Bell className="text-slate-300 mx-auto mb-4" size={40} />
-                <p className="font-black text-slate-900 text-xl mb-2">You're all caught up!</p>
-                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">New assignments and updates will appear here</p>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {persistentNotifications.map(notif => (
-                  <div key={notif._id} className={`p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex items-start gap-6 relative overflow-hidden group ${!notif.read ? 'border-l-4 border-l-orange-500' : ''}`}>
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
-                      notif.type === 'error' ? 'bg-rose-50 text-rose-600' :
-                        'bg-blue-50 text-blue-600'
-                      }`}>
-                      <Bell size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-black text-slate-900 text-lg leading-tight">{notif.title}</h4>
-                        <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">{new Date(notif.createdAt).toLocaleString()}</p>
-                      </div>
-                      <p className="text-slate-500 text-sm font-medium mt-1 leading-relaxed">{notif.message}</p>
-                      {notif.orderId && (
-                        <button
-                          onClick={() => {
-                            setActiveTab('active');
-                            window.scrollTo({ top: 300, behavior: 'smooth' });
-                          }}
-                          className="inline-flex items-center gap-2 mt-4 text-[10px] font-black text-orange-600 uppercase tracking-widest hover:gap-3 transition-all"
-                        >
-                          View Delivery Info <ArrowRight size={12} className="ml-1" />
-                        </button>
-                      )}
-                    </div>
-                    {!notif.read && (
-                      <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

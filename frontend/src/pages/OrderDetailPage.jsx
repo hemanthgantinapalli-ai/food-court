@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MapPin, Clock, User, Phone, Package, CheckCircle, ChevronLeft, Star, FileText, Printer } from 'lucide-react';
+import { MapPin, Clock, Phone, Package, ChevronLeft, Star, Printer } from 'lucide-react';
 import Loader from '../components/Loader';
 import { useAuthStore } from '../context/authStore';
 import { useOrderStore } from '../store/orderStore';

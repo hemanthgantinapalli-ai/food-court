@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Map, AdvancedMarker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
-import { Truck, Store, MapPin, Navigation, Wifi } from 'lucide-react';
+import { Navigation } from 'lucide-react';
 
 const mapContainerStyle = {
     width: '100%',
