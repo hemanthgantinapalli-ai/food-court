@@ -151,7 +151,6 @@ export default function SignIn() {
                 .catch((err) => setError(err.message));
             }}
             onError={() => setError('Google Login Failed')}
-            useOneTap
             shape="pill"
             theme="outline"
             text="signin_with"

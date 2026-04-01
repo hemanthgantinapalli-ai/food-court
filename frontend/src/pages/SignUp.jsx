@@ -151,7 +151,6 @@ export default function SignUp() {
                 .catch((err) => setError(err.message));
             }}
             onError={() => setError('Google Signup Failed')}
-            useOneTap
             shape="pill"
             theme="outline"
             text="signup_with"
