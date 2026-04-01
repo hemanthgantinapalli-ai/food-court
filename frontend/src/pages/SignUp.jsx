@@ -94,6 +94,7 @@ export default function SignUp() {
               id="email"
               name="email"
               type="email"
+              autoComplete="email"
               className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
               placeholder="you@example.com"
               onChange={handleChange}
@@ -111,6 +112,7 @@ export default function SignUp() {
               id="password"
               name="password"
               type={showPass ? 'text' : 'password'}
+              autoComplete="new-password"
               className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-orange-500 focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
               placeholder="Min. 8 characters"
               onChange={handleChange}

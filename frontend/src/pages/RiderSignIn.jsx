@@ -128,7 +128,13 @@ export default function RiderSignIn() {
                         <div className="relative group">
                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-sky-600 transition-colors" size={20} />
                             <input
-                                type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                                id="email"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                required
                                 className="w-full pl-12 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-sky-600 focus:ring-4 focus:ring-sky-600/5 outline-none transition-all font-bold text-slate-900"
                                 placeholder="rider@foodcourt.com"
                             />
@@ -139,7 +145,13 @@ export default function RiderSignIn() {
                         <div className="relative group">
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-sky-600 transition-colors" size={20} />
                             <input
-                                type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
+                                id="password"
+                                name="password"
+                                type={showPass ? 'text' : 'password'}
+                                autoComplete="current-password"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                required
                                 className="w-full pl-12 pr-12 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:border-sky-600 focus:ring-4 focus:ring-sky-600/5 outline-none transition-all font-bold text-slate-900"
                                 placeholder="••••••••"
                             />
@@ -205,8 +217,8 @@ export default function RiderSignIn() {
                          
                          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-widest text-sky-600">Creds & Personal</p>
-                            <input type="email" placeholder="Email Address" className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-sm outline-none focus:border-sky-500" value={email} onChange={e => setEmail(e.target.value)} required />
-                            <input type="password" placeholder="Create Password" className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-sm outline-none focus:border-sky-500" value={password} onChange={e => setPassword(e.target.value)} required />
+                            <input type="email" name="signup-email" autoComplete="email" placeholder="Email Address" className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-sm outline-none focus:border-sky-500" value={email} onChange={e => setEmail(e.target.value)} required />
+                            <input type="password" name="signup-password" autoComplete="new-password" placeholder="Create Password" className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-sm outline-none focus:border-sky-500" value={password} onChange={e => setPassword(e.target.value)} required />
                             <input type="text" placeholder="Full Name" className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-sm outline-none focus:border-sky-500" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} required />
                             <input type="text" placeholder="Phone (10 Digits)" maxLength={10} className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-sm outline-none focus:border-sky-500" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required />
                          </div>
