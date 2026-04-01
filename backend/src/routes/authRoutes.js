@@ -1,12 +1,13 @@
 import express from "express";
-import { register, login, getProfile, updateProfile, toggleFavorite, toggleFavoriteFood, forgotPassword, verifyOtp, resetPassword, googleLogin } from "../controllers/authController.js";
+import { register, login, googleLogin, getProfile, updateProfile, toggleFavorite, toggleFavoriteFood, forgotPassword, verifyOtp, resetPassword } from "../controllers/authController.js";
 import { authenticateUser } from "../middleware/auth.js";
 
 const router = express.Router();
 
 router.post("/register", register);
 router.post("/login", login);
-router.post("/google", googleLogin);
+router.post("/google-login", googleLogin);
+
 router.get("/profile", authenticateUser, getProfile);
 router.put("/profile", authenticateUser, updateProfile);
 router.post("/favorites/toggle", authenticateUser, toggleFavorite);

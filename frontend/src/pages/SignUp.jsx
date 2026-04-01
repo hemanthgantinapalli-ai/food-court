@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../context/authStore.js';
 import AuthLayout from '../components/AuthLayout';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -14,22 +15,7 @@ export default function SignUp() {
 
   const { signUp, googleAuth } = useAuthStore();
   
-  const handleCredentialResponse = async (credentialResponse) => {
-    try {
-        setLoading(true);
-        // Specifically force 'customer' role for Google Sign Up here
-        const loggedInUser = await googleAuth(credentialResponse.credential, 'customer');
-        setShowSuccess(true);
-        setTimeout(() => {
-            setShowSuccess(false);
-            navigate('/');
-        }, 1500);
-    } catch (err) {
-        setError(err.message || 'Google Sign Up failed');
-    } finally {
-        setLoading(false);
-    }
-  };
+
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -152,33 +138,29 @@ export default function SignUp() {
             'Create Account'
           )}
         </button>
+        <div className="relative py-4">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
+          <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-4 text-slate-400 font-bold tracking-widest">Or continue with</span></div>
+        </div>
+
+        <div className="flex justify-center">
+          <GoogleLogin
+            onSuccess={(response) => {
+              googleAuth(response.credential)
+                .then(() => navigate('/'))
+                .catch((err) => setError(err.message));
+            }}
+            onError={() => setError('Google Signup Failed')}
+            useOneTap
+            shape="pill"
+            theme="outline"
+            text="signup_with"
+            width="400"
+          />
+        </div>
       </form>
 
-      <div className="relative mt-10 mb-8">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-200" />
-        </div>
-        <div className="relative flex justify-center text-xs font-black uppercase tracking-widest">
-          <span className="bg-white px-4 text-slate-400">Or sign up with</span>
-        </div>
-      </div>
 
-      <div className="flex justify-center mb-8">
-        <div id="g_id_onload"
-          data-client_id="490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com"
-          data-context="signin"
-          data-ux_mode="popup"
-          data-auto_prompt="false">
-        </div>
-
-        <div className="g_id_signin"
-          data-type="standard"
-          data-shape="pill"
-          data-theme="outline"
-          data-text="signin_with"
-          data-size="large">
-        </div>
-      </div>
 
     </AuthLayout>
   );

@@ -2,8 +2,8 @@ import User from "../models/User.js";
 import Rider from "../models/Rider.js";
 import Restaurant from "../models/Restaurant.js";
 import { generateToken } from "../utils/jwt.js";
-import { OAuth2Client } from "google-auth-library";
 import bcrypt from "bcrypt";
+import { OAuth2Client } from "google-auth-library";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '490086107739-95l6hep5ivhaklsv6h1mri8024g2d9bg.apps.googleusercontent.com');
 
@@ -397,3 +397,5 @@ export const googleLogin = async (req, res) => {
     res.status(401).json({ success: false, message: "Invalid Google Token" });
   }
 };
+
+
