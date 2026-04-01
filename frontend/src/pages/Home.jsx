@@ -4,7 +4,8 @@ import API from '../api/axios';
 import Hero from '../components/Hero';
 import RestaurantCard from '../components/RestaurantCard';
 import { SkeletonGrid } from '../components/SkeletonCard';
-import { Flame, ChevronRight } from 'lucide-react';
+import { Flame, ChevronRight, Heart, ShoppingBag } from 'lucide-react';
+import { useCartStore } from '../store/cartStore';
 
 const CATEGORY_FILTERS = ['All', 'Pizza', 'Burgers', 'Sushi', 'Indian', 'Chinese', 'Healthy'];
 
@@ -49,6 +50,30 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  const addToCart = useCartStore(state => state.addToCart);
+
+  const favoriteFoods = [
+    {
+      _id: 'fav-burger-01',
+      name: 'Signature Smash Burger',
+      price: 349,
+      image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80',
+      description: 'Double wagyu patty with secret sauce and caramelized onions.',
+      restaurant: '65f1234567890abcdef12345' // Dummy but valid format
+    },
+    {
+      _id: 'fav-bbq-01',
+      name: 'BBQ Platter',
+      price: 599,
+      image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&q=80',
+      description: 'Slow-smoked ribs with house-made BBQ sauce and sides.',
+      restaurant: '65f1234567890abcdef12346'
+    }
+  ];
+
+  const handleQuickAdd = (food) => {
+    addToCart(food);
+  };
 
   // Advanced Filters
   const [fastDelivery, setFastDelivery] = useState(false);
@@ -185,6 +210,52 @@ const Home = () => {
   return (
     <div className="bg-white min-h-screen">
       <Hero onFilterChange={handleHeroFilter} />
+
+      {/* Your Favorites / Loved Foods Section */}
+      <section className="bg-slate-50 py-16 border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 md:px-6">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-rose-200">
+              <Heart size={20} className="fill-white" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-slate-950 tracking-tighter leading-none">Your <span className="text-rose-500">Favorites</span></h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Hand-picked loved foods by our community</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {favoriteFoods.map((food) => (
+              <div key={food._id} className="group relative bg-white rounded-[2.5rem] overflow-hidden shadow-xl border border-slate-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+                <div className="flex flex-col sm:flex-row h-full">
+                  <div className="w-full sm:w-2/5 h-48 sm:h-auto overflow-hidden">
+                    <img src={food.image} alt={food.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                  </div>
+                  <div className="flex-1 p-8 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight">{food.name}</h3>
+                        <span className="text-orange-600 font-black text-xl tracking-tighter">₹{food.price}</span>
+                      </div>
+                      <p className="text-slate-500 text-sm font-medium leading-relaxed mb-6">{food.description}</p>
+                    </div>
+                    <button
+                      onClick={() => handleQuickAdd(food)}
+                      className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-orange-600 hover:text-orange-700 transition-colors group/btn"
+                    >
+                      Go to Shop <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+                    </button>
+                  </div>
+                </div>
+                {/* Visual Accent */}
+                <div className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-rose-500 hover:text-white transition-all">
+                  <Heart size={16} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <div className="bg-slate-900 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-full bg-orange-500/10 skew-x-12 blur-3xl" />

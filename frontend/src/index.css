@@ -42,8 +42,9 @@ html.dark .bg-\[#F8F9FB\] {
 }
 
 html.dark .bg-white\/70,
-html.dark .bg-white\/80 {
-  background-color: rgba(22, 27, 34, 0.8) !important;
+html.dark .bg-white\/80,
+html.dark .bg-white\/95 {
+  background-color: rgba(22, 27, 34, 0.85) !important;
 }
 
 html.dark .border-white,
@@ -51,7 +52,8 @@ html.dark .border-slate-100 {
   @apply border-slate-700 !important;
 }
 
-html.dark .text-slate-900 {
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
   @apply text-slate-100 !important;
 }
 

@@ -94,7 +94,7 @@ export default function Header() {
     <header
       className={`sticky top-0 z-50 transition-all duration-500 px-4 md:px-6 ${isScrolled || !isHomePage
         ? 'bg-white/95 backdrop-blur-xl shadow-sm border-b border-slate-100 py-2'
-        : 'bg-transparent py-4'
+        : 'bg-slate-950/40 backdrop-blur-md border-b border-white/5 py-4'
         }`}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -106,10 +106,10 @@ export default function Header() {
               <span className="text-white font-black text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>FC</span>
             </div>
             <div className="flex flex-col">
-              <span className={`text-2xl font-black tracking-tighter leading-none ${isScrolled || !isHomePage ? 'text-slate-900' : 'text-white'}`} style={{ fontFamily: 'Outfit, sans-serif' }}>
+              <span className={`text-2xl font-black tracking-tighter leading-none ${isScrolled || !isHomePage ? 'text-slate-950' : 'text-white'}`} style={{ fontFamily: 'Outfit, sans-serif' }}>
                 Food<span className="text-orange-500"> Court</span>
               </span>
-              <span className="text-[7px] font-black uppercase tracking-[0.4em] opacity-40 -mt-0.5">Premium Fleet</span>
+              <span className={`text-[7px] font-black uppercase tracking-[0.4em] -mt-0.5 ${isScrolled || !isHomePage ? 'text-slate-400' : 'text-white/40'}`}>Premium Fleet</span>
             </div>
           </Link>
 
@@ -117,13 +117,13 @@ export default function Header() {
           <div className="relative">
             <div
               onClick={() => setShowLocationPicker(!showLocationPicker)}
-              className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer hover:bg-slate-100 transition-all group ${isScrolled || !isHomePage ? 'text-slate-600' : 'text-white/80'}`}
+              className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer hover:bg-slate-100 transition-all group ${isScrolled || !isHomePage ? 'text-slate-950' : 'text-white'}`}
             >
               <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500 transition-all">
-                <MapPin size={16} className={`${isScrolled || !isHomePage ? 'text-orange-600' : 'text-orange-400'} group-hover:text-white`} />
+                <MapPin size={16} className={`${isScrolled || !isHomePage ? 'text-orange-600 font-black' : 'text-orange-400'} group-hover:text-white`} />
               </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Deliver to</span>
+              <div className="flex flex-col text-left">
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isScrolled || !isHomePage ? 'text-slate-600' : 'text-white'}`}>Deliver to</span>
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-black truncate max-w-[120px]">{userLocation}</span>
                   <ChevronDown size={12} className={`text-orange-500 transition-transform ${showLocationPicker ? 'rotate-180' : ''}`} />
@@ -177,7 +177,7 @@ export default function Header() {
               { label: 'Admin Panel', to: '/admin' },
               { label: 'Inventory', to: '/admin/menu' },
             ].map(({ label, to }) => (
-              <Link key={label} to={to} className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>{label}</Link>
+              <Link key={label} to={to} className={`text-sm font-black transition-colors ${isScrolled || !isHomePage ? 'text-slate-900 hover:text-orange-600' : 'text-white hover:text-orange-200'}`}>{label}</Link>
             ))
           )}
           {user?.role === 'rider' && (
@@ -185,15 +185,15 @@ export default function Header() {
               { label: 'Active Tasks', to: '/rider' },
               { label: 'Earnings', to: '/rider' },
             ].map(({ label, to }) => (
-              <Link key={label} to={to} className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>{label}</Link>
+              <Link key={label} to={to} className={`text-sm font-black transition-colors ${isScrolled || !isHomePage ? 'text-slate-950 hover:text-orange-600' : 'text-white hover:text-orange-200'}`}>{label}</Link>
             ))
           )}
           {(!user || user.role === 'customer') && (
-            <Link to="/" className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>Restaurants</Link>
+            <Link to="/" className={`text-sm font-black transition-colors ${isScrolled || !isHomePage ? 'text-slate-950 hover:text-orange-600' : 'text-white hover:text-orange-200'}`}>Restaurants</Link>
           )}
 
-          <Link to="/offers" className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>Offers</Link>
-          <Link to="/track-order" className={`text-sm font-bold transition-colors ${isScrolled || !isHomePage ? 'text-slate-500 hover:text-orange-600' : 'text-white/70 hover:text-white'}`}>Track Order</Link>
+          <Link to="/offers" className={`text-sm font-black transition-colors ${isScrolled || !isHomePage ? 'text-slate-950 hover:text-orange-600' : 'text-white hover:text-orange-200'}`}>Offers</Link>
+          <Link to="/track-order" className={`text-sm font-black transition-colors ${isScrolled || !isHomePage ? 'text-slate-950 hover:text-orange-600' : 'text-white hover:text-orange-200'}`}>Track Order</Link>
         </nav>
 
 
@@ -207,8 +207,8 @@ export default function Header() {
             title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             className={`p-2.5 rounded-xl transition-all ${
               isScrolled || !isHomePage
-                ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
-                : 'text-white/70 hover:text-white'
+                ? 'text-slate-900 hover:bg-slate-100 hover:text-orange-600'
+                : 'text-white hover:bg-white/10 hover:text-orange-200'
             }`}
           >
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
@@ -219,8 +219,8 @@ export default function Header() {
             id="search-toggle-btn"
             onClick={() => setSearchOpen(!searchOpen)}
             className={`p-2.5 rounded-xl transition-all ${isScrolled || !isHomePage
-              ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
-              : 'text-white/70 hover:text-white'
+              ? 'text-slate-900 hover:bg-slate-100 hover:text-orange-600'
+              : 'text-white hover:bg-white/10 text-white'
               }`}
           >
             <Search size={20} />
@@ -232,8 +232,8 @@ export default function Header() {
               id="notifications-header-btn"
               to="/notifications"
               className={`relative p-2.5 rounded-xl transition-all ${isScrolled || !isHomePage
-                ? 'text-slate-500 hover:bg-slate-100 hover:text-orange-600'
-                : 'text-white/70 hover:text-white'
+                ? 'text-slate-900 hover:bg-slate-100 hover:text-orange-600'
+                : 'text-white hover:bg-white/10 hover:text-orange-200 text-white'
                 }`}
             >
               <Bell size={20} />
@@ -433,7 +433,7 @@ export default function Header() {
             { label: 'Offers', to: '/offers' },
             { label: 'Track Order', to: '/track-order' },
           ].map(({ label, to }) => (
-            <Link key={label} to={to} className="block font-bold text-slate-700 hover:text-orange-600 py-2 border-b border-slate-50 transition-colors">
+            <Link key={label} to={to} className="block font-black text-slate-900 hover:text-orange-600 py-3 border-b border-slate-50 transition-colors uppercase tracking-widest text-xs">
               {label}
             </Link>
           ))}

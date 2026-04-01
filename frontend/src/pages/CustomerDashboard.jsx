@@ -769,8 +769,12 @@ export default function CustomerDashboard() {
                                                                 <h4 className="font-black text-slate-900 text-base">{food.name}</h4>
                                                                 <p className="text-orange-600 font-black text-lg">₹{food.price}</p>
                                                                 <button
-                                                                    onClick={() => handleUpdateTab('overview')} // For demo, redirect back to overview or something
-                                                                    className="text-rose-500 font-black text-[10px] uppercase tracking-widest mt-2 hover:underline"
+                                                                    onClick={() => {
+                                                                        const restaurantRef = food.restaurant?._id || food.restaurant || food.restaurantId;
+                                                                        addToCart({ ...food, restaurant: restaurantRef });
+                                                                        addToast(`🛒 ${food.name} added to cart!`, 'success');
+                                                                    }} 
+                                                                    className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest mt-3 hover:bg-orange-600 transition-all shadow-lg shadow-orange-100"
                                                                 >
                                                                     Go to Shop →
                                                                 </button>

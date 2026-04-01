@@ -74,7 +74,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({ 
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false 
+}));
 app.use(compression());
 app.use(cors());
 
