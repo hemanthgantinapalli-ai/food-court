@@ -136,6 +136,16 @@ const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 initSocket(httpServer);
 
+httpServer.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`⚠️  Port ${PORT} is already in use — backend is likely already running (started from root). Exiting cleanly.`);
+    process.exit(0);
+  } else {
+    console.error('💥 Server error:', err.message);
+    process.exit(1);
+  }
+});
+
 httpServer.listen(PORT, '0.0.0.0', () =>
   console.log(`🚀 Server running on http://localhost:${PORT}`)
 );
