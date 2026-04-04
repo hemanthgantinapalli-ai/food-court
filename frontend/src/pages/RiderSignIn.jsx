@@ -111,7 +111,7 @@ export default function RiderSignIn() {
             footerText={mode === 'login' ? "Want to deliver with us?" : "Already a rider?"}
             footerAction={mode === 'login' ? "Apply Now" : "Sign In"}
             footerLink="#"
-            onFooterAction={() => {
+            onFooterClick={() => {
                 setMode(mode === 'login' ? 'signup' : 'login');
                 setError('');
             }}

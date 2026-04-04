@@ -41,9 +41,9 @@ export default function AdminSignIn() {
             theme="purple"
             title="Admin Console"
             subtitle="Access the global control tower of FoodCourt"
-            footerText="Manage the infrastructure behind every meal"
-            footerAction="Internal Access Only"
-            footerLink="/admin/signin"
+            footerText="New admin? Request access via"
+            footerAction="Admin Signup"
+            footerLink="/admin/signup"
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 {error && (
